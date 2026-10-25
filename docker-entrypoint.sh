@@ -5,9 +5,10 @@
 # nen cac file upload qua CMS sau do khong bi ghi de khi redeploy.
 set -e
 STORAGE_DIR="${STORAGE_DIR:-/app/storage}"
+SEED_DIR="${SEED_DIR:-/app/storage-seed}"
 mkdir -p "$STORAGE_DIR"
-if [ ! -f "$STORAGE_DIR/epaper/2026/10/1/cover.jpg" ] && [ -d /app/storage-seed ]; then
+if [ ! -f "$STORAGE_DIR/epaper/2026/10/1/cover.jpg" ] && [ -d "$SEED_DIR" ]; then
   echo "storage trong: copy du lieu seed 319/558 vao $STORAGE_DIR"
-  cp -r /app/storage-seed/. "$STORAGE_DIR"/
+  cp -r "$SEED_DIR"/. "$STORAGE_DIR"/
 fi
 exec "$@"
