@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đăng nhập — Báo in nội bộ</title>
+<link rel="stylesheet" href="/css/style.css"></head>
+<body>
+<header class="top"><h1>Báo in — Đăng nhập nội bộ</h1><p>Chỉ tài khoản nội bộ mới xem được danh sách và trang đọc.</p></header>
+<form id="login" class="toolbar" style="flex-direction:column;align-items:flex-start">
+  <label>Tài khoản: <input id="username" autocomplete="username"></label>
+  <label>Mật khẩu: <input id="password" type="password" autocomplete="current-password"></label>
+  <button type="submit">Đăng nhập</button>
+  <p id="msg"></p>
+</form>
+<script>
+document.getElementById("login").onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: document.getElementById("username").value, password: document.getElementById("password").value }) });
+  if (!r.ok) { document.getElementById("msg").textContent = (await r.json()).error || "Đăng nhập thất bại"; return; }
+  const { user } = await r.json();
+  location.href = user.role === "reader" ? "/bao-in" : "/admin.html";
+};
+</script>
+</body></html>

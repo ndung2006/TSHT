@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CMS Báo in — Nội bộ</title>
+<link rel="stylesheet" href="/css/style.css"></head>
+<body>
+<header class="top"><h1>CMS Báo in</h1><p id="me"></p><button id="logout">Đăng xuất</button> <a href="/bao-in">← Danh sách bạn đọc</a></header>
+
+<h2>Đăng số mới (D1)</h2>
+<form id="create" class="toolbar" style="flex-direction:column;align-items:flex-start">
+  <label>Số báo: <input name="issue_number" type="number" min="1" required></label>
+  <label>Loại số: <select name="issue_type"><option value="thuong">Thường</option><option value="vung_cao">Vùng cao</option></select></label>
+  <label>Ngày phát hành: <input name="publish_date" type="date" required></label>
+  <label>Tiêu đề: <input name="title" size="60" required></label>
+  <label>Hẹn giờ xuất bản (không bắt buộc, để trống = duyệt tay): <input name="scheduled_publish_at" type="datetime-local"></label>
+  <label>File PDF: <input name="pdf" type="file" accept="application/pdf" required></label>
+  <button type="submit">Đăng số (tạo nháp + render trang)</button>
+  <p id="create-msg"></p>
+</form>
+
+<h2>Danh sách số báo (D4)</h2>
+<div class="toolbar">
+  <label>Trạng thái: <select id="status"><option value="all">Tất cả</option><option value="draft">Nháp</option><option value="pending_review">Chờ duyệt</option><option value="published">Đã xuất bản</option><option value="unpublished">Đã gỡ</option></select></label>
+  <label>Tìm số/tiêu đề: <input id="q"></label>
+  <button id="reload">Tải lại</button>
+</div>
+<div id="issues"></div>
+
+<h2 id="users-title" style="display:none">Tài khoản (D5 — chỉ admin)</h2>
+<div id="users" style="display:none"></div>
+
+<script src="/js/admin.js"></script>
+</body></html>

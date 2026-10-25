@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Báo in — Nội bộ (prototype)</title>
+<link rel="stylesheet" href="/css/style.css"></head>
+<body>
+<header class="top"><h1>Báo in</h1><p>Danh sách kiểu Tuyên Quang: 15 số/trang, phân trang số (E1/E2). <a href="/admin.html">CMS đăng/duyệt</a></p></header>
+<div class="toolbar">
+  <label>Loại số:
+    <select id="type"><option value="">Tất cả</option><option value="thuong">Thường</option><option value="vung_cao">Vùng cao</option></select>
+  </label>
+  <label>Số báo: <input id="q" placeholder="vd 319"></label>
+  <label>Ngày: <input id="date" type="date"></label>
+  <button id="search">Tìm</button>
+</div>
+<div id="list" class="grid"></div>
+<div class="toolbar"><button id="prev">Trước</button><span id="pageinfo"></span><button id="next">Sau</button></div>
+<script src="/js/list.js"></script>
+</body></html>

@@ -1,0 +1,39 @@
+# Thu local bang Docker (khong phai cau hinh Coolify).
+# Chay: POSTGRES_PASSWORD=<mat-khau-manh> docker compose up --build
+# DB khoi tao tu db/schema-epaper-phase1.sql roi db/seed-epaper-phase1.sql
+# (PostgreSQL tu chay file trong /docker-entrypoint-initdb.d theo thu tu ten).
+# Sau khi len, van phai bootstrap tai khoan admin nhu muc 5 cua
+# HUONG-DAN-DEPLOY-COOLIFY.md, vi seed chi co hash placeholder.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: epaper_phase1
+      POSTGRES_USER: epaper_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Dat POSTGRES_PASSWORD truoc khi chay}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema-epaper-phase1.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/seed-epaper-phase1.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epaper_app -d epaper_phase1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://epaper_app:${POSTGRES_PASSWORD}@db:5432/epaper_phase1
+      PORT: 3000
+      STORAGE_DIR: /app/storage
+    volumes:
+      - epaper_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  epaper_storage:
