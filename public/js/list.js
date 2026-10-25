@@ -5,7 +5,8 @@ async function load() {
     q: document.getElementById("q").value, date: document.getElementById("date").value,
   });
   const r = await fetch("/api/v1/issues?" + qs);
-  if (r.status === 401) { location.href = "/login.html"; return; }
+  // Public reader: danh sach so da xuat ban khong can login, khong redirect ve login.
+  if (!r.ok) { document.getElementById("list").innerHTML = "<p>Không tải được danh sách số báo.</p>"; return; }
   const data = await r.json();
   document.getElementById("list").innerHTML = data.items.map((it) => `
     <div class="card"><a href="${it.url}">

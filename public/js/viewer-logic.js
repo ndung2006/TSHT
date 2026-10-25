@@ -3,7 +3,7 @@
 // testing (work-table I1), these functions cover only OUR rules.
 export const ZOOM_RATIO = 1.5; // G2/G3: one wheel step / +/- click = x1.5
 export const MIN_ZOOM = 1; // 1 = fit-to-frame ("vua khung")
-export const MAX_ZOOM = 4; // locked at both ends (G2/G3)
+export const MAX_ZOOM = 5.0625; // 1.5^4: 4 steps 1 -> 1.5 -> 2.25 -> 3.375 -> 5.0625, locked at both ends (G2/G3)
 
 export function zoomIn(z) {
   return Math.min(z * ZOOM_RATIO, MAX_ZOOM);
@@ -50,3 +50,28 @@ export function scrollAfterZoom({ scroll, cursor, oldSize, newSize, viewport }) 
   return Math.max(0, Math.min(next, Math.max(0, newSize - viewport)));
 }
 export const zoomLabel = (z) => `${Math.round(z * 100)}%`;
+
+// Read mode rendering (2026-10-25 refinement, keeps the 300 dpi desktop
+// decision for desktop, 200 dpi on mobile):
+// - base dpi: 300 desktop, 200 mobile (<700px, same threshold as portrait)
+// - total canvas pixels are capped so a large page cannot blow up memory
+//   or hit a browser canvas limit; the scale is reduced proportionally,
+//   keeping the page aspect ratio.
+export const MAX_READ_PIXELS = 16777216; // 4096 x 4096
+export const readBaseDpi = (isMobile) => (isMobile ? 200 : 300);
+export function cappedReadScale(pageWidthPt, pageHeightPt, baseDpi) {
+  const baseScale = baseDpi / 72;
+  const pixels = pageWidthPt * pageHeightPt * baseScale * baseScale;
+  if (pixels <= MAX_READ_PIXELS) return baseScale;
+  return baseScale * Math.sqrt(MAX_READ_PIXELS / pixels);
+}
+// Sharp re-render after a zoom settles: the intrinsic width needed for a
+// sharp display is fitWidth * zoom * dpr. Never render below the base
+// scale (that would only lose quality), and never above the pixel cap.
+// Returns the scale to render at; the caller skips the re-render when it
+// is not meaningfully above the scale already rendered.
+export function sharpReadScale({ pageWidthPt, pageHeightPt, fitWidth, zoom, dpr, baseScale }) {
+  const desired = (fitWidth * zoom * dpr) / pageWidthPt;
+  const capScale = Math.sqrt(MAX_READ_PIXELS / (pageWidthPt * pageHeightPt));
+  return Math.min(capScale, Math.max(baseScale, desired));
+}

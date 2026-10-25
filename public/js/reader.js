@@ -1,6 +1,7 @@
 import * as pdfjs from "/vendor/pdfjs.mjs";
 import {
   zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
+  readBaseDpi, cappedReadScale, sharpReadScale,
 } from "./viewer-logic.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
@@ -10,7 +11,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
 const res = await fetch(`/api/v1/issues/${issueId}`);
-if (res.status === 401) { location.href = "/login.html"; throw new Error("unauthorized"); }
+// Public reader: so da xuat ban khong can login; so nhap/cho duyet van 403 o server.
 if (!res.ok) { document.getElementById("title").textContent = "Không tìm thấy số báo hoặc không có quyền xem."; throw new Error("issue not found"); }
 const issue = await res.json();
 document.getElementById("title").textContent = `${issue.title} — ${issue.publish_date} (${issue.page_count} trang)`;
@@ -80,16 +81,65 @@ $("fullscreen").onclick = () =>
 
 // ---------- Read mode (G1-G5, G7, G8) ----------
 let pdfDoc = null, readPage = 1, zoom = 1;
+let renderedScale = 0, renderToken = 0, sharpTimer = null;
 const scrollEl = $("read-scroll"), canvas = $("read-canvas"), ctx = canvas.getContext("2d");
+function readBaseScale(page) {
+  const pt = page.getViewport({ scale: 1 });
+  const isMobile = window.innerWidth < 700; // same threshold as portrait mode
+  return cappedReadScale(pt.width, pt.height, readBaseDpi(isMobile));
+}
 async function renderReadPage() {
+  if (sharpTimer) { clearTimeout(sharpTimer); sharpTimer = null; }
+  const token = ++renderToken;
   if (!pdfDoc) pdfDoc = await pdfjs.getDocument(issue.pdf_url).promise;
   const page = await pdfDoc.getPage(readPage);
-  // Render once at ~300 dpi (300/72 = 4.17); wheel/button zoom then scales
-  // the rendered page, it never CSS-transforms the whole book (G8).
-  const vp = page.getViewport({ scale: 300 / 72 });
+  if (token !== renderToken) return; // page changed while loading
+  // Render once at base dpi (300 desktop / 200 mobile, pixel-capped);
+  // wheel/button zoom then CSS-scales the rendered page instantly, it
+  // never CSS-transforms the whole book (G8). A sharper re-render only
+  // happens after zoom settles (see scheduleSharpRender).
+  const scale = readBaseScale(page);
+  const vp = page.getViewport({ scale });
   canvas.width = vp.width; canvas.height = vp.height;
   await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  if (token !== renderToken) return;
+  renderedScale = scale;
   zoom = 1; applyZoom(); // G5: new page resets zoom to fit
+}
+// After zoom settles (200ms without another zoom step), re-render only if
+// the current intrinsic resolution is no longer sharp at this zoom.
+// At zoom 1-2.25 on desktop this is a no-op (300 dpi already covers it),
+// so most wheel steps stay at CSS-transform speed, no 0.5-2s re-render.
+function scheduleSharpRender() {
+  if (sharpTimer) clearTimeout(sharpTimer);
+  sharpTimer = setTimeout(async () => {
+    sharpTimer = null;
+    const token = renderToken, pageNo = readPage, zoomAtSchedule = zoom;
+    if ($("read-wrap").style.display !== "block") return;
+    try {
+      const page = await pdfDoc.getPage(pageNo);
+      if (token !== renderToken || pageNo !== readPage || zoom !== zoomAtSchedule) return;
+      const pt = page.getViewport({ scale: 1 });
+      const baseScale = readBaseScale(page);
+      const fitW = scrollEl.clientWidth - 32;
+      const target = sharpReadScale({
+        pageWidthPt: pt.width, pageHeightPt: pt.height,
+        fitWidth: fitW, zoom, dpr: window.devicePixelRatio || 1, baseScale,
+      });
+      if (target <= renderedScale * 1.05) return; // already sharp enough
+      // Preserve the reading position across the re-render.
+      const rx = scrollEl.scrollWidth ? scrollEl.scrollLeft / scrollEl.scrollWidth : 0;
+      const ry = scrollEl.scrollHeight ? scrollEl.scrollTop / scrollEl.scrollHeight : 0;
+      const vp = page.getViewport({ scale: target });
+      canvas.width = vp.width; canvas.height = vp.height;
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      if (token !== renderToken || pageNo !== readPage) return;
+      renderedScale = target;
+      applyZoom();
+      scrollEl.scrollLeft = rx * scrollEl.scrollWidth;
+      scrollEl.scrollTop = ry * scrollEl.scrollHeight;
+    } catch { /* keep the CSS-scaled page; sharpness is not fatal */ }
+  }, 200);
 }
 function applyZoom() {
   // Fit width: canvas CSS width follows the scroll container, times zoom.
@@ -107,6 +157,7 @@ function stepZoom(dir, cursorX, cursorY) {
   const my = (cursorY ?? rect.top + rect.height / 2) - rect.top;
   const oldW = canvas.offsetWidth, oldH = canvas.offsetHeight;
   zoom = next; applyZoom();
+  scheduleSharpRender();
   scrollEl.scrollLeft = scrollAfterZoom({ scroll: scrollEl.scrollLeft, cursor: mx, oldSize: oldW, newSize: canvas.offsetWidth, viewport: scrollEl.clientWidth });
   scrollEl.scrollTop = scrollAfterZoom({ scroll: scrollEl.scrollTop, cursor: my, oldSize: oldH, newSize: canvas.offsetHeight, viewport: scrollEl.clientHeight });
 }

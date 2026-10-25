@@ -97,6 +97,7 @@ async function latestJob(client, issueId) {
 }
 function canView(user, issue) {
   if (issue.status === "published") return true;
+  if (!user) return false; // public chi duoc xem so da xuat ban; nhap/cho duyet can login + quyen
   if (isAdmin(user) || user.role === "reviewer") return true;
   return user.role === "publisher" && issue.created_by === user.id; // B6: preview own drafts only
 }
@@ -133,7 +134,17 @@ const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, "http://localhost");
     const user = userFromRequest(req);
-    const needAuth = u.pathname.startsWith("/api/v1/") && !u.pathname.startsWith("/api/v1/auth/login");
+    // Public reader (bao public): chi GET list/detail/cover/pdf-web/flip/thumb
+    // moi khong can login; canView ben duoi van chi cho so da xuat ban.
+    // Moi route khac (CMS, download PDF goc, audit, jobs, users...) van can login.
+    const isPublicRead = req.method === "GET" && (
+      u.pathname === "/api/v1/issues" ||
+      /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
+      /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
+      /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
+      u.pathname === "/api/v1/auth/me"
+    );
+    const needAuth = u.pathname.startsWith("/api/v1/") && !u.pathname.startsWith("/api/v1/auth/login") && !isPublicRead;
     if (needAuth && !user) return err(res, 401, "chua dang nhap");
 
     // ---- Auth ----
@@ -286,7 +297,7 @@ const server = http.createServer(async (req, res) => {
           if (action === "cover") return serveFile(res, resolveStoragePath(issue.cover_image_path));
           if (action === "pdf") return serveFile(res, resolveStoragePath(issue.pdf_web_path || issue.pdf_original_path));
           if (action === "download") {
-            if (!user.can_download_pdf) return err(res, 403, "tai khoan khong co quyen tai PDF goc");
+            if (!user || !user.can_download_pdf) return err(res, 403, "tai khoan khong co quyen tai PDF goc");
             await audit(client, user.id, "issue", id, "download_pdf", { file: "original.pdf" });
             return serveFile(res, resolveStoragePath(issue.pdf_original_path), `bao-so-${issue.issue_number}.pdf`);
           }
@@ -340,7 +351,7 @@ async function detailOf(id, user, client) {
   try {
     const issue = await loadIssue(c, id);
     const pages = await issuePages(c, id);
-    const out = { ...toListItem(issue), can_download: !!user.can_download_pdf, pdf_url: `/api/v1/issues/${id}/pdf`, pages };
+    const out = { ...toListItem(issue), can_download: !!user?.can_download_pdf, pdf_url: `/api/v1/issues/${id}/pdf`, pages };
     if (isStaff(user)) {
       out.checklist = await checklist(c, id);
       out.processing = await latestJob(c, id);
