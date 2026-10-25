@@ -37,6 +37,10 @@ function serveFile(res, file, downloadName) {
   fs.readFile(file, (e, data) => {
     if (e) return err(res, 404, "not found");
     const h = downloadName ? { "Content-Disposition": `attachment; filename="${downloadName}"` } : {};
+    // Cache: HTML/JS/CSS phai revalidate moi lan mo, neu khong trinh duyet giu
+    // ban cu sau redeploy va HTML moi + JS/CSS cu lan nhau se vo trang doc
+    // (vi du JS cu crash khi khong tim thay nut mode-flip cua HTML moi).
+    if (!downloadName && [".html", ".js", ".mjs", ".css"].includes(path.extname(file))) h["Cache-Control"] = "no-cache, must-revalidate";
     send(res, 200, data, MIME[path.extname(file)] || "application/octet-stream", h);
   });
 }

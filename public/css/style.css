@@ -50,3 +50,4 @@ body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden
 @media(max-width:700px){.thumbs-panel{width:110px}}
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}
+.more-menu[hidden]{display:none}
