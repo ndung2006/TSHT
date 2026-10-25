@@ -21,3 +21,32 @@ header.top a{color:#fff}
 #read-scroll canvas{margin:16px auto;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.3)}
 @media(min-width:901px){#thumbs{justify-content:center}}
 .note{padding:12px 16px;background:#fff7cc;border:1px solid #e6c200;margin:16px}
+
+/* Reader kieu Tuyen Quang: khung vua man hinh, thumbnail trai, toolbar duoi noi */
+body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.reader-head.tq-head{background:#b00000;color:#fff}
+.reader-head.tq-head a{color:#fff;text-decoration:none}
+.reader-head.tq-head .share-btn{background:#1877f2;color:#fff;border:0;border-radius:4px;padding:6px 12px;cursor:pointer;margin-left:auto}
+.reader-body{flex:1;display:flex;min-height:0;background:#eee}
+.thumbs-panel{width:150px;flex-shrink:0;background:#ddd;overflow-y:auto;position:relative;padding:8px;box-sizing:border-box}
+.thumbs-panel.hidden{display:none}
+#thumbs-close{position:sticky;top:0;float:right;background:#fff;border:1px solid #ccc;border-radius:50%;width:24px;height:24px;cursor:pointer;z-index:2}
+.thumbs-panel #thumbs{display:flex;flex-direction:column;gap:8px;overflow:visible;padding:0;background:transparent}
+.thumbs-panel #thumbs img{height:auto;width:100%;cursor:pointer;border:2px solid transparent}
+.thumbs-panel #thumbs img.active{border-color:#b00000}
+.flip-area{flex:1;position:relative;min-width:0;display:flex;align-items:stretch}
+#flip-wrap{flex:1;overflow:auto;background:#eee;padding:16px;box-sizing:border-box;min-height:0}
+#flip-zoom-wrap{margin:0 auto;position:relative}
+#flip-book{transform-origin:top left;box-shadow:0 4px 24px rgba(0,0,0,.3)}
+#flip-pan-overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;cursor:grab;z-index:10}
+#flip-pan-overlay.panning{cursor:grabbing}
+.edge-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:5;background:rgba(255,255,255,.8);border:1px solid #ccc;border-radius:50%;width:40px;height:40px;font-size:24px;cursor:pointer}
+.edge-left{left:8px}.edge-right{right:8px}
+.toolbar.tq-toolbar{position:relative;justify-content:center;background:#fff;box-shadow:0 -2px 12px rgba(0,0,0,.15);border-radius:12px 12px 0 0}
+.toolbar.tq-toolbar input{width:48px}
+.more-menu{position:absolute;bottom:100%;right:8px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2);display:flex;flex-direction:column;padding:8px;gap:4px;z-index:20}
+.more-menu button,.more-menu a{text-align:left;background:#fff;border:0;cursor:pointer;padding:8px 12px;text-decoration:none;color:#222;font-size:14px}
+.more-menu button:hover,.more-menu a:hover{background:#f4f4f4}
+@media(max-width:700px){.thumbs-panel{width:110px}}
+#flip-wrap{display:block;text-align:center}
+#read-wrap{flex:1;min-height:0;overflow:auto}

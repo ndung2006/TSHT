@@ -1,27 +1,47 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Đọc báo in — Nội bộ (prototype)</title>
+<title>Đọc báo in</title>
 <link rel="stylesheet" href="/css/style.css"></head>
-<body>
-<div class="reader-head">
+<body class="reader-page">
+<div class="reader-head tq-head">
   <a href="/bao-in">← Trở lại</a>
   <b id="title">Đang tải…</b>
-  <button id="mode-flip">Chế độ Lật</button>
-  <button id="mode-read">Chế độ Đọc</button>
-  <button id="page-mode">Chế độ: 2 trang</button>
-  <button id="fullscreen">Toàn màn hình</button>
-  <a id="download" href="#" target="_blank">Tải PDF mẫu</a>
+  <button id="share" class="share-btn">f Chia sẻ</button>
 </div>
 
-<div id="flip-wrap"><div id="flip-book"></div></div>
-<div class="toolbar" id="flip-toolbar">
-  <button id="first">Về đầu</button><button id="prev">‹</button>
+<div class="reader-body" id="reader-body">
+  <aside class="thumbs-panel" id="thumbs-panel">
+    <button id="thumbs-close" title="Ẩn ảnh nhỏ">×</button>
+    <div id="thumbs"></div>
+  </aside>
+  <div class="flip-area" id="flip-area">
+    <button id="flip-prev-edge" class="edge-btn edge-left" title="Trang trước">‹</button>
+    <div id="flip-wrap"><div id="flip-zoom-wrap"><div id="flip-book"></div><div id="flip-pan-overlay"></div></div></div>
+    <button id="flip-next-edge" class="edge-btn edge-right" title="Trang sau">›</button>
+  </div>
+</div>
+
+<div class="toolbar tq-toolbar" id="flip-toolbar">
+  <button id="prev" title="Trang trước">‹</button>
   <input id="page-input" inputmode="numeric" aria-label="Số trang">
   <span id="page-label"></span>
-  <button id="next">›</button><button id="last">Về cuối</button>
+  <button id="next" title="Trang sau">›</button>
+  <button id="thumbs-toggle" title="Ảnh nhỏ">▦</button>
+  <button id="flip-zoom-out" title="Thu nhỏ">🔍−</button>
+  <span id="flip-zoom-label">100%</span>
+  <button id="flip-zoom-in" title="Phóng to">🔍+</button>
+  <button id="fullscreen" title="Toàn màn hình">⛶</button>
+  <button id="share-toolbar" title="Chia sẻ">↗</button>
+  <button id="more" title="Thêm">⋯</button>
+  <div id="more-menu" class="more-menu" hidden>
+    <button id="mode-read">Đọc nét cao</button>
+    <button id="page-mode">Chế độ: 2 trang</button>
+    <button id="first">Về đầu</button>
+    <button id="last">Về cuối</button>
+    <a id="download" href="#" target="_blank">Tải PDF gốc</a>
+  </div>
 </div>
-<div id="thumbs"></div>
 
 <div id="read-wrap">
   <div class="toolbar">
@@ -35,7 +55,7 @@
   <div id="read-scroll"><canvas id="read-canvas"></canvas></div>
   <p class="note">Chế độ Đọc: cuộn chuột lên = phóng to, xuống = thu nhỏ (mỗi nấc ×1,5, tâm theo con trỏ).
   Khi đã phóng to, bấm giữ và kéo trang để pan tới vị trí đọc — kéo lúc này không lật trang.
-  Sang trang mới, zoom reset về vừa khung.</p>
+  Sang trang mới, zoom reset về vừa khung. Chế độ Lật cũng zoom/pan như vậy: cuộn = zoom, đang zoom kéo = pan, chưa zoom kéo = lật.</p>
 </div>
 
 <script src="/vendor/page-flip.js"></script>
