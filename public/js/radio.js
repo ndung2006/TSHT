@@ -1,56 +1,110 @@
-// Phase 2: Radio player — cung co che link xoay nhu TV (tai lieu v1.0 muc 5),
-// chi khac la luong chi co am thanh (preset paudio/paudio64 o phia cap nguon).
-// Phan biet radio o day dua vao kind:"radio" do server da chuan hoa tu preset
-// (neu response co truong kind rieng thi server uu tien truong do).
-// - Cot lich ben phai: GET /api/v1/schedule?channel=<NAME>&date=... . Doi ngay
-//   chi tai lai cot lich, khong khoi dong lai player. Hang lich chi de xem,
-//   khong phat lai (chua co catch-up).
-// - Radio hien chua gan lich o vtcaio (epgId null) nen lich rong la binh thuong:
-//   cot lich hien dung "Chưa có lịch phát", khong phai thong bao loi, va
-//   canh bao vtcaio_error (neu co) van chi nam o #player-msg.
+// Phase 2 + port VTCANY TV (dung chung logic TV): Radio player — cung co
+// che link xoay nhu TV, chi khac la luong chi co am thanh (preset
+// paudio/paudio64 o phia cap nguon). Phan biet radio dua vao kind:"radio"
+// do server da chuan hoa tu preset (neu response co truong kind rieng thi
+// server uu tien truong do).
+// - Cot lich ben phai: GET /api/v1/schedule?channel=<NAME>&date=... . Doi
+//   ngay chi tai lai cot lich, khong khoi dong lai player.
+// - Radio hien chua gan lich o vtcaio (epgId null) nen lich rong la binh
+//   thuong: cot lich hien dung "Chưa có lịch phát", khong phai thong bao
+//   loi, va canh bao vtcaio_error (neu co) van chi nam o #player-msg.
+// - Khong tu tao tan so FM, khong tu tao lich hay ban ghi cho radio. Neu
+//   sau nay kenh radio co EPG/timeshift that, cung code timeline/xem lai
+//   cua TV se chay cho radio ma khong can sua them (cung the <audio>).
 (function () {
   var msg = document.getElementById("player-msg");
   var nowEl = document.getElementById("now-playing");
   var dateInput = document.getElementById("sched-date");
   var schedBox = document.getElementById("schedule");
-  var currentChannel = "";
+  var badge = document.querySelector(".live-badge");
+  var replayBar = document.getElementById("replay-bar");
+  var replayTitleEl = document.getElementById("replay-title");
+  var backLiveBtn = document.getElementById("back-live");
+  var currentChannel = "", channelSource = "", channelStreamUrl = "";
+  var liveHandle = null, replayHandle = null, replayingKey = null;
+  var lastItems = null, lastMeta = null;
   function showMsg(t) { msg.textContent = t; msg.style.display = "block"; }
+  function hideMsg() { msg.textContent = ""; msg.style.display = "none"; }
+  function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
   function fmtEpgNow(e) {
     if (!e || !e.title) return "";
     var s = e.startTime ? e.startTime.slice(11, 16) : "", en = e.endTime ? e.endTime.slice(11, 16) : "";
     return "Đang phát: " + e.title + (s && en ? " (" + s + "–" + en + ")" : "");
   }
-  function saigonToday() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()); }
-  function saigonNowHHMM() {
-    return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  function saigonToday() { return window.LiveEpg.saigonToday(); }
+  function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } }
+  function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; }
+  function setLiveUi() {
+    if (badge) badge.textContent = "● TRỰC TIẾP";
+    if (replayBar) replayBar.style.display = "none";
   }
-  function esc(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function renderLastSchedule() {
+    if (!lastItems) return;
+    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát" });
+    if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
+  }
+  function startLive() {
+    stopReplayOnly();
+    setLiveUi();
+    hideMsg();
+    var audio = document.getElementById("player");
+    if (channelSource === "vtcaio") {
+      liveHandle = window.playVtcanyLive(audio, currentChannel, showMsg, function () {
+        liveHandle = window.playRotating(audio, currentChannel, showMsg);
+      });
+    } else {
+      liveHandle = window.playDirect(audio, channelStreamUrl, showMsg);
+    }
+  }
+  function backToLive() { stopReplayOnly(); renderLastSchedule(); startLive(); }
+  function onReplay(item) {
+    if (!item.replay_url) return;
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 45000) : null;
+    fetch(item.replay_url, ctrl ? { signal: ctrl.signal } : {})
+      .then(function (r) {
+        if (timer) clearTimeout(timer);
+        if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
+        stopLive();
+        replayingKey = window.LiveEpg.replayKey(item);
+        if (badge) badge.textContent = "ĐANG XEM LẠI";
+        if (replayTitleEl) replayTitleEl.textContent = item.title;
+        if (replayBar) replayBar.style.display = "block";
+        hideMsg();
+        var audio = document.getElementById("player");
+        replayHandle = window.playTimeshift(audio, item.replay_url, showMsg);
+        renderLastSchedule();
+      })
+      .catch(function (e) {
+        if (timer) clearTimeout(timer);
+        var why = (e && e.name === "AbortError") ? "quá thời gian chờ" : (e && e.message ? e.message : "lỗi mạng");
+        showMsg("Không xem lại được (" + why + "). Đang tiếp tục phát trực tiếp.");
+      });
+  }
+  if (backLiveBtn) backLiveBtn.addEventListener("click", backToLive);
   function loadSchedule() {
     if (!schedBox) return;
     if (!currentChannel) { schedBox.innerHTML = "<p class='sched-empty'>Chưa có lịch phát</p>"; return; }
     var date = dateInput.value || saigonToday();
-    fetch("/api/v1/schedule?date=" + encodeURIComponent(date) + "&channel=" + encodeURIComponent(currentChannel))
-      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
+    fetch("/api/v1/schedule?date=" + encodeURIComponent(date) + "&channel=" + encodeURIComponent(currentChannel), ctrl ? { signal: ctrl.signal } : {})
+      .then(function (r) { if (timer) clearTimeout(timer); return r.json().then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (res) {
         var d = res.data;
         if (res.status !== 200) { schedBox.innerHTML = "<p class='sched-empty'>Không tải được lịch phát sóng (" + esc(d.error || res.status) + ").</p>"; return; }
-        // Lich rong (ke ca khi server kem epg_note do vtcaio tra 404 vi kenh
-        // radio chua gan lich): hien dung cum nay, khong them note hay canh bao.
-        if (!d.items || !d.items.length) { schedBox.innerHTML = "<p class='sched-empty'>Chưa có lịch phát</p>"; return; }
-        var today = saigonToday(), now = saigonNowHHMM();
-        var rows = d.items.map(function (p) {
-          var isNow = (date === today && p.start_time <= now && now < p.end_time);
-          return "<div class='sched-row" + (isNow ? " is-now" : "") + "'><span class='sched-time'>" + esc(p.start_time) + "</span><span class='sched-title'>" + esc(p.title) + (isNow ? "<span class='sched-badge'>TRỰC TIẾP</span>" : "") + "</span></div>";
-        }).join("");
-        schedBox.innerHTML = rows;
-        if (date === today) {
-          var cur = d.items.filter(function (p) { return p.start_time <= now && now < p.end_time; })[0];
-          if (cur && nowEl) nowEl.textContent = "Đang phát: " + cur.title + " (" + cur.start_time + "–" + cur.end_time + ")";
-          var currentRow = schedBox.querySelector(".sched-row.is-now");
-          if (currentRow) schedBox.scrollTop = Math.max(0, currentRow.offsetTop - 60);
-        }
+        if (d.fallback_warning) showMsg(d.fallback_warning);
+        lastItems = d.items || [];
+        lastMeta = { date: date, timeshift_available: d.timeshift_available, timeshift_unknown: d.timeshift_unknown };
+        renderLastSchedule();
       })
-      .catch(function () { schedBox.innerHTML = "<p class='sched-empty'>Không tải được lịch phát sóng. Vui lòng tải lại trang.</p>"; });
+      .catch(function (e) {
+        if (timer) clearTimeout(timer);
+        var why = (e && e.name === "AbortError") ? "quá thời gian chờ (15 giây)" : "lỗi mạng";
+        schedBox.innerHTML = "<p class='sched-empty'>Không tải được lịch phát sóng (" + why + ").</p><p><button type='button' id='sched-retry'>Tải lại lịch</button></p>";
+        var btn = document.getElementById("sched-retry");
+        if (btn) btn.addEventListener("click", loadSchedule);
+      });
   }
   if (dateInput) {
     dateInput.value = saigonToday();
@@ -65,10 +119,12 @@
     document.getElementById("channel-desc").textContent = ch.description || "";
     if (nowEl && ch.epgNow) nowEl.textContent = fmtEpgNow(ch.epgNow);
     currentChannel = ch.name;
+    channelSource = d.source || "";
+    channelStreamUrl = ch.stream_url || "";
+    startLive();
+    // Nut phat/tam dung lon tren poster dieu khien cung the <audio> nay
+    // (van dung ca khi dang xem lai, vi cung mot the audio).
     var audio = document.getElementById("player");
-    if (d.source === "vtcaio") window.playRotating(audio, ch.name, showMsg);
-    else window.playDirect(audio, ch.stream_url, showMsg);
-    // Nut phat/tam dung lon tren poster dieu khien cung the <audio> nay.
     var btn = document.getElementById("radio-play");
     if (btn) {
       btn.onclick = function () {

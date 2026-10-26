@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Truyền hình trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261026-3">
-<link rel="stylesheet" href="/css/live.css?v=20261026-5"></head>
+<link rel="stylesheet" href="/css/live.css?v=20261026-6"></head>
 <body>
 <header class="top"><h1>Truyền hình trực tuyến</h1><p><a href="/bao-in">Báo in</a> · <a href="/truyen-hinh">Truyền hình</a> · <a href="/phat-thanh">Phát thanh</a> · <a href="/lich-phat-song">Lịch phát sóng</a> · <a href="/admin.html">CMS</a></p></header>
 <section class="live-section">
@@ -24,6 +24,7 @@
       </div>
       <div id="player-wrap"></div>
       <p id="now-playing" class="live-now"></p>
+      <p id="replay-bar" class="replay-bar" style="display:none">Đang xem lại: <span id="replay-title"></span> <button type="button" id="back-live">Về live</button></p>
       <p id="player-msg" class="note" style="display:none"></p>
     </div>
     <div class="sched-col">
@@ -32,6 +33,7 @@
   </div>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-<script src="/js/stream-player.js?v=20261026-4"></script>
-<script src="/js/tv.js?v=20261026-5"></script>
+<script src="/js/stream-player.js?v=20261026-6"></script>
+<script src="/js/live-epg.js?v=20261026-6"></script>
+<script src="/js/tv.js?v=20261026-6"></script>
 </body></html>

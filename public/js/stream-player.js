@@ -91,6 +91,74 @@
     return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); } };
   };
 
+  // playVtcanyLive(mediaEl, channelName, showMsg, onFallback)
+  // Port VTCANY (web truyen-hinh: link xoay lay tu EPG endpoint, xin lai
+  // truoc khi het han): lay link scan-only tu /api/v1/live tren server TSHT
+  // (server moi goi backend VTCANY, browser khong bao gio thay key/JWT).
+  // Neu live endpoint khong co link (backend chua san / kenh chua co link
+  // xoay), goi onFallback() mot lan de trang dung luong cu (stream-token
+  // truc tiep AIO hoac direct) thay vi dung hinh. Timer refresh giong
+  // playRotating: xin moi truoc exp 30 phut (phut 210 cua TTL 240), loi
+  // fatal/403 thi xin moi ngay lap tuc, toi da 3 lan lien tiep.
+  global.playVtcanyLive = function (mediaEl, channelName, showMsg, onFallback) {
+    var engine = null, timer = null, stopped = false, immediateTries = 0, fallbackCalled = false;
+    function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+    function scheduleRefresh(exp) {
+      clearTimer();
+      if (stopped) return;
+      var delay = exp ? exp - Date.now() - 30 * 60 * 1000 : 210 * 60 * 1000;
+      if (delay < 60 * 1000) delay = 60 * 1000;
+      timer = setTimeout(function () { refresh(false); }, delay);
+    }
+    function loadUrl(url, exp) {
+      if (!engine) {
+        engine = attachHls(mediaEl, url, function (code) { if (code === 403 || code === null) refresh(true); });
+        if (!engine) { showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất."); return; }
+      } else engine.swap(url);
+      scheduleRefresh(exp);
+    }
+    function refresh(immediate) {
+      if (stopped) return;
+      if (immediate) {
+        immediateTries += 1;
+        if (immediateTries > 3) { showMsg("Luồng phát đã hết hạn và xin lại không thành công. Vui lòng tải lại trang."); return; }
+      } else immediateTries = 0;
+      fetch("/api/v1/live?channel=" + encodeURIComponent(channelName))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (stopped) return;
+          if (!d.ok || !d.url) {
+            if (!fallbackCalled && typeof onFallback === "function") { fallbackCalled = true; onFallback(); }
+            else if (!engine) showMsg("Không xin được link phát trực tiếp. Vui lòng tải lại trang.");
+            return;
+          }
+          immediateTries = 0;
+          loadUrl(d.url, d.exp || null);
+          mediaEl.play().catch(function () {});
+        })
+        .catch(function () {
+          if (!fallbackCalled && typeof onFallback === "function") { fallbackCalled = true; onFallback(); }
+          else if (!engine) showMsg("Mất kết nối khi xin link phát trực tiếp. Vui lòng tải lại trang.");
+        });
+    }
+    refresh(false);
+    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); } };
+  };
+
+  // playTimeshift(mediaEl, url, showMsg): phat playlist VOD xem lai.
+  // Khac live o 2 diem: khong co timer xin moi (VOD co ENDLIST, link
+  // khong xoay theo TTL) va khong tu xin lai khi loi — loi phat VOD thi
+  // bao ro, de trang hien "khoang gio nay khong co ban ghi" thay vi quay
+  // vong. Player van cho tua (seek) vi playlist VOD, con live thi khong
+  // tua ve qua khu (live playlist khong co ENDLIST, seek bi gioi han boi
+  // trinh duyet/hls.js).
+  global.playTimeshift = function (mediaEl, url, showMsg) {
+    var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được bản ghi xem lại. Có thể khoảng giờ này không có bản ghi."); });
+    if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");
+    else mediaEl.play().catch(function () {});
+    return { stop: function () { if (engine) engine.destroy(); } };
+  };
+
   // playDirect: phat thang stream_url cua DB noi bo (khong xoay).
   global.playDirect = function (mediaEl, url, showMsg) {
     var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được luồng. Vui lòng thử lại sau hoặc xem lịch phát sóng."); });

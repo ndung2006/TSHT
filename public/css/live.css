@@ -124,11 +124,12 @@
 .sched-empty { padding: 14px; color: rgba(255, 255, 255, 0.85); }
 .sched-row {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 62px 1fr auto;
   gap: 10px;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   cursor: default;
+  align-items: center;
 }
 .sched-row.is-now { background: rgba(255, 255, 255, 0.14); }
 .sched-time { color: rgba(255, 255, 255, 0.9); font-variant-numeric: tabular-nums; }
@@ -144,6 +145,45 @@
   margin-left: 6px;
   vertical-align: middle;
 }
+/* Port VTCANY timeshift UI: replay button / replaying row / no-record
+   note inside the schedule column, plus the "Ve live" bar under player.
+   Layout frame (grid, player size, column width) is unchanged. */
+.sched-row.is-replaying { background: rgba(217, 119, 6, 0.25); }
+.sched-action { white-space: nowrap; }
+.sched-replay-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.sched-replay-btn:hover { background: rgba(255, 255, 255, 0.28); }
+.sched-replaying {
+  display: inline-block;
+  background: #b45309;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.sched-norecord { color: rgba(255, 255, 255, 0.6); font-size: 12px; }
+.replay-bar { margin: 10px 0 0; font-weight: 700; }
+.replay-bar button {
+  background: #d61f2f;
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 12px;
+  margin-left: 8px;
+  cursor: pointer;
+}
+.replay-bar button:hover { background: #b81a28; }
 @media (max-width: 800px) {
   .live-grid { grid-template-columns: 1fr; }
   .sched-list { max-height: 420px; }

@@ -15,7 +15,9 @@ import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
 import { hashPassword, verifyPassword, createSession, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
 import { pdfPageCount, renderIssuePages } from "./lib/worker.mjs";
-import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured } from "./lib/vtcaio.mjs";
+import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
+import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, computeEpgStatus } from "./lib/vtcany.mjs";
+import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
@@ -173,8 +175,54 @@ function channelRow(r) {
   return { id: r.id, slug: r.slug, name: r.name, kind: r.kind, status: r.is_active ? "RUNNING" : "STOPPED", live: null, epgNow: null, stream_url: r.stream_url, stream_kind: r.stream_kind, presets: [], epg_schedule: null, description: r.description, is_active: r.is_active, sort_order: r.sort_order };
 }
 function programRow(r) {
-  return { id: r.id, channel_slug: r.channel_slug, channel_name: r.channel_name || null, program_date: r.program_date instanceof Date ? r.program_date.toISOString().slice(0, 10) : r.program_date, start_time: String(r.start_time).slice(0, 5), end_time: String(r.end_time).slice(0, 5), title: r.title, description: r.description, replay_url: r.replay_url };
+  const date = r.program_date instanceof Date ? r.program_date.toISOString().slice(0, 10) : r.program_date;
+  const start_time = String(r.start_time).slice(0, 5), end_time = String(r.end_time).slice(0, 5);
+  // Status for internal (CMS) programs, same LIVE/UPCOMING/REPLAY rule as
+  // VTCANY: compare the Saigon date+time bounds against now.
+  let status = "LIVE";
+  try {
+    const s = new Date(`${date}T${start_time}:00+07:00`).getTime();
+    const e = new Date(`${date}T${end_time}:00+07:00`).getTime();
+    const now = Date.now();
+    status = Number.isFinite(s) && s > now ? "UPCOMING" : Number.isFinite(e) && e < now ? "REPLAY" : "LIVE";
+  } catch { /* keep LIVE */ }
+  return { id: r.id, channel_slug: r.channel_slug, channel_name: r.channel_name || null, program_date: date, start_time, end_time, title: r.title, description: r.description, replay_url: r.replay_url, status, replay_available: Boolean(r.replay_url) };
 }
+
+// Enrich direct-AIO schedule items with timeline status + timeshift
+// availability from AIO coverage (cached 60s in lib/vtcaio.mjs). A program
+// is replayable only when its channel has coverage AND its start is not
+// older than oldestAvailable AND it has already ended. When coverage
+// cannot be fetched, replay_available stays false and timeshift_unknown
+// is true, so the frontend shows no "no recording" claim it cannot back.
+async function enrichDirectAioItems(items, channelName) {
+  const cov = await getAioTimeshiftCoverage();
+  const coverage = cov.ok ? cov.coverage : null;
+  const now = Date.now();
+  const out = (items || []).map((p) => {
+    const status = computeEpgStatus(p.startTime || null, p.endTime || null, now);
+    let replay_available = false;
+    if (status === "REPLAY" && coverage) {
+      // normalizeProgram does not carry the channel name on the item, so
+      // the caller supplies the resolved channel name for coverage lookup.
+      const entry = channelName ? findAioCoverageEntry(coverage, channelName) : null;
+      const oldest = entry ? new Date(entry.oldestAvailable).getTime() : NaN;
+      const s = p.startTime ? new Date(p.startTime).getTime() : NaN;
+      replay_available = Boolean(entry) && (!Number.isFinite(oldest) || (Number.isFinite(s) && s >= oldest));
+    }
+    return {
+      ...p,
+      status,
+      replay_available,
+      replay_url: replay_available && p.startTime && p.endTime
+        ? `/api/v1/timeshift?channel=${encodeURIComponent(channelName || "")}&start=${encodeURIComponent(p.startTime)}&end=${encodeURIComponent(p.endTime)}`
+        : "",
+    };
+  });
+  return { items: out, timeshift_available: out.some((p) => p.replay_available), timeshift_unknown: coverage === null };
+}
+
+const NO_RECORDING_MSG = "khoảng giờ này không có bản ghi";
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -186,6 +234,9 @@ const server = http.createServer(async (req, res) => {
     const isPublicRead = (req.method === "GET" && (
       u.pathname === "/api/v1/channels" ||
       u.pathname === "/api/v1/schedule" ||
+      u.pathname === "/api/v1/live" ||
+      u.pathname === "/api/v1/timeshift" ||
+      u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v1/issues" ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
@@ -304,6 +355,78 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { channel: t.channel, url: t.url, exp: t.exp });
     }
 
+    // ---- Port VTCANY TV: live link, timeshift, coverage (public) ----
+    // Live: TSHT tries the VTCANY backend EPG endpoint first (scan-only
+    // rotating master link + exp, no JWT needed for the public 24-hex
+    // route). ok:false is NOT an error: the frontend then falls back to
+    // the existing stream-token (direct AIO mint) / direct flow.
+    if (req.method === "GET" && u.pathname === "/api/v1/live") {
+      const channel = String(u.searchParams.get("channel") || "").trim().toUpperCase();
+      if (!channel || !/^[A-Z0-9_-]+$/.test(channel)) return err(res, 400, "channel khong hop le (ten kenh viet hoa, khong dau)");
+      if (vtcanyConfigured()) {
+        const epg = await fetchVtcanyEpg(channel, saigonToday());
+        if (epg.ok && epg.channel.hls_url) {
+          return json(res, 200, { ok: true, source: "vtcany", channel, public_id: epg.public_id, url: epg.channel.hls_url, exp: epg.channel.hls_exp || null });
+        }
+      }
+      return json(res, 200, { ok: false, source: "fallback", channel });
+    }
+
+    // Timeshift proxy: VTCANY backend first (it stitches <=6h chunks
+    // server-side), direct-AIO fallback second (TSHT stitches here).
+    // The browser only ever sees this TSHT URL; segment URLs inside the
+    // playlist are absolutised server-side by whichever backend served it.
+    if (req.method === "GET" && u.pathname === "/api/v1/timeshift") {
+      const channel = String(u.searchParams.get("channel") || "").trim().toUpperCase();
+      const startIso = u.searchParams.get("start") || "", endIso = u.searchParams.get("end") || "";
+      if (!channel || !/^[A-Z0-9_-]+$/.test(channel)) return err(res, 400, "channel khong hop le (ten kenh viet hoa, khong dau)");
+      const start = new Date(startIso).getTime(), end = new Date(endIso).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return err(res, 400, "khoang thoi gian khong hop le");
+      const now = Date.now(), endClamped = Math.min(end, now);
+      if (start >= endClamped) return err(res, 400, "khoang gio nay chua co ban ghi (thoi diem trong tuong lai)");
+      if (vtcanyConfigured()) {
+        const v = await fetchVtcanyTimeshift(channel, new Date(start).toISOString(), new Date(endClamped).toISOString());
+        if (v.ok) return send(res, 200, v.playlist, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
+      }
+      if (!vtcaioConfigured()) return err(res, 404, NO_RECORDING_MSG);
+      const cov = await getAioTimeshiftCoverage();
+      const entry = cov.ok ? findAioCoverageEntry(cov.coverage, channel) : null;
+      if (entry) {
+        const oldest = new Date(entry.oldestAvailable).getTime();
+        if (Number.isFinite(oldest) && start < oldest) return err(res, 400, `${NO_RECORDING_MSG} (kenh ${channel} chi co du lieu xem lai tu ${entry.oldestAvailable})`);
+      }
+      const src = entry && entry.kinds.includes("after") ? "after" : undefined;
+      try {
+        const chunks = [];
+        for (let s = start; s < endClamped; s += TIMESHIFT_MAX_MS) {
+          const e = Math.min(s + TIMESHIFT_MAX_MS, endClamped);
+          const pl = await fetchAioTimeshiftPlaylist(channel, new Date(s).toISOString(), new Date(e).toISOString(), src);
+          if (!pl.ok) {
+            if (pl.status === 404 || pl.reason === "http_404") return err(res, 404, NO_RECORDING_MSG);
+            return err(res, 502, "khong lay duoc ban ghi xem lai");
+          }
+          chunks.push({ playlist: pl.playlist, baseUrl: process.env.VTCAIO_API_BASE || "https://luuchieu1.vtcplay.vn" });
+        }
+        const stitched = stitchTimeshiftPlaylists(chunks);
+        return send(res, 200, stitched, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
+      } catch (e) {
+        if (e && e.status === 404) return err(res, 404, NO_RECORDING_MSG);
+        return err(res, 502, "khong lay duoc ban ghi xem lai");
+      }
+    }
+
+    // Coverage (direct AIO only — the VTCANY backend exposes no public
+    // coverage endpoint). available:null means "unknown", not "no".
+    if (req.method === "GET" && u.pathname === "/api/v1/timeshift-coverage") {
+      const channel = String(u.searchParams.get("channel") || "").trim().toUpperCase();
+      if (!channel) return err(res, 400, "channel khong hop le");
+      if (!vtcaioConfigured()) return json(res, 200, { channel, available: null, source: "aio", reason: "not_configured" });
+      const cov = await getAioTimeshiftCoverage();
+      if (!cov.ok) return json(res, 200, { channel, available: null, source: "aio", reason: cov.reason || "fetch_failed" });
+      const entry = findAioCoverageEntry(cov.coverage, channel);
+      return json(res, 200, { channel, available: Boolean(entry), oldestAvailable: entry ? entry.oldestAvailable : null, kinds: entry ? entry.kinds : [], source: "aio" });
+    }
+
     // ---- Phase 2: Schedule (public list, admin write) ----
     if (u.pathname === "/api/v1/schedule") {
       if (req.method === "GET") {
@@ -313,13 +436,39 @@ const server = http.createServer(async (req, res) => {
         // channel o day la TEN KENH vtcaio (vd PHUTHO) hoac "tv"/"radio"/rong
         // (chon kenh RUNNING dau tien cua loai do). Khong gioi han tv|radio
         // nua vi so kenh vtcaio co the nhieu hon 2.
-        // Nguon chinh: vtcaio EPG (neu da cau hinh); loi/thieu cau hinh -> DB noi bo.
+        // Thu tu nguon lich (port VTCANY): 1) backend VTCANY (EPG timeline
+        // + replay_url that), 2) vtcaio truc tiep (EPG + coverage), 3) DB
+        // noi bo. VTCANY tra timeline rong thi roi xuong nguon 2/3 thay vi
+        // tra rong ngay, vi kenh co the chua co EPG trong VTCANY nhung co
+        // tren AIO. Chi khi VTCANY loi fetch moi kem canh bao fallback.
+        let vtcanyFailed = false;
+        if (vtcanyConfigured()) {
+          const resolvedV = await resolveVtcanyChannelName(channel);
+          if (resolvedV.ok) {
+            const epgV = await fetchVtcanyEpg(resolvedV.channel.name, date);
+            if (epgV.ok) {
+              const itemsV = mapVtcanyTimeline(epgV.timeline, resolvedV.channel.name);
+              if (itemsV.length) {
+                return json(res, 200, { date, channel: resolvedV.channel.name, channel_kind: resolvedV.channel.kind, items: itemsV, source: "vtcany", epg_source: epgV.epg_source, timeshift_available: itemsV.some((p) => p.replay_available), timeshift_unknown: false, epg_note: null, fallback_warning: null });
+              }
+            } else if (epgV.reason !== "not_configured") {
+              vtcanyFailed = true;
+            }
+          } else if (resolvedV.reason !== "not_configured" && resolvedV.reason !== "channel_not_found") {
+            vtcanyFailed = true;
+          }
+        }
+        const fallbackWarning = vtcanyFailed ? "Backend VTCANY hiện không truy cập được, đang dùng nguồn trực tiếp / lịch dự phòng." : null;
+        // Nguon 2: vtcaio EPG (neu da cau hinh); loi/thieu cau hinh -> DB noi bo.
         if (vtcaioConfigured()) {
           const resolved = await resolveVtcaioChannelName(channel);
           if (resolved.ok) {
             const ext = await fetchVtcaioSchedule(date, resolved.channel.name);
-            if (ext.ok) return json(res, 200, { date, channel: resolved.channel.name, channel_kind: resolved.channel.kind, items: ext.items, source: "vtcaio", epg_note: ext.note || null });
-            const out0 = { date, channel: resolved.channel.name, items: [], source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${ext.reason}), đang dùng lịch dự phòng trong CMS.` };
+            if (ext.ok) {
+              const enriched = await enrichDirectAioItems(ext.items, resolved.channel.name);
+              return json(res, 200, { date, channel: resolved.channel.name, channel_kind: resolved.channel.kind, items: enriched.items, source: "vtcaio", epg_note: ext.note || null, timeshift_available: enriched.timeshift_available, timeshift_unknown: enriched.timeshift_unknown, fallback_warning: fallbackWarning });
+            }
+            const out0 = { date, channel: resolved.channel.name, items: [], source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${ext.reason}), đang dùng lịch dự phòng trong CMS.`, fallback_warning: fallbackWarning, timeshift_available: false, timeshift_unknown: false };
             const r0 = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE p.program_date=$1 AND p.channel_slug=$2 ORDER BY p.start_time, p.id`, [date, resolved.channel.slug]);
             out0.items = r0.rows.map(programRow);
             return json(res, 200, out0);
@@ -327,7 +476,7 @@ const server = http.createServer(async (req, res) => {
           if (resolved.reason === "channel_not_found") return err(res, 404, "kenh khong ton tai trong danh muc vtcaio");
           // no_running_channel / fetch loi: roi ve DB noi bo kem canh bao.
           const rF = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE p.program_date=$1 ORDER BY p.start_time, p.id`, [date]);
-          return json(res, 200, { date, channel: channel || null, items: rF.rows.map(programRow), source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${resolved.reason}), đang dùng lịch dự phòng trong CMS.` });
+          return json(res, 200, { date, channel: channel || null, items: rF.rows.map(programRow), source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${resolved.reason}), đang dùng lịch dự phòng trong CMS.`, fallback_warning: fallbackWarning, timeshift_available: rF.rows.some((r) => r.replay_url), timeshift_unknown: false });
         }
         const args = [date], conds = ["p.program_date=$1"];
         if (channel) {
@@ -335,7 +484,7 @@ const server = http.createServer(async (req, res) => {
           else { args.push(channel.toLowerCase()); conds.push(`p.channel_slug=$${args.length}`); }
         }
         const r = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE ${conds.join(" AND ")} ORDER BY p.start_time, p.id`, args);
-        const out = { date, channel: channel || null, items: r.rows.map(programRow), source: "internal" };
+        const out = { date, channel: channel || null, items: r.rows.map(programRow), source: "internal", fallback_warning: fallbackWarning, timeshift_available: r.rows.some((x) => x.replay_url), timeshift_unknown: false };
         return json(res, 200, out);
       }
       if (req.method === "POST") {
