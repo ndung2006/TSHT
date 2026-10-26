@@ -1,9 +1,9 @@
-import * as pdfjs from "/vendor/pdfjs.mjs";
+import * as pdfjs from "/vendor/pdfjs.mjs?v=20261026-2";
 import {
   zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
   fitBookWidth, singlePageShift, pdfZoomScale,
   readBaseDpi, cappedReadScale, sharpReadScale,
-} from "./viewer-logic.js";
+} from "./viewer-logic.js?v=20261026-2";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
