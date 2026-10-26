@@ -2,19 +2,41 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Phát thanh trực tuyến</title>
-<link rel="stylesheet" href="/css/style.css?v=20261026-3"></head>
+<link rel="stylesheet" href="/css/style.css?v=20261026-3">
+<link rel="stylesheet" href="/css/live.css?v=20261026-5"></head>
 <body>
 <header class="top"><h1>Phát thanh trực tuyến</h1><p><a href="/bao-in">Báo in</a> · <a href="/truyen-hinh">Truyền hình</a> · <a href="/phat-thanh">Phát thanh</a> · <a href="/lich-phat-song">Lịch phát sóng</a> · <a href="/admin.html">CMS</a></p></header>
-<div class="toolbar" style="flex-direction:column;align-items:stretch">
-  <h2 id="channel-name">Đang tải kênh…</h2>
-  <p id="channel-desc"></p>
-  <p id="now-playing"></p>
-  <audio id="player" controls style="width:100%;max-width:900px"></audio>
-  <div id="player-wrap"></div>
-  <p id="player-msg" class="note" style="display:none"></p>
-  <p><a href="/lich-phat-song">Xem lịch phát sóng</a></p>
-</div>
+<section class="live-section">
+  <div class="live-head">
+    <h2 class="live-title">PHÁT THANH TRỰC TUYẾN</h2>
+    <div class="live-head-actions">
+      <a class="sched-btn" href="/lich-phat-song">LỊCH PHÁT SÓNG</a>
+      <input type="date" id="sched-date" aria-label="Chọn ngày xem lịch">
+    </div>
+  </div>
+  <h3 id="channel-name" class="live-channel">Đang tải kênh…</h3>
+  <p id="channel-desc" class="live-desc"></p>
+  <div class="live-grid">
+    <div class="live-player-col">
+      <div class="live-player-wrap radio-poster">
+        <span class="live-badge">● TRỰC TIẾP</span>
+        <button id="radio-play" class="radio-play-btn" type="button" aria-label="Phát / Tạm dừng">▶</button>
+        <div>
+          <div class="radio-poster-kicker">PHÁT THANH TRỰC TUYẾN</div>
+          <div class="radio-poster-name">Báo và Phát thanh, Truyền hình Tuyên Quang</div>
+        </div>
+      </div>
+      <audio id="player" controls></audio>
+      <div id="player-wrap"></div>
+      <p id="now-playing" class="live-now"></p>
+      <p id="player-msg" class="note" style="display:none"></p>
+    </div>
+    <div class="sched-col">
+      <div id="schedule" class="sched-list"><p class="sched-empty">Đang tải lịch…</p></div>
+    </div>
+  </div>
+</section>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-4"></script>
-<script src="/js/radio.js?v=20261026-4"></script>
+<script src="/js/radio.js?v=20261026-5"></script>
 </body></html>
