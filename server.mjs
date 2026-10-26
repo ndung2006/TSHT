@@ -13,7 +13,8 @@ import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
-import { hashPassword, verifyPassword, createSession, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
+import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
+import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, hasVtcanyPermission, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { pdfPageCount, renderIssuePages } from "./lib/worker.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, computeEpgStatus } from "./lib/vtcany.mjs";
@@ -227,7 +228,14 @@ const NO_RECORDING_MSG = "khoảng giờ này không có bản ghi";
 const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, "http://localhost");
-    const user = userFromRequest(req);
+    let user = userFromRequest(req);
+    // Cutover switch, enforced on EVERY route (not just CMS writes):
+    // when VTCANY auth is off, a session created by VTCANY login is
+    // rejected immediately instead of lingering until its 8h expiry.
+    // This makes rollback (VTCANY_AUTH_ENABLED=0 + redeploy) immediate
+    // and complete: no VTCANY session, old or new, is accepted while
+    // the flag is off, including for draft preview via public routes.
+    if (user && user.auth_source === "vtcany" && !vtcanyAuthEnabled()) { destroySession(req); user = null; }
     // Public reader (bao public): chi GET list/detail/cover/pdf-web/flip/thumb
     // moi khong can login; canView ben duoi van chi cho so da xuat ban.
     // Moi route khac (CMS, download PDF goc, audit, jobs, users...) van can login.
@@ -248,10 +256,86 @@ const server = http.createServer(async (req, res) => {
     // va server tu kiem tra kenh RUNNING truoc khi cap.
     const needAuth = u.pathname.startsWith("/api/v1/") && !u.pathname.startsWith("/api/v1/auth/login") && !isPublicRead;
     if (needAuth && !user) return err(res, 401, "chua dang nhap");
+    // ---- VTCANY session verification (only for CMS API calls) ----
+    // Runs on every needAuth route when the session came from VTCANY,
+    // with a 5-minute cache inside verifyVtcanySession(). Public reads
+    // are NOT verified here (they must keep working when the backend
+    // is down); /api/v1/auth/me returns local session info only.
+    // Deny paths, never grant: reauth -> 401 + session destroyed;
+    // backend_unreachable -> 503, session kept for retry; forbidden
+    // (permissions revoked) -> 403, session kept so a re-grant works.
+    // Per-action VTCANY permission checks below (vtcanyDeny) run AFTER
+    // this, on top of the existing TSHT role checks — never instead.
+    if (needAuth && user && user.auth_source === "vtcany") {
+      const entry = sessionEntryFromRequest(req);
+      if (!entry) return err(res, 401, "phien VTCANY da het han, vui long dang nhap lai");
+      const v = await verifyVtcanySession(entry);
+      if (!v.ok && v.reason === "reauth") { destroySession(req); return err(res, 401, "phien VTCANY da het han, vui long dang nhap lai"); }
+      if (!v.ok && v.reason === "backend_unreachable") return err(res, 503, "backend VTCANY khong truy cap duoc, khong the xac minh quyen — vui long thu lai sau");
+      if (!v.ok && v.reason === "forbidden") return err(res, 403, "tai khoan VTCANY nay khong con quyen bao in");
+      if (!v.ok) return err(res, 503, "backend VTCANY khong truy cap duoc, khong the xac minh quyen — vui long thu lai sau");
+      user = v.user;
+    }
+    // VTCANY per-action permission gate (CMS writes only). Returns an
+    // error response when the session is VTCANY-backed and lacks the
+    // required VTCANY module x action permission; returns null when
+    // the check passes OR when the session is old TSHT login (whose
+    // role checks below still apply unchanged). This never weakens
+    // an existing TSHT check: both gates must pass.
+    const vtcanyDeny = (required) => {
+      if (!user || user.auth_source !== "vtcany") return null;
+      if (hasVtcanyPermission(user.vtcany_permissions || [], required)) return null;
+      return err(res, 403, `tai khoan VTCANY khong co quyen ${required} cho hanh dong nay`);
+    };
 
     // ---- Auth ----
     if (req.method === "POST" && u.pathname === "/api/v1/auth/login") {
       const body = await readJson(req);
+      // VTCANY path (only when VTCANY_AUTH_ENABLED=1). The login form
+      // posts {username, password}; when enabled, `username` is read as
+      // an email (preferred, /auth/admin/login) or a username (legacy
+      // /auth/login) — both are VTCANY-side. A VTCANY 401 returns the
+      // exact message below and NEVER falls back to the old TSHT login
+      // and NEVER creates a TSHT account. A backend error returns 503
+      // and also does not fall back: the emergency rollback is to set
+      // VTCANY_AUTH_ENABLED=0 and restart/redeploy, not a silent
+      // automatic fallback (see docs/auth-mapping-vtcany.md).
+      if (vtcanyAuthEnabled()) {
+        const loginId = String(body.email || body.username || "").trim();
+        const password = body.password || "";
+        if (!loginId || !password) return err(res, 401, "tai khoan VTCANY khong dung");
+        const logged = await loginToVtcany(loginId, password);
+        if (!logged.ok && logged.reason === "invalid_credentials") return err(res, 401, "tai khoan VTCANY khong dung");
+        if (!logged.ok) return err(res, 503, "backend VTCANY khong truy cap duoc, vui long thu lai sau");
+        // Canonical identity from /auth/me, not from the login reply
+        // alone: this is what rejects end-user (app) accounts, whose
+        // kind is 'enduser' and which must never get a CMS session.
+        const me = await fetchVtcanyMe(logged.access_token);
+        if (!me.ok && me.reason === "unauthorized") return err(res, 401, "tai khoan VTCANY khong dung");
+        if (!me.ok) return err(res, 503, "backend VTCANY khong truy cap duoc, vui long thu lai sau");
+        if (me.kind !== "cms") return err(res, 403, "tai khoan nay khong phai tai khoan CMS VTCANY");
+        const mappedRole = mapVtcanyToTshtRole(me.kind, me.permissions);
+        if (mappedRole === null) return err(res, 403, "tai khoan VTCANY nay chua duoc cap quyen bao in (can cap articles:view tro len trong VTCANY)");
+        // Link to a local TSHT user row by email (for created_by /
+        // audit actor id and can_download_pdf). No row is created here:
+        // an unlinked VTCANY account gets localId null, can_download_pdf
+        // false, and cannot upload issues (see POST /api/v1/issues).
+        let localId = null, localDisplay = null, localCanDownload = false;
+        if (me.user.email) {
+          const lr = await pool.query("SELECT id, display_name, can_download_pdf FROM users WHERE lower(email)=lower($1) AND is_active", [me.user.email]);
+          if (lr.rows[0]) { localId = lr.rows[0].id; localDisplay = lr.rows[0].display_name; localCanDownload = !!lr.rows[0].can_download_pdf; }
+        }
+        const { token, user: pub } = createVtcanySession({
+          localId, username: me.user.username || loginId,
+          displayName: localDisplay || me.user.fullName || me.user.username || loginId,
+          email: me.user.email || null, mappedRole, canDownloadPdf: localCanDownload,
+          vtcanyUserId: me.user.id || null, vtcanyRole: me.user.role || logged.role || null,
+          permissions: me.permissions, accessToken: logged.access_token, refreshToken: logged.refresh_token,
+        });
+        return json(res, 200, { user: pub }, { "Set-Cookie": sessionCookie(token) });
+      }
+      // Old TSHT scrypt login (unchanged; this is the whole behaviour
+      // while VTCANY_AUTH_ENABLED is not '1').
       const r = await pool.query("SELECT * FROM users WHERE username=$1 AND is_active", [body.username]);
       const dbUser = r.rows[0];
       if (!dbUser || !verifyPassword(body.password || "", dbUser.password_hash)) return err(res, 401, "sai tai khoan hoac mat khau");
@@ -273,6 +357,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { items: r.rows });
       }
       if (req.method === "POST") {
+        { const d = vtcanyDeny("users:create"); if (d) return d; }
         const b = await readJson(req);
         if (!b.username || !b.password || !b.display_name) return err(res, 400, "thieu truong");
         if (!["admin", "publisher", "reviewer", "reader"].includes(b.role)) return err(res, 400, "role khong hop le");
@@ -284,6 +369,7 @@ const server = http.createServer(async (req, res) => {
     }
     const userMatch = u.pathname.match(/^\/api\/v1\/users\/(\d+)(?:\/(reset-password))?$/);
     if (userMatch && isAdmin(user)) {
+      { const d = vtcanyDeny("users:update"); if (d) return d; }
       const uid = Number(userMatch[1]);
       if (req.method === "PATCH" && !userMatch[2]) {
         const b = await readJson(req);
@@ -315,6 +401,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === "POST") {
         if (!isAdmin(user)) return err(res, 403, "chi admin");
+        { const d = vtcanyDeny("tv:create"); if (d) return d; }
         const b = await readJson(req);
         if (!b.slug || !/^[a-z0-9-]+$/.test(b.slug) || !b.name?.trim() || !["tv", "radio"].includes(b.kind) || !b.stream_url?.trim()) return err(res, 400, "thieu truong hoac slug/loai/stream khong hop le");
         if (b.stream_kind && !["hls", "youtube", "audio"].includes(b.stream_kind)) return err(res, 400, "stream_kind khong hop le");
@@ -328,6 +415,7 @@ const server = http.createServer(async (req, res) => {
     const channelMatch = u.pathname.match(/^\/api\/v1\/channels\/(\d+)$/);
     if (channelMatch && req.method === "PATCH") {
       if (!isAdmin(user)) return err(res, 403, "chi admin");
+      { const d = vtcanyDeny("tv:update"); if (d) return d; }
       const b = await readJson(req);
       if (b.stream_kind && !["hls", "youtube", "audio"].includes(b.stream_kind)) return err(res, 400, "stream_kind khong hop le");
       const r = await pool.query("UPDATE channels SET name=COALESCE($2,name), stream_url=COALESCE($3,stream_url), stream_kind=COALESCE($4,stream_kind), description=COALESCE($5,description), is_active=COALESCE($6,is_active), sort_order=COALESCE($7,sort_order) WHERE id=$1 RETURNING *",
@@ -489,6 +577,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === "POST") {
         if (!isAdmin(user)) return err(res, 403, "chi admin");
+        { const d = vtcanyDeny("epg:create"); if (d) return d; }
         const b = await readJson(req);
         if (!b.channel_slug || !isValidDate(b.program_date) || !isValidTime(b.start_time) || !isValidTime(b.end_time) || !b.title?.trim()) return err(res, 400, "thieu truong hoac ngay/gio/tieu de khong hop le");
         if (String(b.end_time).slice(0, 5) <= String(b.start_time).slice(0, 5)) return err(res, 400, "gio ket thuc phai sau gio bat dau");
@@ -504,6 +593,7 @@ const server = http.createServer(async (req, res) => {
     const scheduleMatch = u.pathname.match(/^\/api\/v1\/schedule\/(\d+)$/);
     if (scheduleMatch && req.method === "DELETE") {
       if (!isAdmin(user)) return err(res, 403, "chi admin");
+      { const d = vtcanyDeny("epg:delete"); if (d) return d; }
       const r = await pool.query("DELETE FROM programs WHERE id=$1 RETURNING id", [Number(scheduleMatch[1])]);
       if (!r.rows.length) return err(res, 404, "not found");
       return json(res, 200, { ok: true });
@@ -536,6 +626,13 @@ const server = http.createServer(async (req, res) => {
     // ---- Create issue + upload PDF (D1 + C1/C2/C4/C6) ----
     if (req.method === "POST" && u.pathname === "/api/v1/issues") {
       if (!isStaff(user) || user.role === "reviewer") return err(res, 403, "chi nguoi dang / admin duoc dang so");
+      { const d = vtcanyDeny("articles:create"); if (d) return d; }
+      // VTCANY sessions without a linked local TSHT user row cannot
+      // create issues: issues.created_by is NOT NULL + REFERENCES
+      // users(id). Fail here, before parsing the PDF, with a message
+      // that tells the admin exactly what to link — do NOT insert a
+      // row with a made-up id and do NOT auto-create a local account.
+      if (user.auth_source === "vtcany" && (user.id === null || user.id === undefined)) return err(res, 403, "tai khoan VTCANY nay chua lien ket voi tai khoan TSHT noi bo theo email — can admin tao/liên kết user TSHT cùng email trước khi đăng số");
       const { fields, files } = await readMultipart(req);
       const number = Number(fields.issue_number), type = fields.issue_type || "thuong";
       if (!Number.isInteger(number) || number <= 0 || !ISSUE_TYPES.includes(type) || !fields.publish_date || !fields.title?.trim()) return err(res, 400, "truong ngay/so/loai/tieu de khong hop le");
@@ -681,6 +778,10 @@ async function detailOf(id, user, client) {
 // nhu luc tao so; so trang moi co the khac so cu, issue_pages duoc thay toan bo.
 async function replacePdf(client, user, issue, req, res) {
   if (!isAdmin(user)) return err(res, 403, "chi admin duoc thay PDF");
+  // VTCANY gate (in addition to the admin gate): articles:update.
+  // A VTCANY role with articles:update but a non-admin mapped role
+  // still fails the admin gate above, so replace stays admin-only.
+  if (user && user.auth_source === "vtcany" && !hasVtcanyPermission(user.vtcany_permissions || [], "articles:update")) return err(res, 403, "tai khoan VTCANY khong co quyen articles:update cho hanh dong nay");
   const { fields, files } = await readMultipart(req);
   const changeReason = (fields.change_reason || "").trim();
   if (!changeReason) return err(res, 400, "thay PDF bat buoc nhap change_reason");
@@ -726,6 +827,8 @@ async function replacePdf(client, user, issue, req, res) {
 }
 
 async function patchIssue(client, user, issue, b, res) {
+  // VTCANY gate (in addition to canEdit below): articles:update.
+  if (user && user.auth_source === "vtcany" && !hasVtcanyPermission(user.vtcany_permissions || [], "articles:update")) return err(res, 403, "tai khoan VTCANY khong co quyen articles:update cho hanh dong nay");
   const wasPublished = !!issue.published_at;
   if (wasPublished && (b.issue_number !== undefined || b.issue_type !== undefined)) {
     return err(res, 409, "so da xuat ban: khong doi so bao/loai so vi slug da khoa (trigger DB cung chan doi slug)");
@@ -758,6 +861,15 @@ async function patchIssue(client, user, issue, b, res) {
 
 async function transition(client, user, issue, action, b, res) {
   const fail = (code, msg) => err(res, code, msg);
+  // VTCANY gate, one required permission per workflow action, checked
+  // BEFORE the existing TSHT role/status checks (both must pass):
+  // submit/reject/checklist/retry = articles:update (a state update),
+  // publish/unpublish = articles:publish. VTCANY has no separate
+  // unpublish action; publish covers the published/unpublished state.
+  if (user && user.auth_source === "vtcany") {
+    const required = ["publish", "unpublish"].includes(action) ? "articles:publish" : "articles:update";
+    if (!hasVtcanyPermission(user.vtcany_permissions || [], required)) return fail(403, `tai khoan VTCANY khong co quyen ${required} cho hanh dong nay`);
+  }
   if (action === "submit") {
     if (!(isAdmin(user) || (user.role === "publisher" && issue.created_by === user.id))) return fail(403, "chi nguoi dang so do / admin");
     if (issue.status !== "draft") return fail(409, "chi nhap moi gui duyet duoc");
