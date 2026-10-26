@@ -41,9 +41,18 @@
   }
   function renderLastSchedule() {
     if (!lastItems) return;
-    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn." });
+    // TV page only: schedule replay buttons read "PHÁT LẠI" (same onReplay
+    // behaviour as before); radio keeps the default "Xem lại" label.
+    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: "PHÁT LẠI", timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn." });
     if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
+    // TV-page extras (tv-extra.js) render "CHƯƠNG TRÌNH MỚI NHẤT" from this
+    // same schedule data and reuse onReplay via window.playScheduleReplay.
+    // This dispatch changes no player/schedule behaviour in this file.
+    window.dispatchEvent(new CustomEvent("tv-schedule", { detail: { items: lastItems, meta: lastMeta, replayingKey: replayingKey } }));
   }
+  // Exposed ONLY so tv-extra.js card buttons can call the exact same
+  // pre-checked replay handler (no second player, no duplicated logic).
+  window.playScheduleReplay = onReplay;
   function startLive() {
     stopReplayOnly();
     setLiveUi();
@@ -120,7 +129,9 @@
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
     var ch = (d.items || []).filter(function (c) { return c.kind === "tv" && (!c.status || c.status === "RUNNING"); })[0];
     if (!ch) { document.getElementById("channel-name").textContent = "Chưa có kênh truyền hình đang phát"; showMsg("Không có kênh truyền hình RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng."); loadSchedule(); return; }
-    document.getElementById("channel-name").textContent = ch.name;
+    // Display brand only: the page shows TSHTTV, while currentChannel
+    // above stays the source channel name (TUYENQUANG) for all API calls.
+    document.getElementById("channel-name").textContent = "TSHTTV";
     document.getElementById("channel-desc").textContent = ch.description || "";
     if (nowEl && ch.epgNow) nowEl.textContent = fmtEpgNow(ch.epgNow);
     currentChannel = ch.name;

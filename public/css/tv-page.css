@@ -1,0 +1,42 @@
+/* TV-page-only styles for /truyen-hinh (TSHTTV). Header pattern copied from
+   the homepage (home.css) into this TV-only file so home.css, live.css and
+   style.css are untouched; radio/homepage/reader are not affected. */
+.utility { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; background: #fff; }
+.utility-links a, .utility-right a { margin-right: 1rem; text-decoration: none; color: #333; font-weight: 600; }
+.lang-note { margin-right: 1rem; color: #888; cursor: default; }
+.masthead { text-align: center; padding: 1.2rem 1rem 0.8rem; background: #fff; }
+.wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
+.wordmark-sub { margin: 0.2rem 0 0; font-weight: 700; letter-spacing: 0.15em; color: #333; }
+.catnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #c00; padding: 0.6rem 1rem; }
+.catnav a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+.catnav-icons { margin-left: auto; color: #fff; }
+/* TV sub-navigation: white bar under the red nav, anchor links only. */
+.tv-subnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #fff; border-bottom: 1px solid #ddd; padding: 0.6rem 1rem; max-width: 1200px; margin: 0 auto; }
+.tv-subnav-label { font-weight: 900; color: #c00; }
+.tv-subnav a { color: #222; text-decoration: none; font-size: 0.9rem; }
+.tv-subnav a:hover { text-decoration: underline; }
+.tv-subnav .catnav-icons { color: #666; }
+/* Brand chip on the player poster area (text only, no image). */
+.live-brand-chip { position: absolute; top: 12px; right: 12px; z-index: 2; background: rgba(0, 0, 0, 0.55); color: #fff; font-weight: 800; font-size: 13px; letter-spacing: 0.08em; padding: 5px 10px; border-radius: 4px; pointer-events: none; }
+/* Sections below the live section (light background, unlike #0b1235 live). */
+.tv-wrap { max-width: 1200px; margin: 0 auto; padding: 1rem 20px 2rem; background: #fff; }
+.tv-section-title { border-left: 4px solid #c00; padding-left: 0.5rem; font-size: 1.25rem; }
+.tv-section-note, .tv-note { color: #555; }
+.latest-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.latest-card { border: 1px solid #ddd; padding: 0.75rem; background: #fff; }
+.latest-poster { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); font-weight: 700; }
+.latest-poster .play-mark { font-size: 30px; }
+.latest-time { color: #666; font-size: 0.85rem; margin: 0.5rem 0 0; font-variant-numeric: tabular-nums; }
+.latest-title { margin: 0.25rem 0 0.5rem; font-weight: 700; line-height: 1.35; }
+.latest-action { margin: 0; }
+.latest-replay-btn { background: #c00; color: #fff; border: 0; border-radius: 3px; font-weight: 700; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+.latest-replay-btn:hover { background: #a00; }
+.latest-norecord { color: #888; font-size: 0.9rem; }
+.latest-replaying { display: inline-block; background: #b45309; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+.cat-placeholder { border: 1px solid #ddd; padding: 1rem; background: #fafafa; }
+.footer { border-top: 3px solid #c00; text-align: center; padding: 1.5rem 1rem 2rem; background: #fff; }
+.footer button { cursor: pointer; padding: 0.4rem 0.8rem; }
+@media (max-width: 800px) {
+  .wordmark { font-size: 2.2rem; }
+  .latest-grid { grid-template-columns: 1fr; }
+}

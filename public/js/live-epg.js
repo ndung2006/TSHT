@@ -62,7 +62,9 @@
       if (isReplaying) {
         action = "<span class='sched-replaying'>Đang xem</span>";
       } else if (status === "REPLAY" && p.replay_url) {
-        action = "<button type='button' class='sched-replay-btn' data-replay='" + esc(replayKey(p)) + "'>Xem lại</button>";
+        // opts.replayLabel lets the TV page read "PHÁT LẠI" while radio
+        // (no replayLabel passed) keeps the previous "Xem lại" label.
+        action = "<button type='button' class='sched-replay-btn' data-replay='" + esc(replayKey(p)) + "'>" + esc(opts.replayLabel || "Xem lại") + "</button>";
       } else if (status === "REPLAY" && opts.timeshift_available === false && opts.timeshift_unknown === false) {
         action = "<span class='sched-norecord'>Không có bản ghi</span>";
       }

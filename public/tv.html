@@ -1,12 +1,65 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Truyền hình trực tuyến</title>
+<title>TSHTTV — Truyền hình trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261026-3">
-<link rel="stylesheet" href="/css/live.css?v=20261026-6"></head>
-<body>
-<header class="top"><h1>Truyền hình trực tuyến</h1><p><a href="/bao-in">Báo in</a> · <a href="/truyen-hinh">Truyền hình</a> · <a href="/phat-thanh">Phát thanh</a> · <a href="/lich-phat-song">Lịch phát sóng</a> · <a href="/admin.html">CMS</a></p></header>
-<section class="live-section">
+<link rel="stylesheet" href="/css/live.css?v=20261026-6">
+<link rel="stylesheet" href="/css/tv-page.css?v=20261026-7"></head>
+<body id="top">
+<!-- Trang Truyền hình TSHTTV — bố cục theo cấu trúc trang /truyen-hinh kiểu
+     Tuyên Quang TV (chỉ cấu trúc, không copy logo/ảnh/tiêu đề chương trình
+     của trang tham khảo). Nội dung thật duy nhất: luồng live, lịch EPG và
+     xem lại qua API TSHT (nguồn backend VTCANY trước, fallback AIO trực
+     tiếp). TSHT chưa có kho video theo chuyên mục, nên các mục chuyên mục
+     dưới đây chỉ là khung ghi rõ trạng thái chờ, không bịa chương trình.
+     Nhãn "TSHTTV" chỉ là tên hiển thị trên trang này; mã kênh nguồn trong
+     mọi API vẫn là TUYENQUANG, toàn site không đổi tên (trang chủ/footer/
+     báo in vẫn là TSHT). -->
+<div class="utility">
+  <nav class="utility-links" aria-label="Liên kết chính">
+    <a href="/truyen-hinh">TRUYỀN HÌNH</a>
+    <a href="/phat-thanh">PHÁT THANH</a>
+    <a href="/bao-in">BÁO IN</a>
+    <a href="/lich-phat-song">LỊCH PHÁT SÓNG</a>
+  </nav>
+  <div class="utility-right">
+    <span class="lang-note" title="Bản tiếng Anh chưa có">ENGLISH</span>
+    <a href="/admin.html">ĐĂNG NHẬP</a>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wordmark">TSHTTV</div>
+  <p class="wordmark-sub">TRUYỀN HÌNH TRỰC TUYẾN</p>
+</header>
+
+<nav class="catnav" aria-label="Chuyên mục">
+  <a href="/">THỜI SỰ - CHÍNH TRỊ</a>
+  <a href="/">KINH TẾ</a>
+  <a href="/">XÃ HỘI</a>
+  <a href="/">VĂN HÓA</a>
+  <a href="/">AN NINH - QUỐC PHÒNG</a>
+  <a href="/">KHOA HỌC - CÔNG NGHỆ</a>
+  <a href="/">QUỐC TẾ</a>
+  <a href="/">PHÁP LUẬT</a>
+  <a href="/">MULTIMEDIA</a>
+  <span class="catnav-icons" aria-hidden="true">☰ 🔍</span>
+</nav>
+
+<nav class="tv-subnav" aria-label="Chuyên mục chương trình truyền hình">
+  <span class="tv-subnav-label">TRUYỀN HÌNH</span>
+  <a href="#chuong-trinh-thoi-su">Thời sự</a>
+  <a href="#chuong-trinh-kinh-te-van-hoa-xa-hoi">Kinh tế - Văn hóa - Xã hội</a>
+  <a href="#chuong-trinh-van-nghe">Văn nghệ</a>
+  <a href="#chuong-trinh-tieng-dan-toc">Tiếng dân tộc</a>
+  <a href="#chuong-trinh-chuyen-doi-so">Chuyển đổi số</a>
+  <a href="#chuong-trinh-quoc-phong-an-ninh">Quốc phòng - An ninh</a>
+  <a href="#chuong-trinh-xay-dung-dang">Xây dựng Đảng</a>
+  <a href="#chuong-trinh-tap-chi-toa-dam">Tạp chí - Tọa đàm</a>
+  <span class="catnav-icons" aria-hidden="true">☰ 🔍</span>
+</nav>
+
+<section class="live-section" id="live-section">
   <div class="live-head">
     <h2 class="live-title">TRUYỀN HÌNH TRỰC TUYẾN</h2>
     <div class="live-head-actions">
@@ -20,6 +73,7 @@
     <div class="live-player-col">
       <div class="live-player-wrap">
         <span class="live-badge">● TRỰC TIẾP</span>
+        <span class="live-brand-chip" aria-hidden="true">TSHTTV</span>
         <video id="player" controls playsinline poster=""></video>
       </div>
       <div id="player-wrap"></div>
@@ -32,8 +86,93 @@
     </div>
   </div>
 </section>
+
+<main class="tv-wrap">
+  <section id="chuong-trinh-moi-nhat" aria-label="Chương trình mới nhất">
+    <h2 class="tv-section-title">CHƯƠNG TRÌNH MỚI NHẤT</h2>
+    <p class="tv-section-note">Các chương trình đã phát gần nhất trong ngày, lấy từ lịch phát sóng thật — bấm PHÁT LẠI để xem lại chương trình có bản ghi.</p>
+    <div id="latest-programs" class="latest-grid"><p class="tv-note">Đang tải chương trình mới nhất…</p></div>
+  </section>
+
+  <section id="chuong-trinh-thoi-su" aria-label="Thời sự">
+    <h2 class="tv-section-title">THỜI SỰ</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-kinh-te-van-hoa-xa-hoi" aria-label="Kinh tế - Văn hóa - Xã hội">
+    <h2 class="tv-section-title">KINH TẾ - VĂN HÓA - XÃ HỘI</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-van-nghe" aria-label="Văn nghệ">
+    <h2 class="tv-section-title">VĂN NGHỆ</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-tieng-dan-toc" aria-label="Tiếng dân tộc">
+    <h2 class="tv-section-title">TIẾNG DÂN TỘC</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-chuyen-doi-so" aria-label="Chuyển đổi số">
+    <h2 class="tv-section-title">CHUYỂN ĐỔI SỐ</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-quoc-phong-an-ninh" aria-label="Quốc phòng - An ninh">
+    <h2 class="tv-section-title">QUỐC PHÒNG - AN NINH</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-xay-dung-dang" aria-label="Xây dựng Đảng">
+    <h2 class="tv-section-title">XÂY DỰNG ĐẢNG</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+
+  <section id="chuong-trinh-tap-chi-toa-dam" aria-label="Tạp chí - Tọa đàm">
+    <h2 class="tv-section-title">TẠP CHÍ - TỌA ĐÀM</h2>
+    <div class="cat-placeholder">
+      <p>Chưa có chương trình theo chuyên mục này — kho video đang được xây dựng.</p>
+      <p><a href="#live-section">Xem truyền hình trực tuyến và lịch phát sóng →</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p><strong>TSHT — Tòa soạn hội tụ</strong></p>
+  <nav aria-label="Liên kết chân trang">
+    <a href="/bao-in">Báo in</a> ·
+    <a href="/truyen-hinh">Truyền hình</a> ·
+    <a href="/phat-thanh">Phát thanh</a> ·
+    <a href="/lich-phat-song">Lịch phát sóng</a> ·
+    <a href="/admin.html">CMS</a>
+  </nav>
+  <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
+</footer>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-6"></script>
-<script src="/js/live-epg.js?v=20261026-6"></script>
-<script src="/js/tv.js?v=20261026-6"></script>
+<script src="/js/live-epg.js?v=20261026-7"></script>
+<script src="/js/tv.js?v=20261026-7"></script>
+<script src="/js/tv-extra.js?v=20261026-7"></script>
 </body></html>
