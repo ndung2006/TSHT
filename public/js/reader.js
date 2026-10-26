@@ -171,7 +171,17 @@ function initFlip() {
     flippingTime: 800, usePortrait: portrait, drawShadow: true,
   });
   flip.loadFromImages(issue.pages.map((p) => p.flip));
-  flip.on("flip", (e) => { currentIndex = e.data; updateLabel(); applyFlipZoom(); });
+  // Bao dam tuyet doi: bat ky duong lat nao (nut, phim, thumbnail, click
+  // trong sach cua PageFlip, vuot) khi dang zoom cung phai ve fit truoc khi
+  // ket thuc. flipAtFit da xu ly cac nut cua minh, nhung PageFlip con co
+  // duong lat noi bo (click trang, keo goc) khong qua flipAtFit; neu duong
+  // do lat khi dang zoom, su kien flip nay se reset zoom ve 1 ngay lap tuc,
+  // nen trang thai cuoi cung luon la fit, khong bao gio giu zoom cu.
+  flip.on("flip", (e) => {
+    currentIndex = e.data;
+    if (flipZoom !== 1) { flipZoom = 1; hideFlipPdfOverlay(); }
+    updateLabel(); applyFlipZoom();
+  });
   flip.turnToPage(currentIndex);
   updateLabel();
   flipZoom = 1; refitFlip();
