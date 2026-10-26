@@ -1,7 +1,7 @@
 import * as pdfjs from "/vendor/pdfjs.mjs";
 import {
   zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
-  fitBookWidth, singlePageShift,
+  fitBookWidth, singlePageShift, pdfZoomScale,
   readBaseDpi, cappedReadScale, sharpReadScale,
 } from "./viewer-logic.js";
 
@@ -31,6 +31,69 @@ let currentIndex = 0;
 // ve trang hien tai); khi zoom > 1, lop phu chan su kien cua PageFlip de keo thanh pan.
 let flipZoom = 1, flipBaseW = 0, flipBaseH = 0;
 const flipWrap = $("flip-wrap"), flipBook = $("flip-book"), flipZoomWrap = $("flip-zoom-wrap"), flipOverlay = $("flip-pan-overlay");
+const flipPdfZoomEl = $("flip-pdf-zoom");
+// PDF.js zoom overlay (nhu Foxit/TQ): PageFlip chi ve canvas o muc vua khung,
+// phong CSS canvas do len se mo du anh nguon co net den dau. Vi vay khi zoom > 1,
+// sau 200ms on dinh, spread hien tai duoc ve lai truc tiep tu PDF bang PDF.js
+// o dung kich thuoc hien thi, sach PageFlip an di, overlay nay hien len thay.
+// Loi PDF.js -> giu nguyen sach cu (fallback), khong bao gio lam hong trang doc.
+let sharedPdfDoc = null, flipPdfTimer = null, flipPdfToken = 0, flipPdfVisible = false;
+async function getPdfDoc() {
+  if (!sharedPdfDoc) sharedPdfDoc = await pdfjs.getDocument(issue.pdf_url).promise;
+  return sharedPdfDoc;
+}
+function hideFlipPdfOverlay() {
+  if (flipPdfTimer) { clearTimeout(flipPdfTimer); flipPdfTimer = null; }
+  flipPdfToken++; // huy render dang cho/dang ve
+  flipPdfVisible = false;
+  flipPdfZoomEl.hidden = true; flipPdfZoomEl.innerHTML = "";
+  flipZoomWrap.style.display = "";
+}
+function scheduleFlipPdfOverlay() {
+  if (flipPdfTimer) clearTimeout(flipPdfTimer);
+  hideFlipPdfOverlay(); // hien sach CSS tam thoi cho phan hoi tuc thi, overlay se thay sau
+  if (flipZoom === 1) return;
+  flipPdfTimer = setTimeout(() => { flipPdfTimer = null; renderFlipPdfOverlay(); }, 200);
+}
+async function renderFlipPdfOverlay() {
+  const token = ++flipPdfToken, zoomAtStart = flipZoom;
+  if (zoomAtStart === 1) return;
+  try {
+    const doc = await getPdfDoc();
+    if (token !== flipPdfToken || flipZoom !== zoomAtStart) return;
+    const shown = displayForFlipIndex(currentIndex, total, portrait).shown;
+    const fitPageW = portrait ? flipBaseW : flipBaseW / 2;
+    const displayPageW = fitPageW * zoomAtStart;
+    const frag = document.createDocumentFragment();
+    let totalW = 0, displayH = 0;
+    for (const pn of shown) {
+      const page = await doc.getPage(pn);
+      if (token !== flipPdfToken || flipZoom !== zoomAtStart) return;
+      const pt = page.getViewport({ scale: 1 });
+      const scale = pdfZoomScale({ displayPageWidth: displayPageW, pageWidthPt: pt.width, pageHeightPt: pt.height });
+      const vp = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = vp.width; canvas.height = vp.height;
+      canvas.style.width = `${displayPageW.toFixed(1)}px`; canvas.style.height = "auto";
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      if (token !== flipPdfToken || flipZoom !== zoomAtStart) return;
+      frag.appendChild(canvas);
+      totalW += displayPageW; displayH = displayPageW * (pt.height / pt.width);
+    }
+    const sl = flipWrap.scrollLeft, st = flipWrap.scrollTop;
+    flipPdfZoomEl.innerHTML = ""; flipPdfZoomEl.appendChild(frag);
+    flipPdfZoomEl.style.width = `${totalW.toFixed(1)}px`;
+    flipPdfZoomEl.style.height = `${displayH.toFixed(1)}px`;
+    flipPdfZoomEl.hidden = false; flipZoomWrap.style.display = "none"; flipPdfVisible = true;
+    flipWrap.scrollLeft = sl; flipWrap.scrollTop = st;
+  } catch { /* giu sach CSS cu, khong hien overlay loi */ }
+}
+// Lat trang chi o muc vua khung: dang zoom ma bam nut lat thi ve 1 truoc,
+// roi lat binh thuong (giu animation lat, overlay se khong che mat animation).
+function flipAtFit(fn) {
+  if (flipZoom !== 1) { flipZoom = 1; hideFlipPdfOverlay(); applyFlipZoom(); }
+  if (flip) fn();
+}
 function applyFlipZoom() {
   if (!flipBaseW) { flipBaseW = flipBook.offsetWidth || 500; flipBaseH = flipBook.offsetHeight || 707; }
   flipZoomWrap.style.width = `${(flipBaseW * flipZoom).toFixed(1)}px`;
@@ -52,6 +115,7 @@ function applyFlipZoom() {
 // de width 100% cua zoom-wrap, transform zoom se nhan doi chieu rong).
 function refitFlip() {
   if (!flip) return;
+  flipZoom = 1; hideFlipPdfOverlay();
   const bookW = fitBookWidth({
     availW: Math.max(1, flipWrap.clientWidth - 32),
     availH: Math.max(1, flipWrap.clientHeight - 32),
@@ -74,13 +138,14 @@ function stepFlipZoom(dir, cursorX, cursorY) {
   flipZoom = next; applyFlipZoom();
   flipWrap.scrollLeft = scrollAfterZoom({ scroll: flipWrap.scrollLeft, cursor: mx, oldSize: oldW, newSize: flipBaseW * flipZoom, viewport: flipWrap.clientWidth });
   flipWrap.scrollTop = scrollAfterZoom({ scroll: flipWrap.scrollTop, cursor: my, oldSize: oldH, newSize: flipBaseH * flipZoom, viewport: flipWrap.clientHeight });
+  scheduleFlipPdfOverlay();
 }
 
 function renderThumbs() {
   $("thumbs").innerHTML = issue.pages.map((p, i) =>
     `<img src="${p.thumb}" data-i="${i}" alt="Trang ${p.page_number}" class="${i === currentIndex ? "active" : ""}">`).join("");
   $("thumbs").querySelectorAll("img").forEach((img) =>
-    img.onclick = () => { flip.turnToPage(Number(img.dataset.i)); });
+    img.onclick = () => { flipAtFit(() => flip.turnToPage(Number(img.dataset.i))); });
 }
 function updateLabel() {
   const d = displayForFlipIndex(currentIndex, total, portrait);
@@ -91,6 +156,7 @@ function updateLabel() {
 }
 function initFlip() {
   if (flip) flip.destroy();
+  hideFlipPdfOverlay();
   // Ep zoom-wrap ve chieu rong vua khung truoc khi PageFlip khoi tao, de
   // sach lan dau da nam tron trong khung, khong tran roi moi thu nho lai.
   flipZoomWrap.style.width = `${fitBookWidth({
@@ -120,19 +186,19 @@ window.addEventListener("resize", () => {
   const p = window.innerWidth < 700;
   if (p !== portrait) { portrait = p; initFlip(); }
 });
-$("prev").onclick = () => flip.flipPrev();
-$("next").onclick = () => flip.flipNext();
-$("first").onclick = () => flip.turnToPage(0);
-$("last").onclick = () => flip.turnToPage(total - 1);
+$("prev").onclick = () => flipAtFit(() => flip.flipPrev());
+$("next").onclick = () => flipAtFit(() => flip.flipNext());
+$("first").onclick = () => flipAtFit(() => flip.turnToPage(0));
+$("last").onclick = () => flipAtFit(() => flip.turnToPage(total - 1));
 $("page-input").onchange = (e) => {
   const n = parsePageInput(e.target.value, total);
   if (n === null) { alert(`Nhập số trang từ 1 đến ${total}.`); updateLabel(); return; }
-  flip.turnToPage(n - 1); // StPageFlip is 0-based
+  flipAtFit(() => flip.turnToPage(n - 1)); // StPageFlip is 0-based
 };
 document.addEventListener("keydown", (e) => {
   if ($("read-wrap").style.display === "block" || e.target.tagName === "INPUT") return;
-  if (e.key === "ArrowLeft") flip.flipPrev();
-  if (e.key === "ArrowRight") flip.flipNext();
+  if (e.key === "ArrowLeft") flipAtFit(() => flip.flipPrev());
+  if (e.key === "ArrowRight") flipAtFit(() => flip.flipNext());
 });
 $("fullscreen").onclick = () =>
   document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
@@ -160,12 +226,18 @@ window.addEventListener("mousemove", (e) => {
   flipWrap.scrollLeft = flipDragging.sl - (e.clientX - flipDragging.x);
   flipWrap.scrollTop = flipDragging.st - (e.clientY - flipDragging.y);
 });
-window.addEventListener("mouseup", () => { flipDragging = null; flipOverlay.classList.remove("panning"); });
+window.addEventListener("mouseup", () => { flipDragging = null; flipOverlay.classList.remove("panning"); flipPdfZoomEl.classList.remove("panning"); });
+// Keo pan tren overlay PDF.js (khi overlay hien, sach an nen flipOverlay khong nhan chuot).
+flipPdfZoomEl.addEventListener("mousedown", (e) => {
+  if (!flipPdfVisible) return;
+  flipDragging = { x: e.clientX, y: e.clientY, sl: flipWrap.scrollLeft, st: flipWrap.scrollTop };
+  flipPdfZoomEl.classList.add("panning");
+});
 // Toolbar kieu TQ: thumbnail trai, canh trang, chia se, menu ...
 $("thumbs-toggle").onclick = () => { $("thumbs-panel").classList.toggle("hidden"); requestAnimationFrame(refitFlip); };
 $("thumbs-close").onclick = () => { $("thumbs-panel").classList.add("hidden"); requestAnimationFrame(refitFlip); };
-$("flip-prev-edge").onclick = () => flip.flipPrev();
-$("flip-next-edge").onclick = () => flip.flipNext();
+$("flip-prev-edge").onclick = () => flipAtFit(() => flip.flipPrev());
+$("flip-next-edge").onclick = () => flipAtFit(() => flip.flipNext());
 async function shareIssue() {
   const url = location.href;
   try {
@@ -291,6 +363,7 @@ async function enterRead() {
 function exitRead() {
   $("read-wrap").style.display = "none";
   $("reader-body").style.display = "flex"; $("flip-toolbar").style.display = "flex";
+  flipZoom = 1; hideFlipPdfOverlay(); applyFlipZoom();
   flip.turnToPage(readPage - 1); // G1: back to the exact page
 }
 $("mode-read").onclick = enterRead;

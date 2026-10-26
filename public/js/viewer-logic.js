@@ -51,6 +51,17 @@ export function singlePageShift({ currentIndex, total, portrait, zoom, bookWidth
   return 0;
 }
 
+// PDF.js zoom overlay (nhu Foxit/TQ): khi zoom > 1, spread hien tai khong
+// con la canvas PageFlip o muc vua khung bi phong CSS, ma duoc ve lai truc
+// tiep tu PDF o dung kich thuoc hien thi. Scale can = rong hien thi / rong
+// trang (pt), nhung tong so pixel canvas khong vuot cap doc (giong Read mode).
+export function pdfZoomScale({ displayPageWidth, pageWidthPt, pageHeightPt }) {
+  if (!displayPageWidth || !pageWidthPt || !pageHeightPt) throw new Error("bad pdf zoom args");
+  const desired = displayPageWidth / pageWidthPt;
+  const capScale = Math.sqrt(MAX_READ_PIXELS / (pageWidthPt * pageHeightPt));
+  return Math.min(desired, capScale);
+}
+
 // What the Flip toolbar shows for a 0-based StPageFlip index, with
 // showCover:true (first and last pages single, middle pages in spreads).
 export function displayForFlipIndex(index, total, portrait) {
