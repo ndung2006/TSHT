@@ -29,6 +29,28 @@ export function parsePageInput(raw, total) {
   return n;
 }
 
+// Fit-to-frame (nhu Tuyen Quang): o muc 100%, ca cuon sach phai nam tron
+// trong khung trinh duyet, khong bi cat duoi/phai, khong phai cuon trang web.
+// StPageFlip o che do "stretch" chi vua theo chieu rong (chieu cao theo ti le
+// cua chieu rong), nen man hinh rong ma thap se tran chieu cao. Vi vay chieu
+// rong sach phai lay theo ca hai chieu: min(rong kha dung, cao kha dung * ti le).
+export const PAGE_W = 500, PAGE_H = 707;
+export function fitBookWidth({ availW, availH, portrait }) {
+  const ratio = portrait ? PAGE_W / PAGE_H : (2 * PAGE_W) / PAGE_H;
+  const maxBook = portrait ? 1000 : 2000; // maxWidth moi trang la 1000
+  return Math.max(1, Math.floor(Math.min(availW, availH * ratio, maxBook)));
+}
+// Bia (va trang cuoi le) cua StPageFlip nam o nua phai/trai cua spread, khong
+// giua khung nhu Tuyen Quang. Khi o muc vua khung, dich sach sang trai/phai
+// nua trang de trang don do nam giua khung. Chi ap dung o zoom = 1, che do
+// 2 trang; o che do 1 trang, dang zoom, hoac spread doi thi khong dich.
+export function singlePageShift({ currentIndex, total, portrait, zoom, bookWidth }) {
+  if (portrait || zoom !== 1) return 0;
+  if (currentIndex === 0) return -bookWidth / 4; // nua trang = bookWidth/2 / 2
+  if (currentIndex === total - 1 && total % 2 === 0) return bookWidth / 4;
+  return 0;
+}
+
 // What the Flip toolbar shows for a 0-based StPageFlip index, with
 // showCover:true (first and last pages single, middle pages in spreads).
 export function displayForFlipIndex(index, total, portrait) {

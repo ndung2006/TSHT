@@ -1,6 +1,7 @@
 import * as pdfjs from "/vendor/pdfjs.mjs";
 import {
   zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
+  fitBookWidth, singlePageShift,
   readBaseDpi, cappedReadScale, sharpReadScale,
 } from "./viewer-logic.js";
 
@@ -35,9 +36,33 @@ function applyFlipZoom() {
   flipZoomWrap.style.width = `${(flipBaseW * flipZoom).toFixed(1)}px`;
   flipZoomWrap.style.height = `${(flipBaseH * flipZoom).toFixed(1)}px`;
   flipBook.style.transform = `scale(${flipZoom})`;
+  // Bia/trang cuoi le nam giua khung (nhu TQ) chi o muc vua khung.
+  const shift = singlePageShift({ currentIndex, total, portrait, zoom: flipZoom, bookWidth: flipBaseW });
+  if (shift) {
+    const contentW = flipWrap.clientWidth - 32;
+    flipZoomWrap.style.marginLeft = `${Math.max(0, (contentW - flipBaseW * flipZoom) / 2) + shift}px`;
+  } else flipZoomWrap.style.marginLeft = "";
   flipOverlay.style.display = canPan(flipZoom) ? "block" : "none";
   flipWrap.style.cursor = canPan(flipZoom) ? "grab" : "default";
   const zl = $("flip-zoom-label"); if (zl) zl.textContent = zoomLabel(flipZoom);
+}
+// Vua khung nhu TQ: sach vua ca rong lan cao cua flip-wrap, khong tran.
+// PageFlip "stretch" tu no chi vua theo rong, nen phai ep chieu rong sach
+// bang fitBookWidth truoc, roi khoa flipBook o chieu rong co dinh do (neu
+// de width 100% cua zoom-wrap, transform zoom se nhan doi chieu rong).
+function refitFlip() {
+  if (!flip) return;
+  const bookW = fitBookWidth({
+    availW: Math.max(1, flipWrap.clientWidth - 32),
+    availH: Math.max(1, flipWrap.clientHeight - 32),
+    portrait,
+  });
+  flipZoomWrap.style.width = `${bookW}px`;
+  flipBook.style.width = `${bookW}px`;
+  flip.update();
+  flipBaseW = flipBook.offsetWidth || bookW;
+  flipBaseH = flipBook.offsetHeight || Math.round(bookW * (portrait ? 707 / 500 : 707 / 1000));
+  applyFlipZoom();
 }
 function stepFlipZoom(dir, cursorX, cursorY) {
   const next = dir > 0 ? zoomIn(flipZoom) : zoomOut(flipZoom);
@@ -66,6 +91,13 @@ function updateLabel() {
 }
 function initFlip() {
   if (flip) flip.destroy();
+  // Ep zoom-wrap ve chieu rong vua khung truoc khi PageFlip khoi tao, de
+  // sach lan dau da nam tron trong khung, khong tran roi moi thu nho lai.
+  flipZoomWrap.style.width = `${fitBookWidth({
+    availW: Math.max(1, flipWrap.clientWidth - 32),
+    availH: Math.max(1, flipWrap.clientHeight - 32),
+    portrait,
+  })}px`;
   flip = new St.PageFlip($("flip-book"), {
     width: 500, height: 707, size: "stretch",
     minWidth: 300, maxWidth: 1000, minHeight: 424, maxHeight: 1414,
@@ -73,10 +105,10 @@ function initFlip() {
     flippingTime: 800, usePortrait: portrait, drawShadow: true,
   });
   flip.loadFromImages(issue.pages.map((p) => p.flip));
-  flip.on("flip", (e) => { currentIndex = e.data; updateLabel(); });
+  flip.on("flip", (e) => { currentIndex = e.data; updateLabel(); applyFlipZoom(); });
   flip.turnToPage(currentIndex);
   updateLabel();
-  flipZoom = 1; flipBaseW = flipBook.offsetWidth || 500; flipBaseH = flipBook.offsetHeight || 707; applyFlipZoom();
+  flipZoom = 1; refitFlip();
 }
 $("page-mode").onclick = () => {
   lockedMode = portrait ? "spread" : "single";
@@ -114,10 +146,7 @@ flipWrap.addEventListener("wheel", (e) => {
 $("flip-zoom-in").onclick = () => stepFlipZoom(1);
 window.addEventListener("resize", () => {
   if (!flip || $("read-wrap").style.display === "block") return;
-  if (flipZoom !== 1) { flipZoom = 1; }
-  flipBaseW = flipBook.offsetWidth || flipBaseW || 500;
-  flipBaseH = flipBook.offsetHeight || flipBaseH || 707;
-  applyFlipZoom();
+  refitFlip(); // doi kich thuoc cua so hoac an/hien thumbnail: sach van vua khung
 });
 $("flip-zoom-out").onclick = () => stepFlipZoom(-1);
 let flipDragging = null;
@@ -133,8 +162,8 @@ window.addEventListener("mousemove", (e) => {
 });
 window.addEventListener("mouseup", () => { flipDragging = null; flipOverlay.classList.remove("panning"); });
 // Toolbar kieu TQ: thumbnail trai, canh trang, chia se, menu ...
-$("thumbs-toggle").onclick = () => $("thumbs-panel").classList.toggle("hidden");
-$("thumbs-close").onclick = () => $("thumbs-panel").classList.add("hidden");
+$("thumbs-toggle").onclick = () => { $("thumbs-panel").classList.toggle("hidden"); requestAnimationFrame(refitFlip); };
+$("thumbs-close").onclick = () => { $("thumbs-panel").classList.add("hidden"); requestAnimationFrame(refitFlip); };
 $("flip-prev-edge").onclick = () => flip.flipPrev();
 $("flip-next-edge").onclick = () => flip.flipNext();
 async function shareIssue() {
