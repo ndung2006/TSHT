@@ -738,7 +738,10 @@ const server = http.createServer(async (req, res) => {
 
     // ---- Static ----
     if (VENDOR[u.pathname]) return serveFile(res, path.join(ROOT, VENDOR[u.pathname]));
-    if (u.pathname === "/" || u.pathname === "/bao-in") return serveFile(res, path.join(PUBLIC, "index.html"));
+    // Homepage frame (public/home.html) at /, e-paper list stays at /bao-in
+    // (public/index.html, unchanged). All other routes below are untouched.
+    if (u.pathname === "/") return serveFile(res, path.join(PUBLIC, "home.html"));
+    if (u.pathname === "/bao-in") return serveFile(res, path.join(PUBLIC, "index.html"));
     if (u.pathname === "/truyen-hinh") return serveFile(res, path.join(PUBLIC, "tv.html"));
     if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"));
     if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));

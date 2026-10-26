@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TSHT — Tòa soạn hội tụ</title>
+<link rel="stylesheet" href="/css/home.css?v=20261026-6"></head>
+<body id="top">
+<!-- Trang chủ TSHT — khung bố cục theo cấu trúc trang chủ kiểu Tuyên Quang TV
+     (chỉ cấu trúc, không copy logo/ảnh/bài viết của trang tham khảo).
+     Nội dung thật duy nhất ở đây là: số báo đã xuất bản (API /api/v1/issues),
+     chương trình TV/radio đang phát (API /api/v1/schedule). Tin tức, video,
+     thời tiết và mạng xã hội CHƯA có nên chỉ hiện trạng thái chờ, không bịa. -->
+<div class="utility">
+  <nav class="utility-links" aria-label="Liên kết chính">
+    <a href="/truyen-hinh">TRUYỀN HÌNH</a>
+    <a href="/phat-thanh">PHÁT THANH</a>
+    <a href="/bao-in">BÁO IN</a>
+    <a href="/lich-phat-song">LỊCH PHÁT SÓNG</a>
+  </nav>
+  <div class="utility-right">
+    <span class="lang-note" title="Bản tiếng Anh chưa có">ENGLISH</span>
+    <a href="/admin.html">ĐĂNG NHẬP</a>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wordmark">TSHT</div>
+  <p class="wordmark-sub">TÒA SOẠN HỘI TỤ</p>
+</header>
+
+<nav class="catnav" aria-label="Chuyên mục">
+  <a href="#" data-cat="THỜI SỰ - CHÍNH TRỊ">THỜI SỰ - CHÍNH TRỊ</a>
+  <a href="#" data-cat="KINH TẾ">KINH TẾ</a>
+  <a href="#" data-cat="XÃ HỘI">XÃ HỘI</a>
+  <a href="#" data-cat="VĂN HÓA">VĂN HÓA</a>
+  <a href="#" data-cat="AN NINH - QUỐC PHÒNG">AN NINH - QUỐC PHÒNG</a>
+  <a href="#" data-cat="KHOA HỌC - CÔNG NGHỆ">KHOA HỌC - CÔNG NGHỆ</a>
+  <a href="#" data-cat="QUỐC TẾ">QUỐC TẾ</a>
+  <a href="#" data-cat="PHÁP LUẬT">PHÁP LUẬT</a>
+  <a href="#" data-cat="MULTIMEDIA">MULTIMEDIA</a>
+  <span class="catnav-icons" aria-hidden="true">☰ 🔍</span>
+</nav>
+<p id="cat-note" class="cat-note" role="status">Chuyên mục tin tức sẽ có bài viết sau — module bài viết/chuyên mục là bước tiếp theo, chưa xây ở trang này.</p>
+
+<main class="wrap">
+  <section class="live-strip" aria-label="Đang phát">
+    <h2>Đang phát</h2>
+    <p id="live-tv" class="live-line">Đang tải chương trình truyền hình…</p>
+    <p id="live-radio" class="live-line">Đang tải chương trình phát thanh…</p>
+    <p class="weather-note">Thời tiết: sẽ cập nhật sau.</p>
+  </section>
+
+  <section aria-label="Nổi bật">
+    <h2 class="section-title">Nổi bật</h2>
+    <div class="featured">
+      <div class="feat-left">
+        <h3>Báo in mới</h3>
+        <div id="feat-left">Đang tải danh sách báo in…</div>
+      </div>
+      <article class="feat-hero" id="feat-hero">
+        <p>Đang tải số báo mới nhất…</p>
+      </article>
+      <aside class="feat-side">
+        <h3>BẠN ĐỌC QUAN TÂM</h3>
+        <div id="feat-side">Đang tải…</div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="bottom-blocks" aria-label="Truyền hình, phát thanh và video">
+    <div class="card">
+      <h2>TRUYỀN HÌNH TRỰC TUYẾN</h2>
+      <p id="card-tv">Đang tải chương trình truyền hình…</p>
+      <p><a class="btn" href="/truyen-hinh">Xem truyền hình trực tuyến →</a></p>
+    </div>
+    <div class="card">
+      <h2>PHÁT THANH TRỰC TUYẾN</h2>
+      <p id="card-radio">Đang tải chương trình phát thanh…</p>
+      <p><a class="btn" href="/phat-thanh">Nghe phát thanh trực tuyến →</a></p>
+    </div>
+    <div class="card">
+      <h2>VIDEO MỚI</h2>
+      <p>Chưa có video.</p>
+      <p class="note">TSHT hiện chưa có video nào, nên khối này chưa liệt kê video — không dùng tiêu đề hay ảnh video bịa sẵn.</p>
+    </div>
+  </section>
+
+  <section aria-label="Báo in">
+    <h2 class="section-title">Báo in mới nhất</h2>
+    <p><a href="/bao-in">Xem tất cả các số báo in →</a></p>
+    <div id="epaper-more" class="epaper-grid">Đang tải danh sách báo in…</div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p><strong>TSHT — Tòa soạn hội tụ</strong></p>
+  <nav aria-label="Liên kết chân trang">
+    <a href="/bao-in">Báo in</a> ·
+    <a href="/truyen-hinh">Truyền hình</a> ·
+    <a href="/phat-thanh">Phát thanh</a> ·
+    <a href="/lich-phat-song">Lịch phát sóng</a> ·
+    <a href="/admin.html">CMS</a>
+  </nav>
+  <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
+</footer>
+<script src="/js/home.js?v=20261026-6"></script>
+</body></html>
