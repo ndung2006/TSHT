@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lịch phát sóng</title>
+<link rel="stylesheet" href="/css/style.css?v=20261026-3"></head>
+<body>
+<header class="top"><h1>Lịch phát sóng</h1><p><a href="/bao-in">Báo in</a> · <a href="/truyen-hinh">Truyền hình</a> · <a href="/phat-thanh">Phát thanh</a> · <a href="/lich-phat-song">Lịch phát sóng</a> · <a href="/admin.html">CMS</a></p></header>
+<div class="toolbar">
+  <label>Ngày: <input id="sched-date" type="date"></label>
+  <label>Kênh: <select id="sched-channel"><option value="">Đang tải kênh…</option></select></label>
+  <p class="note">Lịch lấy từ API vtcaio (cửa sổ: hôm nay, 2 ngày trước, 7 ngày tới). Ngày ngoài cửa sổ hoặc chưa có dữ liệu sẽ hiện thông báo, không phải lỗi hệ thống.</p>
+</div>
+<div id="schedule" class="toolbar" style="flex-direction:column;align-items:stretch"></div>
+<script src="/js/schedule.js?v=20261026-4"></script>
+</body></html>

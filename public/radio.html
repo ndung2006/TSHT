@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phát thanh trực tuyến</title>
+<link rel="stylesheet" href="/css/style.css?v=20261026-3"></head>
+<body>
+<header class="top"><h1>Phát thanh trực tuyến</h1><p><a href="/bao-in">Báo in</a> · <a href="/truyen-hinh">Truyền hình</a> · <a href="/phat-thanh">Phát thanh</a> · <a href="/lich-phat-song">Lịch phát sóng</a> · <a href="/admin.html">CMS</a></p></header>
+<div class="toolbar" style="flex-direction:column;align-items:stretch">
+  <h2 id="channel-name">Đang tải kênh…</h2>
+  <p id="channel-desc"></p>
+  <p id="now-playing"></p>
+  <audio id="player" controls style="width:100%;max-width:900px"></audio>
+  <div id="player-wrap"></div>
+  <p id="player-msg" class="note" style="display:none"></p>
+  <p><a href="/lich-phat-song">Xem lịch phát sóng</a></p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="/js/stream-player.js?v=20261026-4"></script>
+<script src="/js/radio.js?v=20261026-4"></script>
+</body></html>

@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
 import { hashPassword, verifyPassword, createSession, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
 import { pdfPageCount, renderIssuePages } from "./lib/worker.mjs";
+import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured } from "./lib/vtcaio.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
@@ -134,6 +135,47 @@ async function runScheduled() {
 setInterval(runScheduled, 60 * 1000).unref();
 runScheduled().catch((e) => console.error("scheduled init", e.message));
 
+// ---- Phase 2: TV/Radio + Lich phat song ----
+// Auto-migration idempotent: chay moi lan khoi dong, an toan khi bang da co.
+// Khong seed chuong trinh mau; lich bat dau rong de admin nhap trong CMS.
+async function migratePhase2() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS channels (
+    id SERIAL PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('tv','radio')),
+    stream_url TEXT NOT NULL, stream_kind TEXT NOT NULL DEFAULT 'hls'
+      CHECK (stream_kind IN ('hls','youtube','audio')),
+    description TEXT DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS programs (
+    id SERIAL PRIMARY KEY, channel_slug TEXT NOT NULL, program_date DATE NOT NULL,
+    start_time TIME NOT NULL, end_time TIME NOT NULL, title TEXT NOT NULL,
+    description TEXT DEFAULT '', replay_url TEXT DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (channel_slug, program_date, start_time, title))`);
+  // Spec change: KHONG seed stream Tuyen Quang TV mac dinh. Nguon chinh la
+  // API vtcaio (xem lib/vtcaio.mjs); bang channels chi la lop du phong de
+  // admin nhap/sua khi API loi. DB moi se bat dau voi channels rong.
+}
+function saigonToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+}
+function isValidDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return false;
+  const d = new Date(s + "T00:00:00Z");
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+function isValidTime(s) {
+  return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(s || "");
+}
+function channelRow(r) {
+  // Lop du phong noi bo: them cac truong giong dang vtcaio de frontend
+  // dung chung mot dang (status/live/epgNow/presets), khong can nhanh rieng.
+  return { id: r.id, slug: r.slug, name: r.name, kind: r.kind, status: r.is_active ? "RUNNING" : "STOPPED", live: null, epgNow: null, stream_url: r.stream_url, stream_kind: r.stream_kind, presets: [], epg_schedule: null, description: r.description, is_active: r.is_active, sort_order: r.sort_order };
+}
+function programRow(r) {
+  return { id: r.id, channel_slug: r.channel_slug, channel_name: r.channel_name || null, program_date: r.program_date instanceof Date ? r.program_date.toISOString().slice(0, 10) : r.program_date, start_time: String(r.start_time).slice(0, 5), end_time: String(r.end_time).slice(0, 5), title: r.title, description: r.description, replay_url: r.replay_url };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, "http://localhost");
@@ -141,13 +183,18 @@ const server = http.createServer(async (req, res) => {
     // Public reader (bao public): chi GET list/detail/cover/pdf-web/flip/thumb
     // moi khong can login; canView ben duoi van chi cho so da xuat ban.
     // Moi route khac (CMS, download PDF goc, audit, jobs, users...) van can login.
-    const isPublicRead = req.method === "GET" && (
+    const isPublicRead = (req.method === "GET" && (
+      u.pathname === "/api/v1/channels" ||
+      u.pathname === "/api/v1/schedule" ||
       u.pathname === "/api/v1/issues" ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
-    );
+    )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
+    // POST /api/v1/stream-token la public co chu dich: no chi tra link master
+    // da ky theo kenh (token+exp trong URL), KHONG BAO GIO tra partner key,
+    // va server tu kiem tra kenh RUNNING truoc khi cap.
     const needAuth = u.pathname.startsWith("/api/v1/") && !u.pathname.startsWith("/api/v1/auth/login") && !isPublicRead;
     if (needAuth && !user) return err(res, 401, "chua dang nhap");
 
@@ -202,6 +249,115 @@ const server = http.createServer(async (req, res) => {
         await audit(pool, user.id, "user", uid, "reset_password", {});
         return json(res, 200, { ok: true });
       }
+    }
+
+    // ---- Phase 2: Channels (public list, admin write) ----
+    if (u.pathname === "/api/v1/channels") {
+      if (req.method === "GET") {
+        // Nguon chinh: vtcaio (neu da cau hinh); loi/thieu cau hinh -> DB noi bo.
+        const ext = await fetchVtcaioChannels();
+        if (ext.ok) return json(res, 200, { items: ext.items, source: "vtcaio" });
+        const r = await pool.query("SELECT * FROM channels WHERE is_active ORDER BY sort_order, id");
+        const out = { items: r.rows.map(channelRow), source: "internal" };
+        if (ext.reason !== "not_configured") out.vtcaio_error = `Nguồn vtcaio hiện không truy cập được (${ext.reason}), đang dùng kênh dự phòng trong CMS.`;
+        return json(res, 200, out);
+      }
+      if (req.method === "POST") {
+        if (!isAdmin(user)) return err(res, 403, "chi admin");
+        const b = await readJson(req);
+        if (!b.slug || !/^[a-z0-9-]+$/.test(b.slug) || !b.name?.trim() || !["tv", "radio"].includes(b.kind) || !b.stream_url?.trim()) return err(res, 400, "thieu truong hoac slug/loai/stream khong hop le");
+        if (b.stream_kind && !["hls", "youtube", "audio"].includes(b.stream_kind)) return err(res, 400, "stream_kind khong hop le");
+        try {
+          const r = await pool.query("INSERT INTO channels (slug, name, kind, stream_url, stream_kind, description, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+            [b.slug, b.name.trim(), b.kind, b.stream_url.trim(), b.stream_kind || "hls", b.description || "", Number.isInteger(b.sort_order) ? b.sort_order : 0]);
+          return json(res, 201, channelRow(r.rows[0]));
+        } catch (e) { if (e.code === "23505") return err(res, 409, "slug kenh da ton tai"); throw e; }
+      }
+    }
+    const channelMatch = u.pathname.match(/^\/api\/v1\/channels\/(\d+)$/);
+    if (channelMatch && req.method === "PATCH") {
+      if (!isAdmin(user)) return err(res, 403, "chi admin");
+      const b = await readJson(req);
+      if (b.stream_kind && !["hls", "youtube", "audio"].includes(b.stream_kind)) return err(res, 400, "stream_kind khong hop le");
+      const r = await pool.query("UPDATE channels SET name=COALESCE($2,name), stream_url=COALESCE($3,stream_url), stream_kind=COALESCE($4,stream_kind), description=COALESCE($5,description), is_active=COALESCE($6,is_active), sort_order=COALESCE($7,sort_order) WHERE id=$1 RETURNING *",
+        [Number(channelMatch[1]), b.name || null, b.stream_url || null, b.stream_kind || null, b.description ?? null, b.is_active ?? null, Number.isInteger(b.sort_order) ? b.sort_order : null]);
+      if (!r.rows.length) return err(res, 404, "not found");
+      return json(res, 200, channelRow(r.rows[0]));
+    }
+
+    // ---- Phase 2: Stream token (public, xoay link — tai lieu v1.0 muc 4) ----
+    // Tra CHI {channel, url (master day du), exp}. Khong tra partner key,
+    // khong tra token rieng (token nam trong chinh URL da ky). Server tu
+    // kiem tra kenh RUNNING trong danh muc moi nhat truoc khi cap.
+    if (req.method === "POST" && u.pathname === "/api/v1/stream-token") {
+      const b = await readJson(req).catch(() => ({}));
+      const channel = String(b.channel || "").trim().toUpperCase();
+      if (!channel || !/^[A-Z0-9_-]+$/.test(channel)) return err(res, 400, "channel khong hop le (ten kenh viet hoa, khong dau)");
+      if (!vtcaioConfigured()) return err(res, 503, "vtcaio chua cau hinh (thieu VTCAIO_API_KEY)");
+      const t = await fetchVtcaioToken(channel);
+      if (!t.ok) {
+        if (t.reason === "channel_not_found") return err(res, 404, "kenh khong ton tai trong danh muc vtcaio");
+        if (t.reason === "channel_not_running") return err(res, 409, `kenh khong dang phat (status: ${t.status || "?"})`);
+        if (t.reason && t.reason.startsWith("http_")) return err(res, Number(t.reason.slice(5)) || 502, "vtcaio tra loi loi khi xin link");
+        return err(res, 502, "khong xin duoc link tu vtcaio");
+      }
+      return json(res, 200, { channel: t.channel, url: t.url, exp: t.exp });
+    }
+
+    // ---- Phase 2: Schedule (public list, admin write) ----
+    if (u.pathname === "/api/v1/schedule") {
+      if (req.method === "GET") {
+        const date = u.searchParams.get("date") || saigonToday();
+        const channel = u.searchParams.get("channel") || "";
+        if (!isValidDate(date)) return err(res, 400, "date khong hop le (YYYY-MM-DD)");
+        // channel o day la TEN KENH vtcaio (vd PHUTHO) hoac "tv"/"radio"/rong
+        // (chon kenh RUNNING dau tien cua loai do). Khong gioi han tv|radio
+        // nua vi so kenh vtcaio co the nhieu hon 2.
+        // Nguon chinh: vtcaio EPG (neu da cau hinh); loi/thieu cau hinh -> DB noi bo.
+        if (vtcaioConfigured()) {
+          const resolved = await resolveVtcaioChannelName(channel);
+          if (resolved.ok) {
+            const ext = await fetchVtcaioSchedule(date, resolved.channel.name);
+            if (ext.ok) return json(res, 200, { date, channel: resolved.channel.name, channel_kind: resolved.channel.kind, items: ext.items, source: "vtcaio", epg_note: ext.note || null });
+            const out0 = { date, channel: resolved.channel.name, items: [], source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${ext.reason}), đang dùng lịch dự phòng trong CMS.` };
+            const r0 = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE p.program_date=$1 AND p.channel_slug=$2 ORDER BY p.start_time, p.id`, [date, resolved.channel.slug]);
+            out0.items = r0.rows.map(programRow);
+            return json(res, 200, out0);
+          }
+          if (resolved.reason === "channel_not_found") return err(res, 404, "kenh khong ton tai trong danh muc vtcaio");
+          // no_running_channel / fetch loi: roi ve DB noi bo kem canh bao.
+          const rF = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE p.program_date=$1 ORDER BY p.start_time, p.id`, [date]);
+          return json(res, 200, { date, channel: channel || null, items: rF.rows.map(programRow), source: "internal", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${resolved.reason}), đang dùng lịch dự phòng trong CMS.` });
+        }
+        const args = [date], conds = ["p.program_date=$1"];
+        if (channel) {
+          if (["tv", "radio"].includes(channel)) { args.push(channel); conds.push(`(p.channel_slug=$${args.length} OR c.kind=$${args.length})`); }
+          else { args.push(channel.toLowerCase()); conds.push(`p.channel_slug=$${args.length}`); }
+        }
+        const r = await pool.query(`SELECT p.*, c.name AS channel_name FROM programs p LEFT JOIN channels c ON c.slug=p.channel_slug WHERE ${conds.join(" AND ")} ORDER BY p.start_time, p.id`, args);
+        const out = { date, channel: channel || null, items: r.rows.map(programRow), source: "internal" };
+        return json(res, 200, out);
+      }
+      if (req.method === "POST") {
+        if (!isAdmin(user)) return err(res, 403, "chi admin");
+        const b = await readJson(req);
+        if (!b.channel_slug || !isValidDate(b.program_date) || !isValidTime(b.start_time) || !isValidTime(b.end_time) || !b.title?.trim()) return err(res, 400, "thieu truong hoac ngay/gio/tieu de khong hop le");
+        if (String(b.end_time).slice(0, 5) <= String(b.start_time).slice(0, 5)) return err(res, 400, "gio ket thuc phai sau gio bat dau");
+        const ch = await pool.query("SELECT id FROM channels WHERE slug=$1", [b.channel_slug]);
+        if (!ch.rows.length) return err(res, 400, "kenh khong ton tai");
+        try {
+          const r = await pool.query("INSERT INTO programs (channel_slug, program_date, start_time, end_time, title, description, replay_url) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+            [b.channel_slug, b.program_date, b.start_time, b.end_time, b.title.trim(), b.description || "", b.replay_url || ""]);
+          return json(res, 201, programRow(r.rows[0]));
+        } catch (e) { if (e.code === "23505") return err(res, 409, "chuong trinh da ton tai (cung kenh, ngay, gio, tieu de)"); throw e; }
+      }
+    }
+    const scheduleMatch = u.pathname.match(/^\/api\/v1\/schedule\/(\d+)$/);
+    if (scheduleMatch && req.method === "DELETE") {
+      if (!isAdmin(user)) return err(res, 403, "chi admin");
+      const r = await pool.query("DELETE FROM programs WHERE id=$1 RETURNING id", [Number(scheduleMatch[1])]);
+      if (!r.rows.length) return err(res, 404, "not found");
+      return json(res, 200, { ok: true });
     }
 
     // ---- Issues list (B3) ----
@@ -337,6 +493,9 @@ const server = http.createServer(async (req, res) => {
     // ---- Static ----
     if (VENDOR[u.pathname]) return serveFile(res, path.join(ROOT, VENDOR[u.pathname]));
     if (u.pathname === "/" || u.pathname === "/bao-in") return serveFile(res, path.join(PUBLIC, "index.html"));
+    if (u.pathname === "/truyen-hinh") return serveFile(res, path.join(PUBLIC, "tv.html"));
+    if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"));
+    if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     // A3: never serve sample assets or storage directly; content only via /api routes above.
@@ -509,4 +668,9 @@ async function transition(client, user, issue, action, b, res) {
 }
 
 const PORT = Number(process.env.PORT || 3000);
-server.listen(PORT, () => console.log(`E-paper Stage 2 (DB + CMS): http://localhost:${PORT}/bao-in  | CMS: /admin.html`));
+// Phase 2 migration chay truoc khi nhan request; neu migration loi, van
+// khoi dong de /health hoat dong va loi hien ro trong log (API Phase 2 se 500).
+migratePhase2()
+  .then(() => console.log("Phase 2 migration ok: channels + programs"))
+  .catch((e) => console.error("Phase 2 migration failed", e.message))
+  .finally(() => server.listen(PORT, () => console.log(`E-paper Stage 2 (DB + CMS): http://localhost:${PORT}/bao-in  | CMS: /admin.html`)));

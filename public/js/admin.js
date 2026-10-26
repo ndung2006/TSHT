@@ -102,6 +102,44 @@ async function loadUsers() {
     } catch (err) { alert(err.message); }
   };
 }
+// ---- Phase 2: Kenh TV/Radio + Lich phat song (chi admin) ----
+async function loadChannels() {
+  const d = await api("/api/v1/channels");
+  document.getElementById("channels").innerHTML = d.items.map((c) => `
+    <div class="card" style="max-width:720px">
+      <b>${c.name}</b> — ${c.slug} — ${c.kind} — ${c.stream_kind} — ${c.is_active ? "đang hoạt động" : "đã tắt"}
+      <div style="word-break:break-all">${c.stream_url}</div>
+      <div><button data-ch-edit="${c.id}" data-url="${c.stream_url.replace(/"/g, "")}">Sửa stream</button>
+      <button data-ch-toggle="${c.id}" data-active="${c.is_active ? 0 : 1}">${c.is_active ? "Tắt kênh" : "Bật kênh"}</button></div>
+    </div>`).join("") || "<p>Chưa có kênh nào.</p>";
+  document.querySelectorAll("[data-ch-edit]").forEach((btn) => btn.onclick = async () => {
+    const url = prompt("Stream URL mới:", btn.dataset.url);
+    if (!url || !url.trim()) return;
+    try { await api(`/api/v1/channels/${btn.dataset.chEdit}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stream_url: url.trim() }) }); await loadChannels(); }
+    catch (e) { alert(e.message); }
+  });
+  document.querySelectorAll("[data-ch-toggle]").forEach((btn) => btn.onclick = async () => {
+    try { await api(`/api/v1/channels/${btn.dataset.chToggle}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_active: btn.dataset.active === "1" }) }); await loadChannels(); }
+    catch (e) { alert(e.message); }
+  });
+}
+async function loadSchedule() {
+  const date = document.getElementById("sched-date").value || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  document.getElementById("sched-date").value = date;
+  const channel = document.getElementById("sched-channel").value;
+  const d = await api(`/api/v1/schedule?date=${date}&channel=${channel}`);
+  document.getElementById("schedule-list").innerHTML = d.items.map((p) => `
+    <div class="card" style="max-width:720px">
+      <b>${p.start_time}–${p.end_time}</b> — ${p.title}
+      <div>${p.description || ""} ${p.replay_url ? `<a href="${p.replay_url}" target="_blank">Phát lại</a>` : ""}</div>
+      <div><button data-prog-del="${p.id}">Xóa</button></div>
+    </div>`).join("") || "<p>Chưa có lịch cho ngày/kênh này.</p>";
+  document.querySelectorAll("[data-prog-del]").forEach((btn) => btn.onclick = async () => {
+    if (!confirm("Xóa chương trình này?")) return;
+    try { await api(`/api/v1/schedule/${btn.dataset.progDel}`, { method: "DELETE" }); await loadSchedule(); }
+    catch (e) { alert(e.message); }
+  });
+}
 document.getElementById("create").onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -117,7 +155,39 @@ document.getElementById("create").onsubmit = async (e) => {
 };
 document.getElementById("reload").onclick = loadIssues;
 document.getElementById("logout").onclick = async () => { await api("/api/v1/auth/logout", { method: "POST" }); location.href = "/login.html"; };
+document.getElementById("channel-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  document.getElementById("channel-msg").textContent = "Đang lưu…";
+  try {
+    const d = await api("/api/v1/channels", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: f.get("slug"), name: f.get("name"), kind: f.get("kind"), stream_url: f.get("stream_url"), stream_kind: f.get("stream_kind"), description: f.get("description") || "", sort_order: Number(f.get("sort_order") || 0) }) });
+    document.getElementById("channel-msg").textContent = `Đã lưu kênh ${d.name} (${d.slug}).`;
+    await loadChannels();
+  } catch (err) { document.getElementById("channel-msg").textContent = "Lỗi: " + err.message; }
+};
+document.getElementById("schedule-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  document.getElementById("schedule-msg").textContent = "Đang lưu…";
+  try {
+    const d = await api("/api/v1/schedule", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel_slug: f.get("channel_slug"), program_date: f.get("program_date"), start_time: f.get("start_time"), end_time: f.get("end_time"), title: f.get("title"), description: f.get("description") || "", replay_url: f.get("replay_url") || "" }) });
+    document.getElementById("schedule-msg").textContent = `Đã lưu chương trình ${d.title} (${d.program_date} ${d.start_time}–${d.end_time}).`;
+    document.getElementById("sched-date").value = d.program_date;
+    document.getElementById("sched-channel").value = d.channel_slug;
+    await loadSchedule();
+  } catch (err) { document.getElementById("schedule-msg").textContent = "Lỗi: " + err.message; }
+};
+document.getElementById("sched-reload").onclick = loadSchedule;
 ME = (await api("/api/v1/auth/me")).user;
 document.getElementById("me").textContent = `${ME.display_name} (@${ME.username}) — vai trò: ${ME.role} — tải PDF gốc: ${ME.can_download_pdf ? "có" : "không"}`;
 await loadIssues();
 await loadUsers();
+if (ME.role === "admin") { await loadChannels(); await loadSchedule(); }
+else {
+  document.getElementById("channels-title").style.display = "none";
+  document.getElementById("channels-section").style.display = "none";
+  document.getElementById("schedule-title").style.display = "none";
+  document.getElementById("schedule-section").style.display = "none";
+}

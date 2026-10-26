@@ -26,8 +26,46 @@
 </div>
 <div id="issues"></div>
 
+<h2 id="channels-title">Kênh TV/Radio (Phase 2 — chỉ admin)</h2>
+<p class="note">Nguồn chính là API vtcaio theo tài liệu v1.0 (mô hình link xoay: server xin link master TTL 240 phút, trình phát tự xin lại ở phút 210; cấu hình bằng biến môi trường VTCAIO_API_BASE / VTCAIO_API_KEY trên Coolify, KHÔNG nhập key vào đây, không đưa key vào code). Kênh nhập ở đây chỉ là dự phòng khi vtcaio lỗi hoặc chưa cấu hình.</p>
+<div id="channels-section">
+  <form id="channel-form" class="toolbar" style="flex-direction:column;align-items:flex-start">
+    <label>Slug: <input name="slug" placeholder="vd tv-moi" required></label>
+    <label>Tên kênh: <input name="name" size="50" required></label>
+    <label>Loại: <select name="kind"><option value="tv">Truyền hình</option><option value="radio">Phát thanh</option></select></label>
+    <label>Stream URL: <input name="stream_url" size="80" required></label>
+    <label>Loại stream: <select name="stream_kind"><option value="hls">HLS</option><option value="youtube">YouTube</option><option value="audio">Audio</option></select></label>
+    <label>Mô tả: <input name="description" size="60"></label>
+    <label>Thứ tự: <input name="sort_order" type="number" value="0"></label>
+    <button type="submit">Lưu kênh</button>
+    <p id="channel-msg"></p>
+  </form>
+  <div id="channels"></div>
+</div>
+
+<h2 id="schedule-title">Lịch phát sóng (Phase 2 — chỉ admin)</h2>
+<div id="schedule-section">
+  <form id="schedule-form" class="toolbar" style="flex-direction:column;align-items:flex-start">
+    <label>Kênh: <select name="channel_slug"><option value="tv">Truyền hình</option><option value="radio">Phát thanh</option></select></label>
+    <label>Ngày: <input name="program_date" type="date" required></label>
+    <label>Giờ bắt đầu: <input name="start_time" type="time" required></label>
+    <label>Giờ kết thúc: <input name="end_time" type="time" required></label>
+    <label>Tiêu đề chương trình: <input name="title" size="60" required></label>
+    <label>Mô tả: <input name="description" size="60"></label>
+    <label>Link phát lại: <input name="replay_url" size="80"></label>
+    <button type="submit">Lưu chương trình</button>
+    <p id="schedule-msg"></p>
+  </form>
+  <div class="toolbar">
+    <label>Xem lịch ngày: <input id="sched-date" type="date"></label>
+    <label>Kênh: <select id="sched-channel"><option value="tv">Truyền hình</option><option value="radio">Phát thanh</option></select></label>
+    <button id="sched-reload">Tải lại lịch</button>
+  </div>
+  <div id="schedule-list"></div>
+</div>
+
 <h2 id="users-title" style="display:none">Tài khoản (D5 — chỉ admin)</h2>
 <div id="users" style="display:none"></div>
 
-<script type="module" src="/js/admin.js?v=20261026-2"></script>
+<script type="module" src="/js/admin.js?v=20261026-3"></script>
 </body></html>
