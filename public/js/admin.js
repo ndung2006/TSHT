@@ -23,6 +23,7 @@ async function loadIssues() {
       ${it.status === "draft" && (ME.role === "publisher" || ME.role === "admin") ? `<button data-act="submit" data-id="${it.id}">Gửi duyệt</button>` : ""}
       ${it.status === "pending_review" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="publish" data-id="${it.id}">Xuất bản</button> <button data-act="reject" data-id="${it.id}">Trả lại nháp</button>` : ""}
       ${it.status === "published" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="unpublish" data-id="${it.id}">Gỡ xuống</button>` : ""}
+      ${ME.role === "admin" ? `<button data-act="replace-pdf" data-id="${it.id}">Thay PDF</button>` : ""}
       ${it.status === "unpublished" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="publish" data-id="${it.id}">Xuất bản lại</button>` : ""}
       </div>
       <div class="checks" data-id="${it.id}">${CHECKS.map(([k, label]) => `<label><input type="checkbox" data-k="${k}"> ${label}</label>`).join(" ")}
@@ -46,6 +47,25 @@ async function loadIssues() {
         const d = await api(`/api/v1/issues/${id}/audit`);
         document.querySelector(`.audit[data-id="${id}"]`).textContent =
           d.items.map((a) => `${a.created_at} ${a.username || "?"}: ${a.action}`).join(" | ") || "(chưa có)";
+      } else if (act === "replace-pdf") {
+        const reason = prompt("Lý do thay PDF (bắt buộc):", "Thay file mẫu bằng file thật");
+        if (!reason || !reason.trim()) return;
+        const title = prompt("Tiêu đề mới (để trống = giữ nguyên tiêu đề cũ):", "");
+        const pick = document.createElement("input");
+        pick.type = "file"; pick.accept = "application/pdf";
+        pick.onchange = async () => {
+          if (!pick.files.length) return;
+          const fd = new FormData();
+          fd.append("pdf", pick.files[0]);
+          fd.append("change_reason", reason.trim());
+          if (title && title.trim()) fd.append("title", title.trim());
+          try {
+            const d = await api(`/api/v1/issues/${id}/replace-pdf`, { method: "POST", body: fd });
+            alert(`Đã thay PDF số ${d.issue_number} (${d.page_count} trang, trạng thái ${d.status}). Xử lý: ${d.processing ? d.processing.status : "?"}`);
+            await loadIssues();
+          } catch (e) { alert(e.message); }
+        };
+        pick.click();
       } else if (act === "checklist") {
         const body = {};
         document.querySelectorAll(`.checks[data-id="${id}"] input`).forEach((b) => body[b.dataset.k] = b.checked);

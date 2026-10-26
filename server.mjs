@@ -288,7 +288,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- Issue sub-routes ----
-    const im = u.pathname.match(/^\/api\/v1\/issues\/(\d+)(?:\/(cover|pdf|download|audit|jobs|submit|reject|publish|unpublish|checklist|retry-processing|pages\/(\d+)\/(flip|thumb)))?$/);
+    const im = u.pathname.match(/^\/api\/v1\/issues\/(\d+)(?:\/(cover|pdf|download|audit|jobs|submit|reject|publish|unpublish|checklist|retry-processing|replace-pdf|pages\/(\d+)\/(flip|thumb)))?$/);
     if (im) {
       const id = Number(im[1]), action = im[2];
       const client = await pool.connect();
@@ -323,6 +323,7 @@ const server = http.createServer(async (req, res) => {
           return json(res, 200, { items: r.rows });
         }
         if (req.method === "PATCH" && !action) return patchIssue(client, user, issue, await readJson(req), res);
+        if (req.method === "POST" && action === "replace-pdf") return replacePdf(client, user, issue, req, res);
         if (req.method === "POST" && ["submit", "reject", "publish", "unpublish", "checklist", "retry-processing"].includes(action)) {
           return transition(client, user, issue, action, await readJson(req).catch(() => ({})), res);
         }
@@ -363,6 +364,57 @@ async function detailOf(id, user, client) {
     }
     return out;
   } finally { if (own) c.release(); }
+}
+
+// Thay PDF cho mot so da co (chi admin). Giu nguyen so bao, loai so, ngay,
+// slug/URL va trang thai (ke ca da xuat ban: ban doc mo cung link cu se thay
+// ngay noi dung moi). Bat buoc change_reason; neu so da xuat ban thi luu
+// revision snapshot nhu patchIssue (B2). File moi duoc render lai flip+thumb
+// nhu luc tao so; so trang moi co the khac so cu, issue_pages duoc thay toan bo.
+async function replacePdf(client, user, issue, req, res) {
+  if (!isAdmin(user)) return err(res, 403, "chi admin duoc thay PDF");
+  const { fields, files } = await readMultipart(req);
+  const changeReason = (fields.change_reason || "").trim();
+  if (!changeReason) return err(res, 400, "thay PDF bat buoc nhap change_reason");
+  const pdf = files.pdf || files.file;
+  if (!pdf || pdf.data.subarray(0, 5).toString() !== "%PDF-") return err(res, 400, "file tai len khong phai PDF");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "epaper-replace-"));
+  const tmpPdf = path.join(tmpDir, "replace.pdf");
+  fs.writeFileSync(tmpPdf, pdf.data);
+  let pageCount;
+  try { pageCount = await pdfPageCount(tmpPdf); } catch (e) { fs.rmSync(tmpDir, { recursive: true, force: true }); return err(res, 400, `PDF loi: ${e.message}`); }
+  const origAbs = resolveStoragePath(issue.pdf_original_path);
+  const webAbs = resolveStoragePath(issue.pdf_web_path);
+  const issueDir = origAbs ? path.dirname(origAbs) : path.join(STORAGE_DIR, "epaper", new Date(issue.publish_date).getFullYear().toString(), String(new Date(issue.publish_date).getMonth() + 1).padStart(2, "0"), String(issue.id));
+  const sha256 = crypto.createHash("sha256").update(pdf.data).digest("hex");
+  const newTitle = (fields.title || "").trim();
+  try {
+    if (issue.published_at) {
+      const rn = await client.query("SELECT COALESCE(max(revision_no),0)+1 AS n FROM issue_revisions WHERE issue_id=$1", [issue.id]);
+      await client.query("INSERT INTO issue_revisions (issue_id, revision_no, changed_by, change_reason, snapshot) VALUES ($1,$2,$3,$4,$5)",
+        [issue.id, rn.rows[0].n, user.id, changeReason, { title: issue.title, issue_number: issue.issue_number, issue_type: issue.issue_type, publish_date: issue.publish_date, pdf_original_path: issue.pdf_original_path, pdf_web_path: issue.pdf_web_path, page_count: issue.page_count, pdf_original_size: issue.pdf_original_size }]);
+    }
+    await client.query("INSERT INTO processing_jobs (issue_id, status, current_step) VALUES ($1,'processing','render_flip')", [issue.id]);
+    fs.mkdirSync(issueDir, { recursive: true });
+    fs.copyFileSync(tmpPdf, path.join(issueDir, "original.pdf"));
+    fs.copyFileSync(tmpPdf, path.join(issueDir, "web.pdf"));
+    const rendered = await renderIssuePages(path.join(issueDir, "original.pdf"), issueDir, pageCount);
+    const dirRel = (f) => storageRelForIssue(issue.id, issue.publish_date, f);
+    await client.query("DELETE FROM issue_pages WHERE issue_id=$1", [issue.id]);
+    for (let n = 1; n <= pageCount; n++) {
+      await client.query("INSERT INTO issue_pages (issue_id, page_number, pdf_page_number, is_cover, flip_image_path, thumbnail_path) VALUES ($1,$2,$2,$3,$4,$5)",
+        [issue.id, n, n === 1, dirRel(`pages/flip/p${String(n).padStart(3, "0")}.jpg`), dirRel(`pages/thumb/p${String(n).padStart(3, "0")}.jpg`)]);
+    }
+    await client.query("UPDATE issues SET cover_image_path=$2, cover_thumbnail_path=$3, page_count=$4, pdf_original_size=$5, pdf_sha256=$6, title=COALESCE($7,title) WHERE id=$1",
+      [issue.id, dirRel("cover.jpg"), dirRel("pages/thumb/p001.jpg"), pageCount, pdf.data.length, sha256, newTitle || null]);
+    await client.query("UPDATE processing_jobs SET status='done', current_step='done', finished_at=now() WHERE issue_id=$1 AND status='processing'", [issue.id]);
+    await audit(client, user.id, "issue", issue.id, "replace_pdf", { pages: rendered, old_page_count: issue.page_count, new_page_count: pageCount, change_reason: changeReason });
+  } catch (e) {
+    try { await client.query("UPDATE processing_jobs SET status='failed', error_message=$2, finished_at=now() WHERE issue_id=$1 AND status='processing'", [issue.id, e.message]); } catch {}
+    console.error("replace-pdf failed", issue.id, e.message);
+    return err(res, 500, `thay PDF loi: ${e.message}`);
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }); }
+  return json(res, 200, await detailOf(issue.id, user, client));
 }
 
 async function patchIssue(client, user, issue, b, res) {
