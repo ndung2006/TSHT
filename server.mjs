@@ -13,11 +13,11 @@ import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
-import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
+import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, clearSessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
 import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, hasVtcanyPermission, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { pdfPageCount, renderIssuePages } from "./lib/worker.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
-import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, computeEpgStatus } from "./lib/vtcany.mjs";
+import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -87,6 +87,38 @@ async function audit(client, actorId, entityType, entityId, action, details = {}
     [actorId, entityType, entityId, action, details]);
 }
 function slugFor(number, id) { return `bao-tuyen-quang-so-${number}-${id}.html`; }
+// ---- Doc cong khai bao in he moi (chi so moi tu CMS moi) ----
+// TSHT server lam proxy sang backend VTCANY (giong cach trang TV lay
+// EPG qua lib/vtcany.mjs): trinh duyet khong bao gio goi thang backend
+// moi. Chi so da xuat ban moi duoc backend tra; TSHT chi doi hinh dang
+// ve dang cu cua trang /bao-in + trinh doc (khong lo thong tin noi bo).
+async function fetchVtcanyEpaperJson(path) {
+  const base = vtcanyApiBase();
+  if (!base) return { ok: false, reason: "not_configured" };
+  try {
+    const r = await fetch(base + path, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+    const text = await r.text();
+    if (!r.ok) return { ok: false, reason: `http_${r.status}`, status: r.status };
+    return { ok: true, data: JSON.parse(text) };
+  } catch (e) { return { ok: false, reason: "fetch_failed" }; }
+}
+// Anh bia luu dang duong dan tuong doi (/images/...) thuoc backend: khi
+// hien thi phai ghep voi origin cua backend, giong fix ImagePicker ben CMS.
+function resolveVtcanyImageUrl(p) {
+  if (!p) return "";
+  if (/^(https?:)?\/\//.test(p) || p.startsWith("data:")) return p;
+  if (!p.startsWith("/")) return p;
+  try { return new URL(vtcanyApiBase()).origin + p; } catch { return p; }
+}
+function newEpaperListItem(it) {
+  return {
+    issue_number: it.issueNumber, issue_type: it.issueType,
+    publish_date: it.publishDate, title: it.title,
+    page_count: it.pageCount, status: "published",
+    cover: resolveVtcanyImageUrl(it.coverPath),
+    url: `/bao-in/${it.slug}`,
+  };
+}
 function coverUrl(it) { return `/api/v1/issues/${it.id}/cover`; }
 function pageUrls(issueId, p) {
   return { flip: `/api/v1/issues/${issueId}/pages/${p.page_number}/flip`, thumb: `/api/v1/issues/${issueId}/pages/${p.page_number}/thumb` };
@@ -246,6 +278,8 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/timeshift" ||
       u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v1/issues" ||
+      u.pathname === "/api/v2/epaper" ||
+      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf)?$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
@@ -346,7 +380,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/v1/auth/me") return json(res, 200, { user });
     if (req.method === "POST" && u.pathname === "/api/v1/auth/logout") {
       destroySession(req);
-      return json(res, 200, { ok: true }, { "Set-Cookie": "epaper_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" });
+      // Clear with the same builder as login (see lib/auth.mjs): if a
+      // cookie domain is ever configured for SSO, logout must clear
+      // with the same Domain or the cookie survives logout.
+      return json(res, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
     }
 
     // ---- Users (admin only, D5) ----
@@ -623,6 +660,52 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { items: rows.rows.map(toListItem), total: total.rows[0].n, page, total_pages: Math.max(1, Math.ceil(total.rows[0].n / per)) });
     }
 
+    // ---- Doc cong khai bao in he moi qua proxy (chi so moi) ----
+    // GET /api/v2/epaper?page&type&q&date — danh sach so da xuat ban
+    // cua he moi, tra ve dang cu cua /bao-in (15 so/trang). Backend
+    // moi khong co loc theo ngay, nen TSHT lay toi da 100 so roi loc
+    // ngay + phan trang tai day (he moi hien chi co vai so, du dung).
+    if (req.method === "GET" && u.pathname === "/api/v2/epaper") {
+      const page = Math.max(1, Number(u.searchParams.get("page") || 1));
+      const type = u.searchParams.get("type") || "";
+      const q = (u.searchParams.get("q") || "").trim();
+      const date = u.searchParams.get("date") || "";
+      const bq = new URLSearchParams({ page: "1", limit: "100" });
+      if (type === "thuong" || type === "vung_cao") bq.set("issueType", type);
+      if (q) bq.set("q", q);
+      const ext = await fetchVtcanyEpaperJson(`/epaper?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach bao in he moi");
+      let items = (ext.data.data || []).map(newEpaperListItem);
+      if (date) items = items.filter((it) => it.publish_date === date);
+      const per = 15, total = items.length;
+      const total_pages = Math.max(1, Math.ceil(total / per));
+      const p = Math.min(page, total_pages);
+      return json(res, 200, { items: items.slice((p - 1) * per, p * per), total, page: p, total_pages });
+    }
+    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf)?$/);
+    if (newEpaperMatch && req.method === "GET") {
+      const publicId = newEpaperMatch[1];
+      if (newEpaperMatch[2]) {
+        // Stream PDF goc qua proxy (PDF.js doc truc tiep; khong co nut
+        // tai PDF goc o trinh doc cong khai vi khong co login).
+        const base = vtcanyApiBase();
+        if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
+        try {
+          const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(30000) });
+          if (!r.ok) return err(res, r.status === 404 ? 404 : 502, "khong lay duoc file PDF");
+          const buf = Buffer.from(await r.arrayBuffer());
+          res.writeHead(200, { "Content-Type": "application/pdf", "Content-Length": buf.length });
+          return res.end(buf);
+        } catch (e) { return err(res, 502, "khong lay duoc file PDF"); }
+      }
+      const ext = await fetchVtcanyEpaperJson(`/epaper/${publicId}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay so bao");
+      const it = ext.data;
+      // Dang cu cua trinh doc: pages rong = bao hieu trinh doc tu render
+      // trang tu PDF bang PDF.js (so moi khong co anh trang render san).
+      return json(res, 200, { ...newEpaperListItem(it), id: it.publicId, can_download: false, pdf_url: `/api/v2/epaper/${publicId}/pdf`, pages: [] });
+    }
+
     // ---- Create issue + upload PDF (D1 + C1/C2/C4/C6) ----
     if (req.method === "POST" && u.pathname === "/api/v1/issues") {
       if (!isStaff(user) || user.role === "reviewer") return err(res, 403, "chi nguoi dang / admin duoc dang so");
@@ -747,6 +830,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
+    if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     // A3: never serve sample assets or storage directly; content only via /api routes above.
     if (u.pathname.startsWith("/assets/") || u.pathname.startsWith("/storage/")) return err(res, 404, "not found");
     const file = path.join(PUBLIC, decodeURIComponent(u.pathname));

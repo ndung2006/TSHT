@@ -9,16 +9,46 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
 // Stage 2: issue ID is the LAST number in the slug (/bao-tuyen-quang-so-319-1.html -> id 1,
 // NOT 319 — Stage 1 used id == number, the real DB does not).
+// He moi (tu 2026-10-27): URL /bao-in/bao-tuyen-quang-so-<so>-<publicId24hex>
+// mo cung trinh doc nay; so moi khong co anh trang render san nen trinh
+// doc tu render trang tu PDF (xem khoi isNew ben duoi). Duong cu van
+// nguyen cho so cu.
+const newMatch = location.pathname.match(/^\/bao-in\/bao-tuyen-quang-so-\d+-([0-9a-f]{24})$/);
+const isNew = !!newMatch;
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
-const res = await fetch(`/api/v1/issues/${issueId}`);
+const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}` : `/api/v1/issues/${issueId}`);
 // Public reader: so da xuat ban khong can login; so nhap/cho duyet van 403 o server.
 if (!res.ok) { document.getElementById("title").textContent = "Không tìm thấy số báo hoặc không có quyền xem."; throw new Error("issue not found"); }
 const issue = await res.json();
 document.getElementById("title").textContent = issue.title;
 if (issue.can_download) { document.getElementById("download").href = `/api/v1/issues/${issueId}/download`; document.getElementById("download").textContent = "Tải PDF gốc"; }
 else document.getElementById("download").remove();
-const total = issue.pages.length;
+let total;
+if (isNew) {
+  // Render toan bo trang tu PDF bang PDF.js thanh anh dataURL roi nap
+  // vao StPageFlip nhu anh flip/thumb cu (cung khung sach 500x707).
+  // So trang lay theo PDF that (doc.numPages), khong lay theo so nhap
+  // tay neu lech — PDF la su that, so nhap tay chi de hien o danh sach.
+  let doc;
+  try { doc = await pdfjs.getDocument(issue.pdf_url).promise; }
+  catch { document.getElementById("title").textContent = "Không tải được file PDF của số báo."; throw new Error("pdf load failed"); }
+  total = doc.numPages;
+  const rendered = [];
+  for (let pn = 1; pn <= total; pn++) {
+    const page = await doc.getPage(pn);
+    const pt = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: 500 / pt.width });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    const url = canvas.toDataURL("image/jpeg", 0.85);
+    rendered.push({ page_number: pn, pdf_page_number: pn, is_cover: pn === 1, is_padding: false, flip: url, thumb: url });
+  }
+  issue.pages = rendered;
+} else {
+  total = issue.pages.length;
+}
 const $ = (id) => document.getElementById(id);
 
 // ---------- Flip mode (F1-F5, F8) ----------

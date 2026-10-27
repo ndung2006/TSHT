@@ -78,6 +78,58 @@ export class EpaperService {
     return { data: rows.map((r) => this.toItem(r)), total, page, limit };
   }
 
+  // --- Doc cong khai (chi so da xuat ban; khong lo thong tin noi bo) ---
+  private toPublicItem(row: any) {
+    return {
+      publicId: row.publicId,
+      issueNumber: row.issueNumber,
+      issueType: row.issueType,
+      publishDate: row.publishDate instanceof Date ? row.publishDate.toISOString().slice(0, 10) : row.publishDate,
+      title: row.title,
+      slug: row.slug,
+      url: issueUrl(row.slug),
+      status: row.status,
+      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+      pageCount: row.pageCount,
+      coverPath: row.coverPath,
+    };
+  }
+
+  async listPublished(query: { issueType?: string; q?: string; page?: number; limit?: number }) {
+    const page = Math.max(1, Math.trunc(Number(query.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.trunc(Number(query.limit) || 20)));
+    const where: any = { status: 'published' };
+    if (query.issueType && isIssueType(query.issueType)) where.issueType = query.issueType;
+    if (query.q && String(query.q).trim()) {
+      const q = String(query.q).trim();
+      const n = Number(q);
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        ...(Number.isInteger(n) ? [{ issueNumber: n }] : []),
+      ];
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.epaperIssue.findMany({
+        where, orderBy: [{ publishDate: 'desc' }, { issueNumber: 'desc' }],
+        skip: (page - 1) * limit, take: limit,
+      }),
+      this.prisma.epaperIssue.count({ where }),
+    ]);
+    return { data: rows.map((r) => this.toPublicItem(r)), total, page, limit };
+  }
+
+  async getPublished(publicId: string) {
+    const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
+    if (!row || row.status !== 'published') throw new NotFoundException('khong tim thay so bao');
+    return this.toPublicItem(row);
+  }
+
+  async publishedPdfPath(publicId: string) {
+    const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
+    if (!row || row.status !== 'published') throw new NotFoundException('khong tim thay so bao');
+    return row.pdfPath as string | null;
+  }
+
   async get(publicId: string) {
     const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay so bao');

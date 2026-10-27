@@ -4,7 +4,9 @@ async function load() {
     page, type: document.getElementById("type").value,
     q: document.getElementById("q").value, date: document.getElementById("date").value,
   });
-  const r = await fetch("/api/v1/issues?" + qs);
+  // Trang /bao-in hien chi doc so moi tu he moi (qua proxy /api/v2/epaper);
+  // 4 so cu o he cu khong di tru theo quyet dinh ngay 2026-10-27.
+  const r = await fetch("/api/v2/epaper?" + qs);
   // Public reader: danh sach so da xuat ban khong can login, khong redirect ve login.
   if (!r.ok) { document.getElementById("list").innerHTML = "<p>Không tải được danh sách số báo.</p>"; return; }
   const data = await r.json();
