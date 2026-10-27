@@ -2,13 +2,14 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TSHT — Tòa soạn hội tụ</title>
-<link rel="stylesheet" href="/css/home.css?v=20261026-6"></head>
+<link rel="stylesheet" href="/css/home.css?v=20261027-5"></head>
 <body id="top">
 <!-- Trang chủ TSHT — khung bố cục theo cấu trúc trang chủ kiểu Tuyên Quang TV
      (chỉ cấu trúc, không copy logo/ảnh/bài viết của trang tham khảo).
-     Nội dung thật duy nhất ở đây là: số báo đã xuất bản (API /api/v1/issues),
-     chương trình TV/radio đang phát (API /api/v1/schedule). Tin tức, video,
-     thời tiết và mạng xã hội CHƯA có nên chỉ hiện trạng thái chờ, không bịa. -->
+     Nội dung thật: số báo đã xuất bản, chương trình TV/radio đang phát,
+     và tin tức (chuyên mục + bài viết từ CMS Tin bài, qua /api/v2/news).
+     Video, thời tiết và mạng xã hội CHƯA có nên chỉ hiện trạng thái chờ,
+     không bịa. -->
 <div class="utility">
   <nav class="utility-links" aria-label="Liên kết chính">
     <a href="/truyen-hinh">TRUYỀN HÌNH</a>
@@ -67,6 +68,13 @@
     </div>
   </section>
 
+  <section aria-label="Tin tức">
+    <h2 class="section-title">Tin nổi bật</h2>
+    <div id="news-featured" class="news-grid">Đang tải tin nổi bật…</div>
+    <h2 class="section-title">Tin mới nhất</h2>
+    <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
+  </section>
+
   <section class="bottom-blocks" aria-label="Truyền hình, phát thanh và video">
     <div class="card">
       <h2>TRUYỀN HÌNH TRỰC TUYẾN</h2>
@@ -103,5 +111,5 @@
   </nav>
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
-<script src="/js/home.js?v=20261027-4"></script>
+<script src="/js/home.js?v=20261027-5"></script>
 </body></html>

@@ -284,6 +284,9 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/issues" ||
       u.pathname === "/api/v2/epaper" ||
       /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover|\/pages\/\d+)?$/.test(u.pathname) ||
+      u.pathname === "/api/v2/news" ||
+      /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
+      u.pathname === "/api/v2/news-categories" ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
@@ -784,6 +787,47 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...newEpaperListItem(it), id: it.publicId, can_download: false, pdf_url: `/api/v2/epaper/${publicId}/pdf`, pages });
     }
 
+    // ---- Tin bai he moi qua proxy (chi bai da xuat ban) ----
+    // GET /api/v2/news?page&limit&category&q&featured — danh sach bai
+    // da xuat ban cua he moi (backend tu loc publishAt <= now).
+    // GET /api/v2/news/:slug — chi tiet + related cung chuyen muc.
+    // GET /api/v2/news-categories — cay chuyen muc hien.
+    // Anh bia tuong doi (/images/...) duoc ghep origin backend nhu bao in.
+    function newsListItem(it) {
+      return {
+        slug: it.slug, title: it.title, sapo: it.sapo,
+        cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+        category: it.category || null, authors: it.authors || [], tags: it.tags || [],
+        publishAt: it.publishAt, isFeatured: !!it.isFeatured,
+        url: `/tin/${it.slug}`,
+      };
+    }
+    if (req.method === "GET" && u.pathname === "/api/v2/news") {
+      const bq = new URLSearchParams();
+      for (const k of ["page", "limit", "category", "q", "featured"]) {
+        const v = u.searchParams.get(k);
+        if (v) bq.set(k, v);
+      }
+      const ext = await fetchVtcanyEpaperJson(`/news?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach tin bai");
+      const d = ext.data || {};
+      const items = (d.data || []).map(newsListItem);
+      const per = Math.max(1, Number(d.limit) || 20);
+      return json(res, 200, { items, total: d.total || 0, page: d.page || 1, total_pages: Math.max(1, Math.ceil((d.total || 0) / per)) });
+    }
+    const newsSlugMatch = u.pathname.match(/^\/api\/v2\/news\/([a-z0-9-]+)$/);
+    if (req.method === "GET" && newsSlugMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/news/${newsSlugMatch[1]}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay bai viet");
+      const it = ext.data;
+      return json(res, 200, { ...newsListItem(it), body: it.body || "", related: (it.related || []).map(newsListItem) });
+    }
+    if (req.method === "GET" && u.pathname === "/api/v2/news-categories") {
+      const ext = await fetchVtcanyEpaperJson(`/news-categories`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
+      return json(res, 200, { data: ext.data || [] });
+    }
+
     // ---- Create issue + upload PDF (D1 + C1/C2/C4/C6) ----
     if (req.method === "POST" && u.pathname === "/api/v1/issues") {
       if (!isStaff(user) || user.role === "reviewer") return err(res, 403, "chi nguoi dang / admin duoc dang so");
@@ -909,6 +953,8 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
+    if (/^\/tin\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "article.html"));
+    if (/^\/chuyen-muc\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "category.html"));
     // A3: never serve sample assets or storage directly; content only via /api routes above.
     if (u.pathname.startsWith("/assets/") || u.pathname.startsWith("/storage/")) return err(res, 404, "not found");
     const file = path.join(PUBLIC, decodeURIComponent(u.pathname));

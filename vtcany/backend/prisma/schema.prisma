@@ -504,6 +504,59 @@ model EpaperIssueApproval {
   @@map("epaper_issue_approvals")
 }
 
+// Chuyen muc tin bai (rieng voi Category OTT cua catalog): 2 cap cha/con,
+// hien/an, sap xep tay. Dung cho module Tin bai (toà soan bao dien tu).
+model NewsCategory {
+  id        String         @id @default(uuid())
+  publicId  String         @unique @map("public_id") // 24 hex, theo quy uoc chung
+  name      String
+  slug      String         @unique
+  parentId  String?        @map("parent_id")
+  parent    NewsCategory?  @relation("NewsCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children  NewsCategory[] @relation("NewsCategoryParent")
+  sortOrder Int            @default(0) @map("sort_order")
+  isVisible Boolean        @default(true) @map("is_visible")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  articles  NewsArticle[]
+
+  @@index([parentId, sortOrder])
+  @@map("news_categories")
+}
+
+// Bai viet tin tuc (toà soan bao dien tu, theo mau CMS Dien Bien).
+// Trang thai: draft | published | unpublished. Bai published co
+// publishAt trong tuong lai = "Cho xuat ban" (cong khai an den gio hen,
+// khong can cron — public API loc publishAt <= now).
+// Quy trinh duyet nhieu buoc (PV->TP->PBDT->BBT->XB) CHUA lam o v1:
+// ai co articles:publish cung xuat ban truc tiep duoc; se gate lai khi
+// lam workflow tin bai (tuong tu epaper-workflow.ts).
+model NewsArticle {
+  id           String       @id @default(uuid())
+  publicId     String       @unique @map("public_id") // 24 hex
+  title        String
+  slug         String       @unique
+  sapo         String       @default("") // tom tat, gioi han 500 ky tu o API
+  body         String       @default("") // HTML tu editor CMS
+  categoryId   String?      @map("category_id")
+  category     NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  coverPath    String?      @map("cover_path") // duong dan tuong doi /images/... (uploads/image)
+  authors      String[]     @default([])
+  tags         String[]     @default([])
+  status       String       @default("draft") // draft | published | unpublished
+  publishAt    DateTime?    @map("publish_at")
+  isFeatured   Boolean      @default(false) @map("is_featured") // tick len trang chu muc Tin noi bat
+  createdBy    String?      @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy    String?      @map("updated_by") // username hoac sub cua nguoi sua cuoi (cot audit)
+  updatedByRole String?     @map("updated_by_role") // ten Role luc sua cuoi (cot audit)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([status, publishAt])
+  @@index([categoryId, publishAt])
+  @@map("news_articles")
+}
+
 model EpaperIssueRevision {
   id           String      @id @default(uuid())
   issueId      String      @map("issue_id")

@@ -12,9 +12,14 @@
 // because e-paper is TSHT phase 1 and live TV already has its own pages.
 // Live TV/radio appear in the live strip, the "BẠN ĐỌC QUAN TÂM" sidebar
 // and the bottom cards — no second player is started on this page.
-// News categories, videos and weather are NOT built here: categories show a
-// "sẽ có bài viết sau" notice, VIDEO MỚI honestly says "Chưa có video",
-// and weather is only the neutral "sẽ cập nhật sau" line in home.html.
+// News (tu 27/10): chuyen muc + bai viet that qua proxy TSHT
+//   GET /api/v2/news-categories -> cay chuyen muc (cap 1 len catnav)
+//   GET /api/v2/news?featured=1&limit=4 -> khoi Tin noi bat
+//   GET /api/v2/news?limit=8 -> khoi Tin moi nhat
+// Videos and weather are still NOT built here: VIDEO MỚI honestly says
+// "Chưa có video", and weather is only the neutral "sẽ cập nhật sau"
+// line in home.html. Khi chua co chuyen muc/bai viet, cac khoi tin hien
+// trang thai cho trung thuc, khong bia.
 // Every block degrades to a plain "chưa tải được" note on API failure.
 (function () {
   "use strict";
@@ -158,6 +163,54 @@
         return null;
       });
   }
+  // --- Tin tuc (chuyen muc + bai viet that, qua proxy TSHT) ---
+  function newsCard(it) {
+    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
+      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      "<h3>" + esc(it.title) + "</h3></a>" +
+      (it.sapo ? "<p class=\"news-sapo\">" + esc(it.sapo) + "</p>" : "") +
+      "<p class=\"news-meta\">" + esc(it.category ? it.category.name : "") +
+      (it.publishAt ? " · " + esc(String(it.publishAt).slice(0, 10)) : "") + "</p></div>";
+  }
+  function loadNewsBlock(url, elId, emptyText) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    fetch(url)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [];
+        el.innerHTML = items.length ? items.map(newsCard).join("") : "<p>" + emptyText + "</p>";
+      })
+      .catch(function () { el.innerHTML = "<p>Chưa tải được tin bài.</p>"; });
+  }
+  loadNewsBlock("/api/v2/news?featured=1&limit=4", "news-featured", "Chưa có tin nổi bật.");
+  loadNewsBlock("/api/v2/news?limit=8", "news-latest", "Chưa có tin bài.");
+  // Catnav that: thay link placeholder bang chuyen muc that (cap 1);
+  // neu khong tai duoc thi giu nguyen link cu + ghi chu nhu cu.
+  (function loadCategories() {
+    var nav = document.querySelector(".catnav");
+    if (!nav) return;
+    fetch("/api/v2/news-categories")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var cats = (d && d.data) || [];
+        if (!cats.length) return;
+        var home = nav.querySelector("a.home-link");
+        var icons = nav.querySelector(".catnav-icons");
+        nav.querySelectorAll("a[data-cat]").forEach(function (a) { a.remove(); });
+        cats.forEach(function (c) {
+          var a = document.createElement("a");
+          a.href = "/chuyen-muc/" + encodeURIComponent(c.slug);
+          a.textContent = c.name;
+          if (icons) nav.insertBefore(a, icons); else nav.appendChild(a);
+        });
+        var note = document.getElementById("cat-note");
+        if (note) note.style.display = "none";
+        void home;
+      })
+      .catch(function () { /* giu nguyen catnav placeholder */ });
+  })();
+
   loadSchedule("tv", "live-tv", "card-tv", false);
   loadSchedule("radio", "live-radio", "card-radio", true);
 })();

@@ -13,6 +13,7 @@ import { SearchModule } from './modules/search/search.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { EpaperModule } from './modules/epaper/epaper.module';
+import { NewsModule } from './modules/news/news.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -31,6 +32,7 @@ import { HealthController } from './health.controller';
     AdminModule,
     CatalogModule,
     EpaperModule,
+    NewsModule,
   ],
   controllers: [HealthController],
 })
