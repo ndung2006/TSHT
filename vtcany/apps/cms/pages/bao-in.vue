@@ -171,14 +171,18 @@
           <Button label="Phóng to" size="small" text @click="reviewZoomIn" />
           <Button label="Vừa khung" size="small" text @click="reviewZoom = 100" />
         </div>
-        <div class="overflow-auto border border-neutral-800 bg-neutral-900" style="max-height:70vh">
+        <div ref="reviewFrame" class="overflow-auto border border-neutral-800 bg-neutral-900 select-none"
+          style="max-height:70vh; touch-action:pan-x pan-y"
+          :style="{ cursor: reviewZoom > 100 ? (reviewPanning ? 'grabbing' : 'grab') : 'default' }"
+          @pointerdown="reviewPanStart" @pointermove="reviewPanMove" @pointerup="reviewPanEnd"
+          @pointercancel="reviewPanEnd">
           <p v-if="reviewLoading" class="p-4 text-sm">Đang tải trang {{ reviewPage }}…</p>
           <p v-else-if="!reviewImg" class="p-4 text-sm">Không tải được trang này.</p>
-          <img v-else :src="reviewImg" :alt="`Trang ${reviewPage}`" class="mx-auto block"
-            :style="{ width: reviewZoom + '%', maxWidth: 'none' }" />
+          <img v-else :src="reviewImg" :alt="`Trang ${reviewPage}`" class="mx-auto block" draggable="false"
+            :style="{ width: reviewZoom + '%', maxWidth: 'none' }" @dragstart.prevent />
         </div>
-        <p class="text-xs text-neutral-500">Phóng to rồi cuộn trong khung để đọc từng phần trang.
-          Ảnh trang do server render sẵn, không cần tải file PDF về.</p>
+        <p class="text-xs text-neutral-500">Phóng to trên 100% thì kéo thả ảnh để di chuyển (Pan) hoặc
+          cuộn trong khung để đọc từng phần trang. Ảnh trang do server render sẵn, không cần tải file PDF về.</p>
       </div>
       <template #footer>
         <Button label="Đóng" text @click="reviewDlg = false" />
@@ -467,7 +471,39 @@ function reviewGo(page: number) {
 }
 function reviewZoomIn() { reviewZoom.value = Math.min(300, reviewZoom.value + 25); }
 function reviewZoomOut() { reviewZoom.value = Math.max(50, reviewZoom.value - 25); }
-function closeReview() { reviewRevokeImg(); reviewItem.value = null; }
+
+// --- Pan: keo tha anh de duyet khi phong to tren 100% ---
+// Chi kich hoat khi anh vuot khung (zoom > 100); o 100% tro xuong anh
+// vua khit nen khong co gi de keo. Keo bang chuot: pointerdown ghi vi
+// tri, pointermove doi scrollLeft/scrollTop theo delta (nguoc chieu
+// keo, giong keo giay). draggable=false + @dragstart.prevent tren img
+// de keo goc cua trinh duyet khong tranh voi pan. Cam ung giu nguyen
+// cuon goc (touch-action: pan-x pan-y) nen khong can xu ly them.
+const reviewFrame = ref<HTMLElement | null>(null);
+const reviewPanning = ref(false);
+const panState = { x: 0, y: 0, left: 0, top: 0 };
+function reviewPanStart(ev: PointerEvent) {
+  if (reviewZoom.value <= 100) return;
+  const el = reviewFrame.value;
+  if (!el) return;
+  reviewPanning.value = true;
+  panState.x = ev.clientX;
+  panState.y = ev.clientY;
+  panState.left = el.scrollLeft;
+  panState.top = el.scrollTop;
+  (ev.currentTarget as HTMLElement).setPointerCapture?.(ev.pointerId);
+}
+function reviewPanMove(ev: PointerEvent) {
+  if (!reviewPanning.value) return;
+  const el = reviewFrame.value;
+  if (!el) return;
+  el.scrollLeft = panState.left - (ev.clientX - panState.x);
+  el.scrollTop = panState.top - (ev.clientY - panState.y);
+}
+function reviewPanEnd() {
+  reviewPanning.value = false;
+}
+function closeReview() { reviewRevokeImg(); reviewItem.value = null; reviewPanning.value = false; }
 async function reviewApprove() {
   const it = reviewItem.value;
   if (!it) return;
