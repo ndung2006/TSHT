@@ -106,12 +106,24 @@
               // above it, so start at the top. Near the end of the day
               // the target would run past the bottom, so clamp to the
               // maximum scroll: the list simply runs to the last row.
+              // NOTE: do NOT use offsetTop here. .sched-list is
+              // position:static, so a row's offsetTop is measured from
+              // a distant positioned ancestor (or the page), not from
+              // this scroll box — assigning it to scrollTop overshoots
+              // by the panel's distance from the page top (observed
+              // live: ~6 rows too far). The bounding-rect delta below
+              // is measured against the box itself, so it is exact
+              // regardless of offsetParent.
               var allRows = box.querySelectorAll(".sched-row");
               var idx = -1;
               for (var i = 0; i < allRows.length; i++) { if (allRows[i] === currentRow) { idx = i; break; } }
-              var target = idx > 1 ? allRows[idx - 2].offsetTop : 0;
               var maxScroll = box.scrollHeight - box.clientHeight;
-              box.scrollTop = Math.max(0, Math.min(target, maxScroll));
+              if (idx <= 1) {
+                box.scrollTop = 0;
+              } else {
+                var delta = allRows[idx - 2].getBoundingClientRect().top - box.getBoundingClientRect().top;
+                box.scrollTop = Math.max(0, Math.min(box.scrollTop + delta, maxScroll));
+              }
             } else if (typeof currentRow.scrollIntoView === "function") {
               currentRow.scrollIntoView({ block: "center" });
             }
