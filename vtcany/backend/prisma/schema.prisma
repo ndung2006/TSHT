@@ -1,0 +1,497 @@
+// VTC ANY — Full schema (Bước 1/8, theo Mục 2 tài liệu v2.0).
+// Quy ước:
+// - Mọi entity public có publicId: 24 ký tự hex (generatePublicId() trong packages/contracts).
+// - URL public: /{type}/{slug}-{publicId}.
+// - Runtime Phase 1 dùng in-memory store; Prisma thay store ở Phase 1.1 mà không đổi API.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// 2.1 Cụm Nội dung (Content)
+// ---------------------------------------------------------------------------
+// Category: model Prisma duy nhất (Phase 1.1) nằm ở cuối file; bảng "categories"
+// đã được tạo bởi migration init 20251001110000_init.
+
+model Video {
+  id                 String           @id @default(uuid())
+  publicId           String           @unique @map("public_id") // 24hex
+  title              String
+  englishTitle       String?          @map("english_title")
+  slug               String
+  description        String?
+  posterVertical     String?          @map("poster_vertical") // 3:4
+  backdropHorizontal String?          @map("backdrop_horizontal") // 16:9
+  thumbnail          String? // 3:2
+  trailerUrl         String?          @map("trailer_url")
+  hlsUrl             String?          @map("hls_url")
+  dashUrl            String?          @map("dash_url")
+  durationSeconds    Int?             @map("duration_seconds")
+  releaseYear        Int?             @map("release_year")
+  ageRating          String           @default("P") @map("age_rating") // P/K/T13/T16/T18
+  directors          String[]
+  casts              String[]
+  country            String?
+  quality            String? // SD/HD/4K
+  introStartTime     Int?             @map("intro_start_time")
+  introEndTime       Int?             @map("intro_end_time")
+  isDownloadable     Boolean          @default(true) @map("is_downloadable")
+  viewCount          BigInt           @default(0) @map("view_count")
+  status             String           @default("draft") // draft|pending|published|rejected
+  publishAt          DateTime?        @map("publish_at")
+  seoMeta            Json?            @map("seo_meta")
+  episodes           Episode[]
+  subtitles          VideoSubtitle[]
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@map("videos")
+}
+
+model Episode {
+  id            String   @id @default(uuid())
+  movieId       String   @map("movie_id")
+  movie         Video    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episodeNumber Int      @map("episode_number")
+  title         String?
+  thumbnail     String?
+  videoHlsUrl   String?  @map("video_hls_url")
+  durationText  String?  @map("duration_text") // "13 phút"
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([movieId, episodeNumber])
+  @@map("episodes")
+}
+
+model LiveChannel {
+  id         String         @id @default(uuid())
+  publicId   String         @unique @map("public_id") // 24hex
+  name       String
+  logo       String?
+  hlsUrl     String?        @map("hls_url")
+  groupName  String         @map("group_name") // Kênh VTV, KÊNH ĐỊA PHƯƠNG, RADIO...
+  sortOrder  Int            @default(0) @map("sort_order")
+  isVisible  Boolean        @default(true) @map("is_visible")
+  drmEnabled Boolean        @default(false) @map("drm_enabled")
+  schedules  EpgSchedule[]
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  @@map("live_channels")
+}
+
+model EpgSchedule {
+  id          String      @id @default(uuid())
+  channelId   String      @map("channel_id")
+  channel     LiveChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  programName String      @map("program_name")
+  startTime   DateTime    @map("start_time") @db.Timestamptz
+  endTime     DateTime    @map("end_time") @db.Timestamptz
+  thumbnail   String?
+
+  @@index([channelId, startTime])
+  @@map("epg_schedules")
+}
+
+model Short {
+  id              String   @id @default(uuid())
+  publicId        String   @unique @map("public_id") // 24hex
+  title           String
+  videoUrl        String   @map("video_url") // 9:16
+  thumbnail       String?
+  durationSeconds Int?     @map("duration_seconds")
+  hashtags        String[]
+  musicTitle      String?  @map("music_title")
+  status          String   @default("draft") // draft|pending|published|rejected
+  viewCount       BigInt   @default(0) @map("view_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("shorts")
+}
+
+// ---------------------------------------------------------------------------
+// 2.2 Cụm Tài nguyên (Media Library)
+// ---------------------------------------------------------------------------
+
+model MediaAsset {
+  id          String   @id @default(uuid())
+  fileUrl     String?  @map("file_url")
+  objectKey   String?  @map("object_key")
+  fileType    String?  @map("file_type") // video|image|subtitle|audio
+  status      String   @default("pending") // pending|uploaded|processing|done|error
+  error       String?
+  // Upload VOD tu CMS (thu vien Tap tin): ten file goc, dung luong, loai MIME,
+  // va noi dung (video) duoc gan neu co. File HLS: storage/hls/<id>/master.m3u8.
+  filename    String?
+  sizeBytes   BigInt?  @map("size_bytes")
+  contentType String?  @map("content_type")
+  videoId     String?  @map("video_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("media_assets")
+}
+
+// Kenh truyen hinh lay tu VTC AIO (khong co bang kenh rieng). Bang nay chi luu
+// lop quan tri de BE/CMS quyet dinh kenh nao duoc hien thi tren web/app:
+// an/hien, nhom, thu tu, ten/logo/banner hien thi, goi cuoc, nguon phat ghi de.
+// isCustom=true: kenh/su kien admin tu them tay (HLS rieng), khong co tren AIO.
+model ChannelOverride {
+  channelKey    String   @id @map("channel_key") // ten kenh AIO viet hoa (vd VTV1) hoac key kenh tu them
+  isVisible     Boolean  @default(true) @map("is_visible")
+  sortOrder     Int?     @map("sort_order")
+  groupName     String?  @map("group_name")
+  displayName   String?  @map("display_name")
+  description   String?
+  logoUrl       String?  @map("logo_url")
+  bannerUrl     String?  @map("banner_url")
+  planId        String?  @map("plan_id")
+  hlsUrl        String?  @map("hls_url")
+  dashUrl       String?  @map("dash_url")
+  catchupHlsUrl String?  @map("catchup_hls_url")
+  timeshiftEnabled Boolean @default(false) @map("timeshift_enabled") // kenh co bat ghi de xem lai
+  timeshiftSrc  String?  @map("timeshift_src") // VD 'after' cho kenh ghi sau-encode (VOV1)
+  useAioEpg     Boolean  @default(true) @map("use_aio_epg") // false: chi dung lich EPG CMS nhap tay, khong lay tu AIO
+  isCustom      Boolean  @default(false) @map("is_custom")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("channel_overrides")
+}
+
+model VideoSubtitle {
+  id        String   @id @default(uuid())
+  videoId   String   @map("video_id")
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  fileUrl   String   @map("file_url")
+  language  String // vi|en
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("video_subtitles")
+}
+
+// ---------------------------------------------------------------------------
+// 2.3 Cụm Người dùng & Bảo mật (Auth & RBAC)
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String         @id @default(uuid())
+  email        String?        @unique
+  phone        String?        @unique
+  avatar       String?
+  displayName  String?        @map("display_name")
+  passwordHash String?        @map("password_hash") // dang nhap bang mat khau (admin cap/dat lai)
+  provider     String? // google|facebook
+  providerId   String?        @map("provider_id")
+  status       String         @default("active") // active|banned
+  createdAt    DateTime       @default(now()) @map("created_at")
+  profiles     UserProfile[]
+  sessions     UserSession[]
+  watchHistory WatchHistory[]
+  transactions Transaction[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id            String  @id @default(uuid())
+  userId        String  @map("user_id")
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  avatarUrl     String? @map("avatar_url")
+  isKidsProfile Boolean @default(false) @map("is_kids_profile")
+  pinCode       String? @map("pin_code")
+
+  @@map("user_profiles")
+}
+
+model UserSession {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId     String    @unique @map("session_id")
+  deviceInfo    Json?     @map("device_info")
+  ip            String?
+  lastHeartbeat DateTime? @map("last_heartbeat") @db.Timestamptz
+  isActive      Boolean   @default(true) @map("is_active")
+
+  @@map("user_sessions")
+}
+
+model AdminUser {
+  id           String     @id @default(uuid())
+  email        String?    @unique
+  username     String?    @unique
+  passwordHash String     @map("password_hash")
+  fullName     String?    @map("full_name")
+  avatarUrl    String?    @map("avatar_url")
+  roleId       String?    @map("role_id")
+  roleName     String?    @map("role_name")
+  role         Role?      @relation(fields: [roleId], references: [id])
+  status       String     @default("active") // active|disabled
+  lastLogin    DateTime?  @map("last_login")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  auditLogs    AuditLog[]
+
+  @@map("admin_users")
+}
+
+model Role {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String?
+  permissions Json // {"movies":["view","create","update","delete","approve"],...}
+  admins      AdminUser[]
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@map("roles")
+}
+
+model AuditLog {
+  id        String     @id @default(uuid())
+  adminId   String?    @map("admin_id")
+  admin     AdminUser? @relation(fields: [adminId], references: [id])
+  action    String // create|update|delete|approve|login...
+  module    String // movies|channels|users|...
+  targetId  String?    @map("target_id")
+  oldValue  Json?      @map("old_value")
+  newValue  Json?      @map("new_value")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([module, createdAt])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 2.4 Cụm Thương mại hóa (Monetization)
+// ---------------------------------------------------------------------------
+
+model SubscriptionPackage {
+  id           String        @id @default(uuid())
+  name         String
+  description  String?
+  price        Int           @default(0) // VND
+  cycle        String        @default("month") // day|week|month|year
+  benefits     Json? // {max_quality, no_ads, max_devices}
+  sortOrder    Int           @default(0) @map("sort_order")
+  status       String        @default("active")
+  transactions Transaction[]
+
+  @@map("subscription_packages")
+}
+
+model Transaction {
+  id        String               @id @default(uuid())
+  orderCode String               @unique @map("order_code")
+  userId    String?              @map("user_id")
+  user      User?                @relation(fields: [userId], references: [id])
+  packageId String?              @map("package_id")
+  pkg       SubscriptionPackage? @relation(fields: [packageId], references: [id])
+  amount    Int
+  method    String? // vietqr|momo|...
+  status    String               @default("pending") // pending|paid|failed|cancelled
+  paidAt    DateTime?            @map("paid_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  @@map("transactions")
+}
+
+model PromoCode {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  discountPercent Int?      @map("discount_percent")
+  discountAmount  Int?      @map("discount_amount")
+  usageLimit      Int?      @map("usage_limit")
+  usedCount       Int       @default(0) @map("used_count")
+  validFrom       DateTime? @map("valid_from")
+  validTo         DateTime? @map("valid_to")
+
+  @@map("promo_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Server-Driven UI + Watch history (Bước 2, 8)
+// ---------------------------------------------------------------------------
+
+model LayoutBlock {
+  id        String   @id @default(uuid())
+  platform  String   @default("WEB") // WEB|MOBILE|TV
+  order     Int      @default(0)
+  type      String // HERO_CAROUSEL|HORIZONTAL_LIST
+  title     String?
+  config    Json // {items, target_url, card_aspect...}
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("layout_blocks")
+}
+
+model WatchHistory {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String   @map("content_id") // public_id của video
+  position  Int      @default(0) // giây
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, contentId])
+  @@map("watch_history")
+}
+
+// ---------------------------------------------------------------------------
+// CMS Catalog (admin CRUD theo mẫu VTCPlay CMS) — persist thay in-memory Map.
+// Item lưu full payload dạng Json để giữ nguyên API shape linh hoạt của CMS;
+// các cột id/entity/movieId/createdAt phục vụ truy vấn, sắp xếp, phân trang.
+// ---------------------------------------------------------------------------
+
+model CatalogItem {
+  id        String   @id
+  entity    String // movies|videos|shorts|genres|actors|playlists|articles|events|plans|notifications|keywords|banned|livestreams|banners|rails
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([entity, createdAt])
+  @@map("catalog_items")
+}
+
+model CatalogEpisode {
+  id        String   @id
+  movieId   String   @map("movie_id")
+  seasonId  String?  @map("season_id") // tap thuoc mua (phim bo); null = tap truc tiep cua phim (phim le)
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([movieId, createdAt])
+  @@index([seasonId, createdAt])
+  @@map("catalog_episodes")
+}
+
+// Mua / phan cua phim bo (theo mau VTCPlay CMS): trailer + tap phim nam theo mua.
+model CatalogSeason {
+  id        String   @id
+  movieId   String   @map("movie_id")
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([movieId, createdAt])
+  @@map("catalog_seasons")
+}
+
+// Trailer: cung cau truc nhu episode; gan o cap phim (phim le) hoac cap mua (phim bo).
+model CatalogTrailer {
+  id        String   @id
+  movieId   String?  @map("movie_id")
+  seasonId  String?  @map("season_id")
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([movieId, createdAt])
+  @@index([seasonId, createdAt])
+  @@map("catalog_trailers")
+}
+
+model CatalogSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("catalog_settings")
+}
+
+// Danh muc (truyen hinh / phim / video / short) — truoc la in-memory, nay persist Prisma.
+model Category {
+  id          String   @id
+  publicId    String   @unique @map("public_id")
+  name        String
+  slug        String   @unique
+  parentId    String?  @map("parent_id")
+  icon        String?
+  thumbnail   String?
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isVisible   Boolean  @default(true) @map("is_visible")
+  platforms   String[]
+  appliesTo   String[] @map("applies_to")
+  code        String?  // Code danh mục (VTCPlay)
+  seoThumbnail String? @map("seo_thumbnail") // Ảnh thumbnail cho SEO
+  contentSort String   @default("created") @map("content_sort") // created | manual
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isVisible, sortOrder])
+  @@map("categories")
+}
+
+// Nguon phat VTCAIO cau hinh trong CMS (nhieu domain khac nhau):
+// admin nhap ten mien + token key, quet thu kenh, kich hoat nguon dung cho runtime.
+// Runtime uu tien nguon active trong DB, fallback ve env MEDIA_BASE_URL/VTC_PARTNER_KEY.
+model TvAioSource {
+  id        String   @id
+  name      String
+  domain    String   // https://luuchieu1.vtcplay.vn (khong trailing slash)
+  tokenKey  String   @map("token_key")
+  isActive  Boolean  @default(false) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("tv_aio_sources")
+}
+
+// ---------------------------------------------------------------------------
+// 2.5 Cum Bao in (E-paper) — them ngay 2026-10-27, thuoc repo TSHT.
+// Nhap lieu so bao trong CMS VTCANY, thay cho CMS TSHT cu. So bao khong doi
+// duoc issue_number sau khi xuat ban; slug gan voi publicId nen doi loai so
+// khong doi slug/URL. pageCount do bien tap nhap tay (repo chua co trinh doc
+// PDF de dem trang tu dong) — khong bao gio tu suy ra con so.
+// ---------------------------------------------------------------------------
+model EpaperIssue {
+  id           String   @id @default(uuid())
+  publicId     String   @unique @map("public_id") // 24 hex, theo quy uoc chung
+  issueNumber  Int      @map("issue_number")
+  issueType    String   @map("issue_type") // thuong | vung_cao
+  publishDate  DateTime @map("publish_date") @db.Date
+  title        String
+  slug         String   @unique // bao-tuyen-quang-so-<number>-<publicId>
+  status       String   @default("draft") // draft | published
+  publishedAt  DateTime? @map("published_at")
+  pdfPath      String?  @map("pdf_path") // duong dan tuong doi trong STORAGE_DIR, vd documents/doc-....pdf
+  pdfSizeBytes BigInt?  @map("pdf_size_bytes")
+  pageCount    Int      @default(0) @map("page_count") // TODO: dem tu dong khi co trinh doc PDF; hien tai nhap tay
+  coverPath    String?  @map("cover_path")
+  createdBy    String?  @map("created_by") // AdminUser id (JWT sub), khong rang buoc FK de tranh hong khi tai khoan bi xoa
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  revisions    EpaperIssueRevision[]
+
+  @@unique([issueType, issueNumber])
+  @@index([status, publishDate])
+  @@map("epaper_issues")
+}
+
+model EpaperIssueRevision {
+  id           String      @id @default(uuid())
+  issueId      String      @map("issue_id")
+  issue        EpaperIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  revisionNo   Int         @map("revision_no")
+  changedBy    String?     @map("changed_by")
+  changeReason String?     @map("change_reason")
+  snapshot     Json
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  @@unique([issueId, revisionNo])
+  @@map("epaper_issue_revisions")
+}

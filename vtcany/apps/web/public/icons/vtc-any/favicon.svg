@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="VTC ANY favicon"><title>VTC ANY favicon</title><rect width="512" height="512" rx="90" fill="#091728"/>
+<rect x="44" y="64" width="424" height="384" rx="30" fill="#fff"/>
+<rect x="60" y="116" width="392" height="280" rx="12" fill="#091728"/><rect x="70" y="79" width="54" height="22" rx="6" fill="#091728"/><rect x="147" y="79" width="54" height="22" rx="6" fill="#091728"/><rect x="224" y="79" width="54" height="22" rx="6" fill="#091728"/><rect x="301" y="79" width="54" height="22" rx="6" fill="#091728"/><rect x="378" y="79" width="54" height="22" rx="6" fill="#091728"/><rect x="70" y="411" width="54" height="22" rx="6" fill="#091728"/><rect x="147" y="411" width="54" height="22" rx="6" fill="#091728"/><rect x="224" y="411" width="54" height="22" rx="6" fill="#091728"/><rect x="301" y="411" width="54" height="22" rx="6" fill="#091728"/><rect x="378" y="411" width="54" height="22" rx="6" fill="#091728"/><g transform="translate(25 -38) scale(.95)">  <g fill="#fff" fill-rule="evenodd">
+    <path d="M145 207h67l-33 90h-67z M146 225h14v45l24-45h15l-39 54h-14z"/>
+    <path d="M220 207h68l-33 90h-67z M223 225h50l-5 12h-18l-15 41h-15l15-41h-17z"/>
+  </g>
+  <g fill="none" stroke="#fff" transform="translate(6.5 0) rotate(23 324 251)">
+    <path stroke-width="11" d="M330 186 A44 65 0 1 0 365 282"/>
+    <path stroke-width="9" d="M330 205 A31 47 0 1 0 353 274"/>
+    <ellipse stroke-width="8" cx="324" cy="253" rx="17" ry="29"/>
+  </g>
+</g><g transform="translate(190 290) scale(.70)"><g fill="none" stroke="#00d4f4" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter">
+<path d="M0 64L24 0L48 64M10 42H38"/>
+<path d="M70 64V0L116 64V0"/>
+<path d="M140 0L164 32L188 0M164 32V64"/>
+</g></g></svg>

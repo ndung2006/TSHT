@@ -1,0 +1,22 @@
+{
+  "name": "vtc-any",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "worker",
+    "apps/*",
+    "services/*",
+    "packages/*",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "test:contracts": "node --test packages/contracts/test/*.test.mjs",
+    "db:migrate:step1": "psql $DATABASE_URL -f backend/prisma/migrations/0001_step1_init.sql",
+    "build:all": "npm run build -ws",
+    "lint:all": "npm run lint -ws"
+  }
+}

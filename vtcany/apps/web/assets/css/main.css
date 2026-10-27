@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hero dots: slide active dạng pill (giống VTC Play) */
+.p-carousel-indicator-list {
+  gap: 0.375rem;
+}
+.p-carousel-indicator button,
+.p-carousel-indicator-button {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  transition: width 0.2s ease;
+}
+.p-carousel-indicator[data-p-active='true'] button,
+.p-carousel-indicator.p-highlight button,
+.p-carousel-indicator-active button {
+  width: 1.75rem;
+}

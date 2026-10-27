@@ -1,0 +1,19 @@
+{
+  "name": "vtc-any-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test job.test.mjs ffmpeg.test.mjs transcode-local.test.mjs pipeline.test.mjs"
+  },
+  "dependencies": {
+    "bullmq": "^6.3.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

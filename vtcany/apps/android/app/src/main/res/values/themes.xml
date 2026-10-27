@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nền tối kiểu VTC ANY (#091728) để khớp splash với theme Compose -->
+    <style name="Theme.VtcAny" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vtc_navy</item>
+        <item name="android:statusBarColor">@color/vtc_navy</item>
+        <item name="android:navigationBarColor">@color/vtc_navy</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

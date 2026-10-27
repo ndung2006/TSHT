@@ -1,0 +1,12 @@
+# Android
+local.properties
+.gradle/
+build/
+app/build/
+*.iml
+.DS_Store
+# Keystore không commit
+*.jks
+*.keystore
+# APK build ra (user lấy từ CI / build tay)
+app/build/outputs/

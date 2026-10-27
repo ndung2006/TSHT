@@ -1,0 +1,67 @@
+name: vtc-any-infra
+
+# Bước 1/8 — Hạ tầng Coolify: PostgreSQL + Redis + MinIO
+# Chạy: docker compose -f infra/coolify/docker-compose.yml up -d
+# Theo spec: KHÔNG expose public port — các service giao tiếp qua network nội bộ.
+# Mở port khi dev local: dùng file override hoặc `docker compose -p ... port`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vtc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vtc123}
+      POSTGRES_DB: ${POSTGRES_DB:-vtc_any}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - vtc-any-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vtc} -d $${POSTGRES_DB:-vtc_any}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - vtc-any-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - miniodata:/data
+    networks:
+      - vtc-any-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  vtc-any-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
