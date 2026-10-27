@@ -157,7 +157,7 @@
          tra lai ngay trong dialog — nguoi duyet khong phai tai PDF ve
          doc ngoai roi moi quay lai bam nut mu. -->
     <Dialog v-model:visible="reviewDlg" modal :header="`Xem duyệt — Số ${reviewItem?.issueNumber || ''}`"
-      class="w-full max-w-4xl" @hide="closeReview">
+      class="w-[96vw] max-w-[96vw]" @hide="closeReview">
       <div v-if="reviewItem" class="flex flex-col gap-2">
         <p class="text-sm text-neutral-400">{{ reviewItem.title }} · {{ statusText(reviewItem) }}</p>
         <div class="flex flex-wrap items-center gap-2">
@@ -172,7 +172,7 @@
           <Button label="Vừa khung" size="small" text @click="reviewZoom = 100" />
         </div>
         <div ref="reviewFrame" class="overflow-auto border border-neutral-800 bg-neutral-900 select-none"
-          style="max-height:70vh; touch-action:pan-x pan-y"
+          style="max-height:80vh; touch-action:pan-x pan-y"
           :style="{ cursor: reviewZoom > 100 ? (reviewPanning ? 'grabbing' : 'grab') : 'default' }"
           @pointerdown="reviewPanStart" @pointermove="reviewPanMove" @pointerup="reviewPanEnd"
           @pointercancel="reviewPanEnd">
