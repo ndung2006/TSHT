@@ -1,8 +1,11 @@
 // Homepage (/) for TSHT — frame only, real content only.
 // Data sources (all existing public APIs, no keys, no tokens):
-//   GET /api/v1/issues?page=1  -> published e-paper issues, newest first
-//     ({items: [{id, issue_number, issue_type, publish_date, title,
+//   GET /api/v2/epaper?page=1  -> published e-paper issues, newest first
+//     (he moi qua proxy TSHT; tra dung dang cu:
+//     {items: [{issue_number, issue_type, publish_date, title,
 //       page_count, cover, url}], ...})
+//     Luu y: /api/v1/issues cu khong con so nao da xuat ban (4 so cu
+//     bi go xuat ban), nen trang chu phai doc tu he moi ke tu 27/10.
 //   GET /api/v1/schedule?channel=tv|radio&date=YYYY-MM-DD
 //     -> {items: [{title, start_time, end_time, startTime, endTime, status}]}
 // HERO CHOICE (documented): the newest published e-paper issue is the hero,
@@ -81,8 +84,8 @@
     if (body) side.innerHTML = body;
   }
 
-  // --- E-paper blocks ---
-  fetch("/api/v1/issues?page=1").then(function (r) {
+  // --- E-paper blocks (nguon moi, cung proxy nhu trang /bao-in) ---
+  fetch("/api/v2/epaper?page=1").then(function (r) {
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }).then(function (d) {
