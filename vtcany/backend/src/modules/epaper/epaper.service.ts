@@ -1,6 +1,9 @@
-import { ConflictException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { checkPatch, generatePublicId, isIssueType, issueSlug, issueUrl, parsePublishDate } from './epaper.utils';
+import {
+  EPAPER_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
+} from './epaper-workflow';
 
 // Dich vu so bao in (E-paper) cho CMS VTCANY, thuoc repo TSHT.
 // Muc tieu: nhap lieu so bao moi, khong phai trinh doc cong khai — doc cong
@@ -30,7 +33,48 @@ export class EpaperService {
       createdBy: row.createdBy,
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+      // Quy trinh duyet (xem epaper-workflow.ts). lastApproval do list() gan them.
+      workflowStep: row.workflowStep ?? 0,
+      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
+      workflowTotalSteps: EPAPER_WORKFLOW_STEPS.length,
+      lastApproval: (row as any).lastApproval || null,
     };
+  }
+
+  private toApproval(row: any) {
+    return {
+      id: row.id,
+      step: row.step,
+      stepLabel: row.stepLabel,
+      actorId: row.actorId,
+      actorRole: row.actorRole,
+      action: row.action,
+      actionLabel: WORKFLOW_ACTION_LABELS[row.action] || row.action,
+      comment: row.comment,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    };
+  }
+
+  private async writeApproval(issueId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null) {
+    await this.prisma.epaperIssueApproval.create({
+      data: {
+        issueId, step, stepLabel: stepLabel(step),
+        actorId: actorId || null, actorRole: actorRole || null,
+        action, comment: comment || null,
+      },
+    });
+  }
+
+  /** Gan lastApproval (dong duyet moi nhat) vao cac row cua 1 trang list. */
+  private async attachLastApprovals(rows: any[]) {
+    if (rows.length === 0) return rows;
+    const ids = rows.map((r) => r.id);
+    const all = await this.prisma.epaperIssueApproval.findMany({
+      where: { issueId: { in: ids } }, orderBy: { createdAt: 'desc' },
+    });
+    const firstByIssue = new Map<string, any>();
+    for (const a of all) if (!firstByIssue.has(a.issueId)) firstByIssue.set(a.issueId, a);
+    return rows.map((r) => ({ ...r, lastApproval: firstByIssue.has(r.id) ? this.toApproval(firstByIssue.get(r.id)) : null }));
   }
 
   private async snapshot(issueId: string) {
@@ -55,11 +99,12 @@ export class EpaperService {
     });
   }
 
-  async list(query: { issueType?: string; q?: string; page?: number; limit?: number }) {
+  async list(query: { issueType?: string; q?: string; status?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Math.trunc(Number(query.page) || 1));
     const limit = Math.min(100, Math.max(1, Math.trunc(Number(query.limit) || 20)));
     const where: any = {};
     if (query.issueType && isIssueType(query.issueType)) where.issueType = query.issueType;
+    if (query.status && ['draft', 'pending_review', 'published'].includes(query.status)) where.status = query.status;
     if (query.q && String(query.q).trim()) {
       const q = String(query.q).trim();
       const n = Number(q);
@@ -75,7 +120,8 @@ export class EpaperService {
       }),
       this.prisma.epaperIssue.count({ where }),
     ]);
-    return { data: rows.map((r) => this.toItem(r)), total, page, limit };
+    const withApprovals = await this.attachLastApprovals(rows);
+    return { data: withApprovals.map((r) => this.toItem(r)), total, page, limit };
   }
 
   // --- Doc cong khai (chi so da xuat ban; khong lo thong tin noi bo) ---
@@ -211,19 +257,102 @@ export class EpaperService {
     return this.toItem(updated);
   }
 
-  async setPublished(publicId: string, publish: boolean, actorId: string | null) {
+  // --- Quy trinh duyet (xem epaper-workflow.ts) ---
+  private async workflowRow(publicId: string) {
+    const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
+    if (!row) throw new NotFoundException('khong tim thay so bao');
+    return row;
+  }
+
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'publish-direct' | 'unpublish') {
+    try {
+      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+    } catch (e: any) {
+      throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
+    }
+  }
+
+  async submitForReview(publicId: string, actorId: string | null, actorRole: string | null) {
+    const row = await this.workflowRow(publicId);
+    const next = this.applyTransition(row, 'submit');
+    const updated = await this.prisma.epaperIssue.update({
+      where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
+    });
+    await this.writeApproval(row.id, next.step, actorId, actorRole, 'submit', null);
+    return this.toItem(updated);
+  }
+
+  async approveStep(publicId: string, actorId: string | null, actorRole: string | null, isFullAdmin: boolean) {
+    const row = await this.workflowRow(publicId);
+    const step = row.workflowStep ?? 0;
+    if (!canApproveStep(actorRole, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${EPAPER_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    }
+    const next = this.applyTransition(row, 'approve');
+    const wasFinal = next.status === 'published';
+    const before = await this.snapshot(row.id);
+    const updated = await this.prisma.epaperIssue.update({
+      where: { id: row.id },
+      data: { status: next.status, workflowStep: next.step, publishedAt: wasFinal ? new Date() : row.publishedAt },
+    });
+    await this.writeApproval(row.id, step, actorId, actorRole, 'approve', null);
+    if (wasFinal) {
+      await this.writeRevision(row.id, actorId, 'xuat ban', before);
+      await this.writeApproval(row.id, 0, actorId, actorRole, 'publish', null);
+    }
+    return this.toItem(updated);
+  }
+
+  async returnIssue(publicId: string, actorId: string | null, actorRole: string | null, reason: string) {
+    if (!reason || !String(reason).trim()) throw new BadRequestException('tra lai bat buoc co ly do');
+    const row = await this.workflowRow(publicId);
+    const step = row.workflowStep ?? 0;
+    const next = this.applyTransition(row, 'return');
+    const before = await this.snapshot(row.id);
+    const updated = await this.prisma.epaperIssue.update({
+      where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
+    });
+    await this.writeApproval(row.id, step, actorId, actorRole, 'return', String(reason).trim());
+    await this.writeRevision(row.id, actorId, `tra lai duyet: ${String(reason).trim()}`, before);
+    return this.toItem(updated);
+  }
+
+  async listApprovals(publicId: string) {
+    const row = await this.workflowRow(publicId);
+    const rows = await this.prisma.epaperIssueApproval.findMany({
+      where: { issueId: row.id }, orderBy: { createdAt: 'asc' },
+    });
+    return { data: rows.map((r) => this.toApproval(r)) };
+  }
+
+  async setPublished(publicId: string, publish: boolean, actorId: string | null, actorRole: string | null = null, isFullAdmin = false) {
     const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay so bao');
     if (publish && row.status === 'published') return this.toItem(row);
     if (!publish && row.status !== 'published') return this.toItem(row);
+    if (publish && row.status === 'pending_review') {
+      // So dang cho duyet khong xuat ban tat: phai duyet het cac buoc
+      // (approve buoc cuoi tu xuat ban) hoac toan quyen duyet tat.
+      if (!isFullAdmin && (row.workflowStep ?? 0) !== EPAPER_WORKFLOW_STEPS.length) {
+        throw new ConflictException(`so dang cho duyet buoc ${row.workflowStep}/${EPAPER_WORKFLOW_STEPS.length}, phai duyet xong moi xuat ban duoc`);
+      }
+      if (!isFullAdmin && !canApproveStep(actorRole, false, row.workflowStep ?? 0)) {
+        throw new ForbiddenException('chi vai duyet buoc cuoi hoac toan quyen moi xuat ban so dang cho duyet');
+      }
+    }
+    if (publish && row.status === 'draft' && !isFullAdmin) {
+      // So nhap phai di qua quy trinh; xuat ban truc tiep chi danh cho toan quyen.
+      throw new ConflictException('so nhap phai gui duyet truoc, chi toan quyen moi xuat ban truc tiep duoc');
+    }
     const before = await this.snapshot(row.id);
     const updated = await this.prisma.epaperIssue.update({
       where: { id: row.id },
-      data: { status: publish ? 'published' : 'draft', publishedAt: publish ? new Date() : null },
+      data: { status: publish ? 'published' : 'draft', workflowStep: 0, publishedAt: publish ? new Date() : null },
     });
     if (row.status === 'published' || publish) {
       await this.writeRevision(row.id, actorId, publish ? 'xuat ban' : 'go xuong', before);
     }
+    await this.writeApproval(row.id, 0, actorId, actorRole, publish ? 'publish' : 'unpublish', null);
     return this.toItem(updated);
   }
 
@@ -231,6 +360,7 @@ export class EpaperService {
     const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay so bao');
     if (row.status === 'published') throw new ConflictException('so dang xuat ban: go xuong truoc khi xoa');
+    if (row.status === 'pending_review') throw new ConflictException('so dang cho duyet: tra lai hoac duyet xong truoc khi xoa');
     await this.prisma.epaperIssue.delete({ where: { id: row.id } });
     return { deleted: true, publicId };
   }

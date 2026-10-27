@@ -466,7 +466,7 @@ model EpaperIssue {
   publishDate  DateTime @map("publish_date") @db.Date
   title        String
   slug         String   @unique // bao-tuyen-quang-so-<number>-<publicId>
-  status       String   @default("draft") // draft | published
+  status       String   @default("draft") // draft | pending_review | published
   publishedAt  DateTime? @map("published_at")
   pdfPath      String?  @map("pdf_path") // duong dan tuong doi trong STORAGE_DIR, vd documents/doc-....pdf
   pdfSizeBytes BigInt?  @map("pdf_size_bytes")
@@ -475,11 +475,33 @@ model EpaperIssue {
   createdBy    String?  @map("created_by") // AdminUser id (JWT sub), khong rang buoc FK de tranh hong khi tai khoan bi xoa
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  // Quy trinh duyet (xem epaper-workflow.ts): 0 = ngoai quy trinh,
+  // k (1..4) = dang cho duyet buoc k. So da xuat ban tu truoc giu step 0.
+  workflowStep Int      @default(0) @map("workflow_step")
   revisions    EpaperIssueRevision[]
+  approvals    EpaperIssueApproval[]
 
   @@unique([issueType, issueNumber])
   @@index([status, publishDate])
   @@map("epaper_issues")
+}
+
+// Lich su duyet theo buoc (rieng voi revisions noi dung): moi hanh dong
+// gui duyet / duyet / tra lai / xuat ban / go xuong ghi 1 dong.
+model EpaperIssueApproval {
+  id         String   @id @default(uuid())
+  issueId    String   @map("issue_id")
+  issue      EpaperIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  step       Int      // buoc duyet luc hanh dong (0 = ngoai buoc: xuat ban truc tiep / go xuong)
+  stepLabel  String?  @map("step_label")
+  actorId    String?  @map("actor_id") // AdminUser id (JWT sub), khong FK
+  actorRole  String?  @map("actor_role") // ten Role luc hanh dong (de hien thi audit)
+  action     String   // submit | approve | return | publish | unpublish
+  comment    String?  // ly do tra lai / ghi chu
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([issueId, createdAt])
+  @@map("epaper_issue_approvals")
 }
 
 model EpaperIssueRevision {

@@ -22,7 +22,34 @@ npm run prisma:migrate   # prisma migrate deploy; file: prisma/migrations/202610
 | POST | `/admin/epaper/:publicId/publish` | `epaper:publish` |
 | POST | `/admin/epaper/:publicId/unpublish` | `epaper:publish` |
 | DELETE | `/admin/epaper/:publicId` (chỉ số nháp) | `epaper:delete` |
+| POST | `/admin/epaper/:publicId/submit` (nháp → chờ duyệt bước 1) | `epaper:update` |
+| POST | `/admin/epaper/:publicId/approve` (duyệt bước hiện tại; bước cuối = xuất bản) | `epaper:publish` |
+| POST | `/admin/epaper/:publicId/return` `{reason}` (trả về nháp, bắt buộc lý do) | `epaper:publish` |
+| GET | `/admin/epaper/:publicId/approvals` (lịch sử duyệt theo bước) | `epaper:view` |
 | GET | `/admin/epaper/:publicId/pdf` (stream file PDF gốc, không phục vụ công khai) | `epaper:view` |
+
+## Quy trình duyệt (thêm 2026-10-27, migration `20261027160000_epaper_workflow`)
+
+- Trạng thái: `draft` → `pending_review` (kèm `workflowStep` 1..4) → `published`.
+- Chuỗi bước (theo khảo sát CMS Điện Biên, nhánh maket): người nhập (KTV)
+  gửi duyệt → **MD** → **T.PP** → **P.TBT** → **TBT** (duyệt bước cuối =
+  xuất bản). Nhãn bước hiện là viết tắt như CMS gốc; tên đầy đủ của
+  MD/T.PP/P.TBT/TBT cần xác nhận trước khi đổi nhãn (xem `epaper-workflow.ts`).
+- Chặn theo vai: mỗi bước chỉ đúng Role trùng tên bước đó (không phân biệt
+  hoa/thường) hoặc tài khoản toàn quyền (`*`: `*`) mới duyệt được; Role
+  chưa tồn tại → fail-closed (chỉ toàn quyền duyệt được). Tạo Role đúng tên
+  trong trang Quản lý quyền của CMS rồi gán cho tài khoản là chạy.
+- Xuất bản trực tiếp từ nháp chỉ dành cho toàn quyền (giữ hành vi cũ cho
+  admin); tài khoản thường bắt buộc gửi duyệt. Số đang chờ duyệt không
+  xuất bản tắt được và không xóa được (phải trả lại hoặc duyệt xong).
+- Trả lại bắt buộc lý do, ghi vào cả `epaper_issue_approvals` và revision.
+- Danh sách trả thêm `workflowStep`, `workflowStepLabel`,
+  `workflowTotalSteps` và `lastApproval` (người duyệt gần nhất: hành động,
+  vai trò, thời gian) để CMS hiển thị cột audit kiểu Điện Biên.
+- Logic chuyển trạng thái thuần nằm ở `epaper-workflow.ts`, test bằng
+  `node --test epaper-workflow.test.mjs` (không cần DB, không cần build).
+- Số đã xuất bản từ trước migration giữ nguyên `status = published`,
+  `workflowStep = 0` nên độc giả công khai không bị ảnh hưởng.
 | PUT | `/uploads/pdf` (nhị phân `application/pdf`, header `x-file-name`, tối đa 100MB) | `epaper:create` |
 
 Quyền `epaper` đã đăng ký trong `permissions.catalog.ts` (đủ 5 hành động

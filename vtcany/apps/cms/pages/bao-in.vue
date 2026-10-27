@@ -9,6 +9,8 @@
       </span>
       <Dropdown v-model="issueType" :options="typeOptions" option-label="label" option-value="value"
         placeholder="Tất cả loại số" class="w-44" @change="load(1)" />
+      <Dropdown v-model="statusFilter" :options="statusOptions" option-label="label" option-value="value"
+        placeholder="Tất cả trạng thái" class="w-44" @change="load(1)" />
       <Button label="Tải lại" icon="pi pi-refresh" size="small" outlined @click="load(meta.page)" />
       <Button v-if="can('epaper:create')" label="Thêm số báo" icon="pi pi-plus" @click="openAdd" />
     </div>
@@ -24,28 +26,40 @@
         <Column field="title" header="Tiêu đề" />
         <Column field="publishDate" header="Ngày phát hành" style="width:9rem" />
         <Column field="pageCount" header="Số trang" style="width:6rem" />
-        <Column header="Trạng thái" style="width:8rem">
-          <template #body="{ data }"><Tag :value="data.status === 'published' ? 'Đã xuất bản' : 'Nháp'"
-            :severity="data.status === 'published' ? 'success' : 'secondary'" /></template>
+        <Column header="Trạng thái" style="width:11rem">
+          <template #body="{ data }"><Tag :value="statusText(data)"
+            :severity="data.status === 'published' ? 'success' : data.status === 'pending_review' ? 'warn' : 'secondary'" /></template>
+        </Column>
+        <Column header="Duyệt gần nhất" style="min-width:11rem">
+          <template #body="{ data }"><span class="text-sm text-neutral-400">{{ lastApprovalText(data) }}</span></template>
         </Column>
         <Column header="Thao tác" style="min-width:16rem">
           <template #body="{ data }">
             <Button v-if="can('epaper:update')" label="Sửa" size="small" text @click="openEdit(data)" />
             <Button v-if="can('epaper:update') && data.status === 'published'" label="Sửa loại số" size="small" text
               severity="info" @click="openChangeType(data)" />
-            <Button v-if="can('epaper:publish') && data.status !== 'published'" label="Xuất bản" size="small" text
+            <Button v-if="can('epaper:update') && data.status === 'draft'" label="Gửi duyệt" size="small" text
+              severity="info" @click="submitItem(data)" />
+            <Button v-if="can('epaper:publish') && data.status === 'pending_review'" label="Duyệt" size="small" text
+              severity="success" @click="approveItem(data)" />
+            <Button v-if="can('epaper:publish') && data.status === 'pending_review'" label="Trả lại" size="small" text
+              severity="warn" @click="openReturn(data)" />
+            <Button v-if="can('epaper:publish') && isFullAdmin && data.status === 'draft'" label="Xuất bản" size="small" text
               severity="success" @click="setPublished(data, true)" />
             <Button v-if="can('epaper:publish') && data.status === 'published'" label="Gỡ xuống" size="small" text
               severity="warn" @click="setPublished(data, false)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Tải PDF" size="small" text
               @click="downloadPdf(data)" />
-            <Button v-if="can('epaper:delete') && data.status !== 'published'" label="Xóa" size="small" text
+            <Button v-if="can('epaper:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
+            <Button v-if="can('epaper:delete') && data.status === 'draft'" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
           </template>
         </Column>
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Số trang tự đếm khi chọn file PDF (vẫn sửa tay được nếu cần).
-        Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.</p>
+        Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.
+        Quy trình duyệt số nháp: Gửi duyệt → MD → T.PP → P.TBT → TBT (duyệt bước cuối = xuất bản);
+        trả lại phải ghi lý do. Tài khoản toàn quyền vẫn xuất bản trực tiếp từ nháp được.</p>
     </div>
 
     <!-- Form tạo / sửa số báo (số nháp sửa được mọi trường; số đã xuất bản chỉ đổi qua form này kèm lý do) -->
@@ -102,6 +116,37 @@
           :disabled="!typeForm.changeReason.trim() || typeForm.issueType === typeTarget?.issueType" />
       </template>
     </Dialog>
+
+    <!-- Tra lai so dang cho duyet (bat buoc ghi ly do) -->
+    <Dialog v-model:visible="returnDlg" modal header="Trả lại số báo" class="w-full max-w-lg">
+      <div v-if="returnTarget" class="flex flex-col gap-3">
+        <p class="text-sm">Trả lại số <b>{{ returnTarget.issueNumber }}</b> về nháp để tác giả sửa.</p>
+        <div><label class="field-label">Lý do trả lại *</label><Textarea v-model="returnReason" rows="3"
+          class="w-full" /></div>
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="returnDlg = false" />
+        <Button label="Trả lại" severity="warn" @click="saveReturn" :disabled="!returnReason.trim()" />
+      </template>
+    </Dialog>
+
+    <!-- Lich su duyet theo buoc -->
+    <Dialog v-model:visible="histDlg" modal header="Lịch sử duyệt" class="w-full max-w-2xl">
+      <div v-if="histTarget" class="flex flex-col gap-2">
+        <p class="text-sm text-neutral-400">Số {{ histTarget.issueNumber }} — {{ histTarget.title }}</p>
+        <p v-if="histItems.length === 0" class="text-sm">Chưa có lượt duyệt nào.</p>
+        <DataTable v-else :value="histItems" size="small">
+          <Column header="Hành động"><template #body="{ data }">{{ data.actionLabel || data.action }}</template></Column>
+          <Column header="Bước"><template #body="{ data }">{{ data.stepLabel || '—' }}</template></Column>
+          <Column header="Vai trò"><template #body="{ data }">{{ data.actorRole || '?' }}</template></Column>
+          <Column header="Lý do / ghi chú"><template #body="{ data }">{{ data.comment || '—' }}</template></Column>
+          <Column header="Thời gian"><template #body="{ data }">{{ fmtTime(data.createdAt) }}</template></Column>
+        </DataTable>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="histDlg = false" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -109,26 +154,56 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Báo in - VTC ANY CMS' });
 
-const { can } = useCmsAuth();
+const { can, permissions } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
+
+// Tai khoan toan quyen (map quyen '*') duoc xuat ban truc tiep tu nhap;
+// tai khoan thuong phai di qua quy trinh duyet (server chan neu sai).
+const isFullAdmin = computed(() => permissions.value.includes('*'));
 
 const typeOptions = [
   { label: 'Tất cả loại số', value: '' },
   { label: 'Thường', value: 'thuong' },
   { label: 'Vùng cao', value: 'vung_cao' },
 ];
+const statusOptions = [
+  { label: 'Tất cả trạng thái', value: '' },
+  { label: 'Nháp', value: 'draft' },
+  { label: 'Chờ duyệt', value: 'pending_review' },
+  { label: 'Đã xuất bản', value: 'published' },
+];
+
+function statusText(it: any) {
+  if (it.status === 'published') return 'Đã xuất bản';
+  if (it.status === 'pending_review') {
+    const label = it.workflowStepLabel ? ` · ${it.workflowStepLabel}` : '';
+    const total = it.workflowTotalSteps ? `/${it.workflowTotalSteps}` : '';
+    return `Chờ duyệt${label} (bước ${it.workflowStep || '?'}${total})`;
+  }
+  return 'Nháp';
+}
+function fmtTime(s: string | null | undefined) {
+  return s ? s.slice(0, 16).replace('T', ' ') : '';
+}
+function lastApprovalText(it: any) {
+  const a = it.lastApproval;
+  if (!a) return '—';
+  return `${a.actionLabel || a.action} · ${a.actorRole || '?'} · ${fmtTime(a.createdAt)}`;
+}
 const items = ref<any[]>([]);
 const meta = ref({ total: 0, page: 1, limit: 20 });
 const loading = ref(false);
 const q = ref('');
 const issueType = ref('');
+const statusFilter = ref('');
 
 async function load(page = 1) {
   loading.value = true;
   try {
     const r = await api.get<any>('/admin/epaper', {
-      issueType: issueType.value || undefined, q: q.value || undefined, page, limit: meta.value.limit,
+      issueType: issueType.value || undefined, status: statusFilter.value || undefined,
+      q: q.value || undefined, page, limit: meta.value.limit,
     });
     items.value = r.data || [];
     meta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
@@ -241,6 +316,59 @@ async function setPublished(it: any, publish: boolean) {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Thao tác thất bại', life: 3000 });
+  }
+}
+
+// --- Quy trinh duyet ---
+async function submitItem(it: any) {
+  try {
+    await api.post(`/admin/epaper/${it.publicId}/submit`);
+    toast.add({ severity: 'success', summary: 'Đã gửi duyệt', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Gửi duyệt thất bại', life: 3000 });
+  }
+}
+async function approveItem(it: any) {
+  try {
+    const r = await api.post<any>(`/admin/epaper/${it.publicId}/approve`);
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+  }
+}
+const returnDlg = ref(false);
+const returnTarget = ref<any>(null);
+const returnReason = ref('');
+function openReturn(it: any) {
+  returnTarget.value = it;
+  returnReason.value = '';
+  returnDlg.value = true;
+}
+async function saveReturn() {
+  if (!returnTarget.value) return;
+  try {
+    await api.post(`/admin/epaper/${returnTarget.value.publicId}/return`, { reason: returnReason.value.trim() });
+    toast.add({ severity: 'success', summary: 'Đã trả lại số báo', life: 2500 });
+    returnDlg.value = false;
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Trả lại thất bại', life: 3000 });
+  }
+}
+const histDlg = ref(false);
+const histTarget = ref<any>(null);
+const histItems = ref<any[]>([]);
+async function openHistory(it: any) {
+  histTarget.value = it;
+  histItems.value = [];
+  histDlg.value = true;
+  try {
+    const r = await api.get<any>(`/admin/epaper/${it.publicId}/approvals`);
+    histItems.value = r.data || [];
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được lịch sử duyệt', life: 3000 });
   }
 }
 

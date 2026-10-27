@@ -122,6 +122,40 @@ export class RolesService {
     return { ok: true };
   }
 
+  // Danh tinh phuc vu quy trinh duyet: ten Role + co phai toan quyen khong.
+  // Toan quyen = map co '*': ['*'] (Super Admin/Admin). Khi DB role thieu,
+  // fallback roleName cu 'superadmin'/'admin' van coi la toan quyen nhu
+  // hanh vi guard cu, tranh khoa admin khoi duyet khi chua seed xong.
+  async adminIdentity(adminId: string): Promise<{ roleName: string | null; isFullAdmin: boolean } | null> {
+    if (!this.prisma) return null;
+    try {
+      await this.ensureSeed();
+      const admin = await this.prisma.adminUser.findUnique({
+        where: { id: adminId },
+        include: { role: true },
+      });
+      if (!admin) return null;
+      let roleName: string | null = admin.role?.name ?? admin.roleName ?? null;
+      let perms: PermissionMap | null = null;
+      if (admin.role?.permissions && typeof admin.role.permissions === 'object') {
+        perms = admin.role.permissions as PermissionMap;
+      } else if (roleName) {
+        const byName = await this.prisma.role.findFirst({ where: { name: { equals: roleName, mode: 'insensitive' } } });
+        if (byName) {
+          roleName = byName.name;
+          if (byName.permissions && typeof byName.permissions === 'object') perms = byName.permissions as PermissionMap;
+        }
+      }
+      const star = perms?.['*'];
+      const isFullAdmin = Array.isArray(star) && star.includes('*')
+        ? true
+        : (!admin.role && roleName !== null && ['superadmin', 'admin'].includes(roleName.toLowerCase()));
+      return { roleName, isFullAdmin };
+    } catch {
+      return null;
+    }
+  }
+
   // Permission map cua 1 admin (qua roleId; fallback roleName -> Role theo ten).
   // Tra null khi khong tim thay (caller fallback ve role cung) — {} nghia la
   // role co that nhung khong co quyen nao (deny all).

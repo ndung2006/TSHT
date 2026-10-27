@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { AuditService } from '../audit/audit.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { RolesService } from '../auth/roles.service';
 import { EpaperService } from './epaper.service';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
@@ -95,10 +96,17 @@ export class EpaperController {
     private epaper: EpaperService,
     private audit: AuditService,
     private uploads: UploadsService,
+    private roles: RolesService,
   ) {}
 
   private actor(req: any) {
     return { actor: req.user?.username || req.user?.sub || 'unknown', role: req.user?.role };
+  }
+
+  /** Danh tinh duyet: ten Role + toan quyen (de chan buoc sai vai). */
+  private async identity(req: any) {
+    const id = await this.roles.adminIdentity(req.user?.sub || '');
+    return { actorId: req.user?.sub || null, actorRole: id?.roleName || null, isFullAdmin: !!id?.isFullAdmin };
   }
 
   private auditSafe(req: any, action: string, resource: string) {
@@ -111,7 +119,7 @@ export class EpaperController {
   @Get()
   async list(@Query() q: any) {
     return this.epaper.list({
-      issueType: q?.issueType, q: q?.q, page: q?.page, limit: q?.limit,
+      issueType: q?.issueType, q: q?.q, status: q?.status, page: q?.page, limit: q?.limit,
     });
   }
 
@@ -140,7 +148,8 @@ export class EpaperController {
   @RequirePerms('epaper:publish')
   @Post(':publicId/publish')
   async publish(@Param('publicId') publicId: string, @Req() req: any) {
-    const row = await this.epaper.setPublished(publicId, true, req.user?.sub || null);
+    const id = await this.identity(req);
+    const row = await this.epaper.setPublished(publicId, true, id.actorId, id.actorRole, id.isFullAdmin);
     this.auditSafe(req, 'epaper.publish', row.publicId);
     return row;
   }
@@ -148,9 +157,44 @@ export class EpaperController {
   @RequirePerms('epaper:publish')
   @Post(':publicId/unpublish')
   async unpublish(@Param('publicId') publicId: string, @Req() req: any) {
-    const row = await this.epaper.setPublished(publicId, false, req.user?.sub || null);
+    const id = await this.identity(req);
+    const row = await this.epaper.setPublished(publicId, false, id.actorId, id.actorRole, id.isFullAdmin);
     this.auditSafe(req, 'epaper.unpublish', row.publicId);
     return row;
+  }
+
+  // --- Quy trinh duyet (xem epaper-workflow.ts) ---
+  @RequirePerms('epaper:update')
+  @Post(':publicId/submit')
+  async submit(@Param('publicId') publicId: string, @Req() req: any) {
+    const id = await this.identity(req);
+    const row = await this.epaper.submitForReview(publicId, id.actorId, id.actorRole);
+    this.auditSafe(req, 'epaper.workflow.submit', row.publicId);
+    return row;
+  }
+
+  @RequirePerms('epaper:publish')
+  @Post(':publicId/approve')
+  async approve(@Param('publicId') publicId: string, @Req() req: any) {
+    const id = await this.identity(req);
+    const row = await this.epaper.approveStep(publicId, id.actorId, id.actorRole, id.isFullAdmin);
+    this.auditSafe(req, 'epaper.workflow.approve', row.publicId);
+    return row;
+  }
+
+  @RequirePerms('epaper:publish')
+  @Post(':publicId/return')
+  async returnIssue(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
+    const id = await this.identity(req);
+    const row = await this.epaper.returnIssue(publicId, id.actorId, id.actorRole, body?.reason || '');
+    this.auditSafe(req, 'epaper.workflow.return', row.publicId);
+    return row;
+  }
+
+  @RequirePerms('epaper:view')
+  @Get(':publicId/approvals')
+  async approvals(@Param('publicId') publicId: string) {
+    return this.epaper.listApprovals(publicId);
   }
 
   @RequirePerms('epaper:delete')
