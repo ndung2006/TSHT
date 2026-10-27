@@ -13,8 +13,8 @@ import {
 test('chuoi maket co 4 buoc duyet, buoc cuoi la TBT', () => {
   assert.equal(EPAPER_WORKFLOW_STEPS.length, 4);
   assert.equal(EPAPER_WORKFLOW_STEPS[3].key, 'tbt');
-  assert.equal(stepLabel(1), 'MD');
-  assert.equal(stepLabel(4), 'TBT');
+  assert.equal(stepLabel(1), 'MD — Duyệt Mo-rát');
+  assert.equal(stepLabel(4), 'TBT — Tổng Biên tập');
   assert.equal(stepLabel(0), null);
   assert.equal(stepLabel(5), null);
 });

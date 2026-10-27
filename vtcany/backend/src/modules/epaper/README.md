@@ -32,9 +32,12 @@ npm run prisma:migrate   # prisma migrate deploy; file: prisma/migrations/202610
 
 - Trạng thái: `draft` → `pending_review` (kèm `workflowStep` 1..4) → `published`.
 - Chuỗi bước (theo khảo sát CMS Điện Biên, nhánh maket): người nhập (KTV)
-  gửi duyệt → **MD** → **T.PP** → **P.TBT** → **TBT** (duyệt bước cuối =
-  xuất bản). Nhãn bước hiện là viết tắt như CMS gốc; tên đầy đủ của
-  MD/T.PP/P.TBT/TBT cần xác nhận trước khi đổi nhãn (xem `epaper-workflow.ts`).
+  gửi duyệt → **MD (Duyệt Mo-rát)** → **T.PP (Trưởng/Phó phòng, Thư ký
+  tòa soạn)** → **P.TBT (Phó Tổng Biên tập)** → **TBT (Tổng Biên tập)**
+  (duyệt bước cuối = xuất bản). Tên đầy đủ do user xác nhận 2026-10-27;
+  nhãn hiển thị đổi ở `epaper-workflow.ts` nhưng `key`/`roleName` và thứ
+  tự bước không đổi nên quyền duyệt theo tên Role và dữ liệu duyệt cũ
+  vẫn nguyên vẹn (lịch sử duyệt cũ giữ nhãn viết tắt).
 - Chặn theo vai: mỗi bước chỉ đúng Role trùng tên bước đó (không phân biệt
   hoa/thường) hoặc tài khoản toàn quyền (`*`: `*`) mới duyệt được; Role
   chưa tồn tại → fail-closed (chỉ toàn quyền duyệt được). Tạo Role đúng tên

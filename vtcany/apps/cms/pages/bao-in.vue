@@ -58,7 +58,7 @@
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Số trang tự đếm khi chọn file PDF (vẫn sửa tay được nếu cần).
         Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.
-        Quy trình duyệt số nháp: Gửi duyệt → MD → T.PP → P.TBT → TBT (duyệt bước cuối = xuất bản);
+        Quy trình duyệt số nháp: Gửi duyệt → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) → TBT (Tổng Biên tập, duyệt bước cuối = xuất bản);
         trả lại phải ghi lý do. Tài khoản toàn quyền vẫn xuất bản trực tiếp từ nháp được.</p>
     </div>
 

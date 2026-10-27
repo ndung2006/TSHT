@@ -2,12 +2,21 @@
 // de test truc tiep bang node --test.
 //
 // Chuoi buoc lay theo khao sat CMS Dien Bien (Toa Soan Hoi Tu), nhom maket
-// bao in: KTV (nguoi nhap lieu) tao so -> MD duyet -> T.PP duyet ->
-// P.TBT duyet -> TBT duyet cuoi (= xuat ban).
-// CHU Y: cac nhan buoc hien la viet tat nhu CMS goc ghi; ten day du cua
-// MD / T.PP / P.TBT / TBT can user xac nhan truoc khi doi nhan hien thi.
-// Khi doi nhan, chi sua `label` o day + ten Role tuong ung trong CMS —
-// `key` va thu tu buoc khong doi nen du lieu duyet cu van doc duoc.
+// bao in: KTV tao so -> MD duyet -> T.PP duyet -> P.TBT duyet ->
+// TBT duyet cuoi (= xuat ban).
+// Ten day du do user xac nhan 2026-10-27 (chi doi `label` hien thi o
+// day; `key`, `roleName` va thu tu buoc KHONG doi nen quyen duyet theo
+// ten Role + du lieu duyet cu van doc duoc, lich su cu giu nhan viet tat):
+//   KTV  = Ky thuat vien (Che ban / Dan trang): nhan bai, dan trang
+//          tren InDesign, xuat PDF bao in va tai len CMS.
+//   MD   = Duyet Mo-rat (Duyet Ma-ket): doc bong, ra soat loi chinh ta,
+//          cau chu va bo cuc trang bao ngay sau khi KTV dan trang xong.
+//   T.PP = Truong / Pho phong (Thu ky toa soan): kiem tra tong the
+//          noi dung, tit bai, vi tri tin bai truoc khi trinh Ban Bien tap.
+//   P.TBT = Pho Tong Bien tap: lanh dao Ban Bien tap phu trach truc
+//          tiep so bao.
+//   TBT  = Tong Bien tap: phe duyet cuoi cung (ky duyet in / cho phep
+//          xuat ban cong khai len trang doc dien tu).
 //
 // Y nghia workflowStep tren EpaperIssue:
 //   0 = khong nam trong quy trinh (nhap hoac da xuat ban)
@@ -32,10 +41,10 @@ export interface WorkflowStep {
 }
 
 export const EPAPER_WORKFLOW_STEPS: WorkflowStep[] = [
-  { key: 'md', label: 'MD', roleName: 'MD' },
-  { key: 'tpp', label: 'T.PP', roleName: 'T.PP' },
-  { key: 'ptbt', label: 'P.TBT', roleName: 'P.TBT' },
-  { key: 'tbt', label: 'TBT', roleName: 'TBT' },
+  { key: 'md', label: 'MD — Duyệt Mo-rát', roleName: 'MD' },
+  { key: 'tpp', label: 'T.PP — Trưởng/Phó phòng (Thư ký tòa soạn)', roleName: 'T.PP' },
+  { key: 'ptbt', label: 'P.TBT — Phó Tổng Biên tập', roleName: 'P.TBT' },
+  { key: 'tbt', label: 'TBT — Tổng Biên tập', roleName: 'TBT' },
 ];
 
 export const EPAPER_WORKFLOW_AUTHOR_LABEL = 'KTV';
