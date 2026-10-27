@@ -107,6 +107,18 @@ moi dung bang PDF.js. Co che ket hop:
   login) stream anh tu backend; detail proxy dung `pages` tu
   `pdfPageCount`/`pageVersion`, rong thi fallback PDF.js.
 
+## Dialog Xem duyệt trong CMS (người duyệt đọc báo trước khi quyết)
+
+Nút “Xem duyệt” ở mỗi hàng trên trang Báo in mở dialog đọc số báo mà
+không cần tải PDF về: dialog tải từng ảnh trang qua route admin
+`GET /admin/epaper/:publicId/pages/:page` (JWT + `epaper:view`, mọi
+trạng thái — nháp/chờ duyệt đều xem được, khác route công khai chỉ cho
+số đã xuất bản), ảnh render lazy chung cache với route công khai.
+Trong dialog: chuyển trang trước/sau, zoom 50–300% theo nấc 25% (cuộn
+trong khung khi phóng to), rồi bấm Duyệt / Trả lại (mở dialog lý do)
+ngay tại đó khi số đang chờ duyệt; số nháp thì có nút Gửi duyệt.
+Người duyệt không còn phải tải PDF ra ngoài đọc rồi quay lại bấm nút mù.
+
 ## Kênh TV/radio nhập tay
 
 Đã có sẵn và không sửa trong đợt này: trang “Truyền hình & EPG” của CMS

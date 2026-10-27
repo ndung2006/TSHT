@@ -32,13 +32,8 @@ export class EpaperService {
   private pageRenderJobs = new Map<string, Promise<string>>();
   private pdfCountCache = new Map<string, number | null>();
 
-  /** Thong tin PDF cua so da xuat ban (404 neu chua xuat ban / chua co PDF). */
-  async publishedPdfInfo(publicId: string): Promise<{ pdfPath: string; fingerprint: string; pdfPageCount: number | null }> {
-    const pdfPath = await this.publishedPdfPath(publicId);
-    if (!pdfPath) throw new NotFoundException('so bao chua co file PDF');
-    const root = this.uploads.storageRoot();
-    const abs = join(root, pdfPath);
-    if (!abs.startsWith(root) || !existsSync(abs)) throw new NotFoundException('file PDF khong ton tai');
+  /** Fingerprint + so trang that cua 1 file PDF (dung chung cho ca 2 route anh). */
+  private async pdfFileInfo(abs: string, publicId: string): Promise<{ fingerprint: string; pdfPageCount: number | null }> {
     const st = statSync(abs);
     const fingerprint = `${st.size}-${Math.trunc(st.mtimeMs)}`;
     const cacheKey = `${publicId}-${fingerprint}`;
@@ -53,20 +48,29 @@ export class EpaperService {
       } catch { /* null => trinh doc fallback ve PDF.js nhu cu */ }
       this.pdfCountCache.set(cacheKey, pdfPageCount);
     }
-    return { pdfPath, fingerprint, pdfPageCount };
+    return { fingerprint, pdfPageCount };
   }
 
-  /** Duong dan anh cua 1 trang (render lazy neu chua co, chong stampede). */
-  async pageImage(publicId: string, page: number): Promise<{ abs: string; fingerprint: string }> {
-    const info = await this.publishedPdfInfo(publicId);
-    if (!Number.isInteger(page) || page < 1 || (info.pdfPageCount !== null && page > info.pdfPageCount)) {
+  /** Thong tin PDF cua so da xuat ban (404 neu chua xuat ban / chua co PDF). */
+  async publishedPdfInfo(publicId: string): Promise<{ pdfPath: string; fingerprint: string; pdfPageCount: number | null }> {
+    const pdfPath = await this.publishedPdfPath(publicId);
+    if (!pdfPath) throw new NotFoundException('so bao chua co file PDF');
+    const root = this.uploads.storageRoot();
+    const abs = join(root, pdfPath);
+    if (!abs.startsWith(root) || !existsSync(abs)) throw new NotFoundException('file PDF khong ton tai');
+    return { pdfPath, ...(await this.pdfFileInfo(abs, publicId)) };
+  }
+
+  /** Render (lazy) + cache anh 1 trang; dung chung cho route cong khai va route admin. */
+  private async renderPageImage(pdfPath: string, publicId: string, fingerprint: string, pdfPageCount: number | null, page: number): Promise<{ abs: string; fingerprint: string }> {
+    if (!Number.isInteger(page) || page < 1 || (pdfPageCount !== null && page > pdfPageCount)) {
       throw new NotFoundException('trang khong ton tai');
     }
     const root = this.uploads.storageRoot();
-    const dir = join(root, 'page-images', `${publicId}-${info.fingerprint}`);
+    const dir = join(root, 'page-images', `${publicId}-${fingerprint}`);
     const name = `page-${String(page).padStart(3, '0')}.jpg`;
     const abs = join(dir, name);
-    if (existsSync(abs)) return { abs, fingerprint: info.fingerprint };
+    if (existsSync(abs)) return { abs, fingerprint };
     let job = this.pageRenderJobs.get(abs);
     if (!job) {
       job = (async () => {
@@ -77,7 +81,7 @@ export class EpaperService {
         await execFileAsync('pdftoppm', [
           '-jpeg', '-jpegopt', 'quality=85', '-scale-to', '1600',
           '-f', String(page), '-l', String(page),
-          join(root, info.pdfPath), tmpPrefix,
+          join(root, pdfPath), tmpPrefix,
         ], { timeout: 60000 });
         // pdftoppm dat ten <prefix>-<so trang co pad>.jpg; chi co 1 file
         // vi chi render 1 trang, loc dung prefix + '-' de tranh nham
@@ -93,7 +97,28 @@ export class EpaperService {
       job.then(() => this.pageRenderJobs.delete(abs), () => this.pageRenderJobs.delete(abs));
     }
     await job;
-    return { abs, fingerprint: info.fingerprint };
+    return { abs, fingerprint };
+  }
+
+  /** Duong dan anh cua 1 trang, chi so da xuat ban (route cong khai). */
+  async pageImage(publicId: string, page: number): Promise<{ abs: string; fingerprint: string }> {
+    const info = await this.publishedPdfInfo(publicId);
+    return this.renderPageImage(info.pdfPath, publicId, info.fingerprint, info.pdfPageCount, page);
+  }
+
+  /** Duong dan anh cua 1 trang, moi trang thai (route admin cho dialog Xem duyet).
+   *  Khac pageImage o cho khong yeu cau published — nhap/cho duyet van xem
+   *  duoc; quyen epaper:view do controller chan bang @RequirePerms. */
+  async pageImageAdmin(publicId: string, page: number): Promise<{ abs: string; fingerprint: string }> {
+    const row = await this.prisma.epaperIssue.findUnique({ where: { publicId } });
+    if (!row) throw new NotFoundException('khong tim thay so bao');
+    const pdfPath = row.pdfPath as string | null;
+    if (!pdfPath) throw new NotFoundException('so bao chua co file PDF');
+    const root = this.uploads.storageRoot();
+    const abs = join(root, pdfPath);
+    if (!abs.startsWith(root) || !existsSync(abs)) throw new NotFoundException('file PDF khong ton tai');
+    const info = await this.pdfFileInfo(abs, publicId);
+    return this.renderPageImage(pdfPath, publicId, info.fingerprint, info.pdfPageCount, page);
   }
 
   private toItem(row: any) {

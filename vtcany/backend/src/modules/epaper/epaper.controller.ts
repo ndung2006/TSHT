@@ -205,6 +205,21 @@ export class EpaperController {
     return out;
   }
 
+  // Anh 1 trang cho dialog Xem duyet trong CMS (moi trang thai, ke ca
+  // nhap/cho duyet — khac route cong khai chi cho so da xuat ban).
+  // JWT + epaper:view do guard chan; anh render lazy chung cache voi
+  // route cong khai (cung thu muc theo fingerprint).
+  @RequirePerms('epaper:view')
+  @Get(':publicId/pages/:page')
+  async pageImage(@Param('publicId') publicId: string, @Param('page') page: string, @Res() res: Response) {
+    const n = Number(page);
+    if (!Number.isInteger(n) || n < 1) throw new HttpException('trang khong hop le', HttpStatus.NOT_FOUND);
+    const { abs } = await this.epaper.pageImageAdmin(publicId, n);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    createReadStream(abs).pipe(res);
+  }
+
   // Tai file PDF goc cua mot so bao (chi admin co epaper:view). File khong
   // phuc vu cong khai qua static assets; chi stream qua route co JWT nay.
   @RequirePerms('epaper:view')

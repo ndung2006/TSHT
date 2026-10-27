@@ -50,6 +50,8 @@
               severity="warn" @click="setPublished(data, false)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Tải PDF" size="small" text
               @click="downloadPdf(data)" />
+            <Button v-if="can('epaper:view') && data.pdfPath" label="Xem duyệt" size="small" text
+              severity="info" @click="openReview(data)" />
             <Button v-if="can('epaper:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
             <Button v-if="can('epaper:delete') && data.status === 'draft'" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
@@ -145,6 +147,44 @@
       </div>
       <template #footer>
         <Button label="Đóng" text @click="histDlg = false" />
+      </template>
+    </Dialog>
+
+    <!-- Xem duyet: doc tung trang (anh server render san), zoom, duyet /
+         tra lai ngay trong dialog — nguoi duyet khong phai tai PDF ve
+         doc ngoai roi moi quay lai bam nut mu. -->
+    <Dialog v-model:visible="reviewDlg" modal :header="`Xem duyệt — Số ${reviewItem?.issueNumber || ''}`"
+      class="w-full max-w-4xl" @hide="closeReview">
+      <div v-if="reviewItem" class="flex flex-col gap-2">
+        <p class="text-sm text-neutral-400">{{ reviewItem.title }} · {{ statusText(reviewItem) }}</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <Button label="‹ Trang trước" size="small" text :disabled="reviewPage <= 1" @click="reviewGo(reviewPage - 1)" />
+          <span class="text-sm">Trang {{ reviewPage }} / {{ reviewTotal > 0 ? reviewTotal : '?' }}</span>
+          <Button label="Trang sau ›" size="small" text
+            :disabled="reviewTotal > 0 && reviewPage >= reviewTotal" @click="reviewGo(reviewPage + 1)" />
+          <span class="mx-1 text-neutral-600">|</span>
+          <Button label="Thu nhỏ" size="small" text @click="reviewZoomOut" />
+          <span class="text-sm">{{ reviewZoom }}%</span>
+          <Button label="Phóng to" size="small" text @click="reviewZoomIn" />
+          <Button label="Vừa khung" size="small" text @click="reviewZoom = 100" />
+        </div>
+        <div class="overflow-auto border border-neutral-800 bg-neutral-900" style="max-height:70vh">
+          <p v-if="reviewLoading" class="p-4 text-sm">Đang tải trang {{ reviewPage }}…</p>
+          <p v-else-if="!reviewImg" class="p-4 text-sm">Không tải được trang này.</p>
+          <img v-else :src="reviewImg" :alt="`Trang ${reviewPage}`" class="mx-auto block"
+            :style="{ width: reviewZoom + '%' }" />
+        </div>
+        <p class="text-xs text-neutral-500">Phóng to rồi cuộn trong khung để đọc từng phần trang.
+          Ảnh trang do server render sẵn, không cần tải file PDF về.</p>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="reviewDlg = false" />
+        <Button v-if="reviewItem && reviewItem.status === 'draft' && can('epaper:update')" label="Gửi duyệt"
+          severity="info" @click="reviewSubmit" />
+        <Button v-if="reviewItem && reviewItem.status === 'pending_review' && can('epaper:publish')" label="Duyệt"
+          severity="success" @click="reviewApprove" />
+        <Button v-if="reviewItem && reviewItem.status === 'pending_review' && can('epaper:publish')" label="Trả lại"
+          severity="warn" @click="reviewReturn" />
       </template>
     </Dialog>
   </div>
@@ -370,6 +410,78 @@ async function openHistory(it: any) {
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được lịch sử duyệt', life: 3000 });
   }
+}
+
+// --- Dialog Xem duyet: anh trang qua route admin co JWT (moi trang
+// thai, ke ca nhap/cho duyet), zoom bang % chieu rong + cuon khung.
+const reviewDlg = ref(false);
+const reviewItem = ref<any>(null);
+const reviewPage = ref(1);
+const reviewTotal = ref(0);
+const reviewImg = ref('');
+const reviewZoom = ref(100);
+const reviewLoading = ref(false);
+function reviewRevokeImg() {
+  if (reviewImg.value) { URL.revokeObjectURL(reviewImg.value); reviewImg.value = ''; }
+}
+async function loadReviewPage(page: number) {
+  if (!reviewItem.value) return;
+  const base = (useRuntimeConfig().public.apiBase as string).replace(/\/$/, '');
+  const token = localStorage.getItem('cms_token') || sessionStorage.getItem('cms_token') || '';
+  if (!token) { toast.add({ severity: 'warn', summary: 'Hết phiên đăng nhập', life: 2500 }); return; }
+  reviewLoading.value = true;
+  reviewRevokeImg();
+  try {
+    const r = await fetch(`${base}/admin/epaper/${reviewItem.value.publicId}/pages/${page}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status });
+    reviewImg.value = URL.createObjectURL(await r.blob());
+    reviewPage.value = page;
+  } catch (e: any) {
+    // So chua co so trang luu (pageCount = 0): gap 404 o trang ke thi
+    // coi trang truoc la trang cuoi, quay lai do thay vi bao loi.
+    if (e?.status === 404 && reviewTotal.value === 0 && page > 1) {
+      reviewTotal.value = page - 1;
+      loadReviewPage(page - 1);
+      return;
+    }
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.message || 'Không tải được trang', life: 3000 });
+  } finally { reviewLoading.value = false; }
+}
+function openReview(it: any) {
+  reviewItem.value = it;
+  reviewPage.value = 1;
+  reviewTotal.value = it.pageCount || 0;
+  reviewZoom.value = 100;
+  reviewDlg.value = true;
+  loadReviewPage(1);
+}
+function reviewGo(page: number) {
+  if (page < 1) return;
+  if (reviewTotal.value > 0 && page > reviewTotal.value) return;
+  loadReviewPage(page);
+}
+function reviewZoomIn() { reviewZoom.value = Math.min(300, reviewZoom.value + 25); }
+function reviewZoomOut() { reviewZoom.value = Math.max(50, reviewZoom.value - 25); }
+function closeReview() { reviewRevokeImg(); reviewItem.value = null; }
+async function reviewApprove() {
+  const it = reviewItem.value;
+  if (!it) return;
+  await approveItem(it);
+  reviewDlg.value = false;
+}
+async function reviewSubmit() {
+  const it = reviewItem.value;
+  if (!it) return;
+  await submitItem(it);
+  reviewDlg.value = false;
+}
+function reviewReturn() {
+  const it = reviewItem.value;
+  if (!it) return;
+  reviewDlg.value = false;
+  openReturn(it);
 }
 
 function downloadPdf(it: any) {
