@@ -2,7 +2,7 @@
   <div>
     <!-- Khung xem truoc (an khi compact) -->
     <div v-if="!compact" :class="['bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden flex items-center justify-center relative', aspectClass]">
-      <img v-if="url" :src="url" :class="['absolute inset-0 w-full h-full', fit === 'contain' ? 'object-contain bg-white' : 'object-cover']" alt="anh" />
+      <img v-if="url" :src="previewUrl" :class="['absolute inset-0 w-full h-full', fit === 'contain' ? 'object-contain bg-white' : 'object-cover']" alt="anh" />
       <span v-else class="text-xs text-neutral-400 px-2 text-center">Chưa có ảnh<br />({{ ratioLabel }})</span>
       <span v-if="url" class="absolute right-1.5 top-1.5 flex gap-1.5">
         <button type="button" title="Đổi ảnh"
@@ -34,7 +34,7 @@
       <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60dvh] overflow-y-auto pr-1">
         <button v-for="im in lib" :key="im.id" type="button" class="text-left group" @click="pick(im)">
           <span class="block aspect-square rounded-lg overflow-hidden bg-neutral-800">
-            <img :src="im.url" class="w-full h-full object-cover" :alt="im.filename" loading="lazy" />
+            <img :src="resolveMedia(im.url)" class="w-full h-full object-cover" :alt="im.filename" loading="lazy" />
           </span>
           <span class="block text-[11px] text-neutral-400 truncate mt-1 group-hover:text-neutral-200">{{ im.filename }}</span>
         </button>
@@ -52,6 +52,17 @@ const emit = defineEmits<{ 'update:modelValue': [v: string] }>();
 const api = useApi();
 
 const url = ref(props.modelValue || '');
+// Anh luu duoi dang duong dan tuong doi (/images/...) thuoc ve backend, khong
+// phai origin cua CMS: khi hien thi phai ghep voi origin cua apiBase, neu
+// khong trinh duyet se hieu thanh cms.vtctech.xyz/images/... -> 404 va vo anh.
+// Gia tri luu (modelValue) van giu nguyen duong dan tuong doi, chi doi src hien thi.
+function resolveMedia(u: string) {
+  if (!u) return '';
+  if (/^(https?:)?\/\//.test(u) || u.startsWith('data:')) return u;
+  if (!u.startsWith('/')) return u;
+  try { return new URL(useRuntimeConfig().public.apiBase as string).origin + u; } catch { return u; }
+}
+const previewUrl = computed(() => resolveMedia(url.value));
 watch(() => props.modelValue, (v) => { if ((v || '') !== url.value) url.value = v || ''; });
 watch(url, (v) => { if (v !== props.modelValue) emit('update:modelValue', v); });
 

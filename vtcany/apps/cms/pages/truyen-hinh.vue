@@ -32,7 +32,7 @@
       <DataTable :value="filteredChannels" :loading="loadingChannels" size="small" paginator :rows="15">
         <Column header="Logo" style="width:5rem">
           <template #body="{ data }">
-            <img v-if="data.logoUrl" :src="data.logoUrl" class="h-9 w-14 rounded bg-white object-contain" alt="" />
+            <img v-if="data.logoUrl" :src="resolveMedia(data.logoUrl)" class="h-9 w-14 rounded bg-white object-contain" alt="" />
             <span v-else class="text-neutral-500 text-xs">—</span>
           </template>
         </Column>
@@ -84,7 +84,7 @@
         <button v-for="ch in channels" :key="ch.key" @click="selectForEpg(ch)"
           class="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-white/10"
           :class="selected?.key === ch.key ? 'bg-white/15 font-semibold' : ''">
-          <img v-if="ch.logoUrl" :src="ch.logoUrl" class="h-6 w-6 rounded bg-white object-contain" alt="" />
+          <img v-if="ch.logoUrl" :src="resolveMedia(ch.logoUrl)" class="h-6 w-6 rounded bg-white object-contain" alt="" />
           <span class="truncate">{{ ch.displayName || ch.name }}</span>
           <Tag v-if="!ch.isVisible" value="Ẩn" severity="danger" class="ml-auto" />
         </button>
@@ -304,6 +304,14 @@ const filteredChannels = computed(() => {
   return channels.value.filter((c) => `${c.displayName || ''} ${c.name} ${c.key}`.toLowerCase().includes(q));
 });
 function planName(id: any): string { return plans.value.find((p) => p.id === id)?.name || 'Có gói'; }
+// Xem ImagePicker: logo luu dang /images/... thuoc backend, hien thi phai
+// ghep voi origin cua apiBase, neu khong se 404 tren origin CMS.
+function resolveMedia(u: string) {
+  if (!u) return '';
+  if (/^(https?:)?\/\//.test(u) || u.startsWith('data:')) return u;
+  if (!u.startsWith('/')) return u;
+  try { return new URL(useRuntimeConfig().public.apiBase as string).origin + u; } catch { return u; }
+}
 
 async function loadChannels() {
   loadingChannels.value = true;
