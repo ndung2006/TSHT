@@ -13,7 +13,7 @@ import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
-import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, clearSessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
+import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
 import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, hasVtcanyPermission, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { pdfPageCount, renderIssuePages } from "./lib/worker.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
@@ -380,10 +380,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/v1/auth/me") return json(res, 200, { user });
     if (req.method === "POST" && u.pathname === "/api/v1/auth/logout") {
       destroySession(req);
-      // Clear with the same builder as login (see lib/auth.mjs): if a
-      // cookie domain is ever configured for SSO, logout must clear
-      // with the same Domain or the cookie survives logout.
-      return json(res, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
+      return json(res, 200, { ok: true }, { "Set-Cookie": "epaper_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" });
     }
 
     // ---- Users (admin only, D5) ----
