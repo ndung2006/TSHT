@@ -100,7 +100,18 @@
           // a replay row to watch).
           if (!opts.replayingKey) {
             if (box.scrollHeight > box.clientHeight + 10) {
-              box.scrollTop = Math.max(0, currentRow.offsetTop - Math.floor(box.clientHeight / 2) + Math.floor(currentRow.offsetHeight / 2));
+              // Live row sits 3rd from the top of the panel: scroll so
+              // the row two places above it is flush with the top.
+              // If the live row is 1st/2nd of the day there is nothing
+              // above it, so start at the top. Near the end of the day
+              // the target would run past the bottom, so clamp to the
+              // maximum scroll: the list simply runs to the last row.
+              var allRows = box.querySelectorAll(".sched-row");
+              var idx = -1;
+              for (var i = 0; i < allRows.length; i++) { if (allRows[i] === currentRow) { idx = i; break; } }
+              var target = idx > 1 ? allRows[idx - 2].offsetTop : 0;
+              var maxScroll = box.scrollHeight - box.clientHeight;
+              box.scrollTop = Math.max(0, Math.min(target, maxScroll));
             } else if (typeof currentRow.scrollIntoView === "function") {
               currentRow.scrollIntoView({ block: "center" });
             }
