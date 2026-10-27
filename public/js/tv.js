@@ -24,6 +24,34 @@
   var currentChannel = "", channelSource = "", channelStreamUrl = "";
   var liveHandle = null, replayHandle = null, replayingKey = null;
   var lastItems = null, lastMeta = null;
+  // Can khung lich dung bang khung video (mau tuyenquangtv.vn/truyen-hinh):
+  // chieu cao khung lich = chieu cao .live-player-wrap (video 16:9) tru
+  // chieu cao .epg-head, danh sach cuon ben trong. Chi desktop (>900px);
+  // mobile xoa chieu cao dat san de lich cuon theo trang nhu cu.
+  // Ly do phai do bang JS thay vi chi CSS: grid auto-row lay chieu cao
+  // theo noi dung lon nhat, nen flex:1 + overflow:auto mot minh khong
+  // gioi han duoc danh sach bang video — ban CSS truoc day can theo ca
+  // cot player (video + dong Dang phat ben duoi) nen van lech so voi mau.
+  function syncSchedHeight() {
+    if (!schedBox) return;
+    if (window.innerWidth <= 900) { schedBox.style.height = ""; return; }
+    var wrap = document.querySelector(".live-player-wrap");
+    var head = document.querySelector(".epg-head");
+    if (!wrap || !head) return;
+    var h = wrap.offsetHeight - head.offsetHeight;
+    if (h > 0) schedBox.style.height = h + "px";
+  }
+  var schedResizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (schedResizeTimer) clearTimeout(schedResizeTimer);
+    schedResizeTimer = setTimeout(syncSchedHeight, 150);
+  });
+  if (typeof ResizeObserver !== "undefined") {
+    var wrapEl = document.querySelector(".live-player-wrap");
+    if (wrapEl) new ResizeObserver(syncSchedHeight).observe(wrapEl);
+  }
+  var playerEl = document.getElementById("player");
+  if (playerEl) playerEl.addEventListener("loadedmetadata", syncSchedHeight);
   function showMsg(t) { msg.textContent = t; msg.style.display = "block"; }
   function hideMsg() { msg.textContent = ""; msg.style.display = "none"; }
   function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
@@ -44,6 +72,7 @@
     // TV page only: schedule replay buttons read "PHÁT LẠI" (same onReplay
     // behaviour as before); radio keeps the default "Xem lại" label.
     var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: "PHÁT LẠI", timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true });
+    syncSchedHeight();
     if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
     // TV-page extras (tv-extra.js) render "CHƯƠNG TRÌNH MỚI NHẤT" from this
     // same schedule data and reuse onReplay via window.playScheduleReplay.
