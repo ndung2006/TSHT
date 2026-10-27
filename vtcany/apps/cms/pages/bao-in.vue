@@ -52,6 +52,8 @@
               @click="downloadPdf(data)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Xem duyệt" size="small" text
               severity="info" @click="openReview(data)" />
+            <Button v-if="can('epaper:update') && data.status === 'draft'" label="Thay file" size="small" text
+              severity="info" :disabled="replaceBusy" @click="openReplaceFile(data)" />
             <Button v-if="can('epaper:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
             <Button v-if="can('epaper:delete') && data.status === 'draft'" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
@@ -61,7 +63,8 @@
       <p class="mt-2 text-xs text-neutral-500">Số trang tự đếm khi chọn file PDF (vẫn sửa tay được nếu cần).
         Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.
         Quy trình duyệt số nháp: Gửi duyệt → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) → TBT (Tổng Biên tập, duyệt bước cuối = xuất bản);
-        trả lại phải ghi lý do. Tài khoản toàn quyền vẫn xuất bản trực tiếp từ nháp được.</p>
+        trả lại phải ghi lý do. Số bị trả lại về nháp dùng nút Thay file để đổi PDF rồi gửi duyệt lại (chỉ số nháp mới thay file trực tiếp được; số đang chờ duyệt và số đã xuất bản không thay kiểu này). Tài khoản toàn quyền vẫn xuất bản trực tiếp từ nháp được.</p>
+      <input ref="replaceInput" type="file" accept="application/pdf" class="hidden" @change="onReplaceFilePicked" />
     </div>
 
     <!-- Form tạo / sửa số báo (số nháp sửa được mọi trường; số đã xuất bản chỉ đổi qua form này kèm lý do) -->
@@ -172,7 +175,7 @@
           <p v-if="reviewLoading" class="p-4 text-sm">Đang tải trang {{ reviewPage }}…</p>
           <p v-else-if="!reviewImg" class="p-4 text-sm">Không tải được trang này.</p>
           <img v-else :src="reviewImg" :alt="`Trang ${reviewPage}`" class="mx-auto block"
-            :style="{ width: reviewZoom + '%' }" />
+            :style="{ width: reviewZoom + '%', maxWidth: 'none' }" />
         </div>
         <p class="text-xs text-neutral-500">Phóng to rồi cuộn trong khung để đọc từng phần trang.
           Ảnh trang do server render sẵn, không cần tải file PDF về.</p>
@@ -482,6 +485,52 @@ function reviewReturn() {
   if (!it) return;
   reviewDlg.value = false;
   openReturn(it);
+}
+
+// --- Thay file PDF cho so nhap (so bi tra lai ve nhap) ---
+// Khong can mo form Sua: chon file -> tai len /uploads/pdf (tu dem so
+// trang, giong form) -> PATCH pdfPath + pageCount. So nhap PATCH khong
+// can changeReason (chi so da xuat ban moi bat buoc). So dang cho duyet
+// va so da xuat ban khong co nut nay: file dang duyet khong duoc doi
+// giua chung, so da xuat ban sua qua form Sua kem ly do.
+const replaceTarget = ref<any>(null);
+const replaceInput = ref<HTMLInputElement | null>(null);
+const replaceBusy = ref(false);
+function openReplaceFile(it: any) {
+  replaceTarget.value = it;
+  replaceInput.value?.click();
+}
+async function onReplaceFilePicked(ev: Event) {
+  const input = ev.target as HTMLInputElement;
+  const f = input.files?.[0];
+  input.value = '';
+  const it = replaceTarget.value;
+  replaceTarget.value = null;
+  if (!f || !it) return;
+  if (f.type !== 'application/pdf') {
+    toast.add({ severity: 'warn', summary: 'Chỉ chấp nhận file PDF', life: 2500 });
+    return;
+  }
+  replaceBusy.value = true;
+  try {
+    const out = await api.put<any>('/uploads/pdf', f, {
+      'Content-Type': 'application/pdf', 'x-file-name': encodeURIComponent(f.name),
+    });
+    if (!out?.pdfPath) throw new Error('Tải PDF lên không trả về đường dẫn file');
+    const patchBody: any = { pdfPath: out.pdfPath };
+    if (typeof out.pageCount === 'number') patchBody.pageCount = out.pageCount;
+    await api.patch(`/admin/epaper/${it.publicId}`, patchBody);
+    if (typeof out.pageCount === 'number') {
+      toast.add({ severity: 'success', summary: `Đã thay file PDF, ${out.pageCount} trang`, life: 3000 });
+    } else {
+      toast.add({ severity: 'warn', summary: 'Đã thay file PDF (không đếm được số trang, mở Sửa để nhập tay)', life: 4000 });
+    }
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.error || e?.response?.data?.message || e?.message || 'Thay file thất bại', life: 3000 });
+  } finally {
+    replaceBusy.value = false;
+  }
 }
 
 function downloadPdf(it: any) {
