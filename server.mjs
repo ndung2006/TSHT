@@ -689,11 +689,29 @@ const server = http.createServer(async (req, res) => {
       if (newEpaperMatch[2] === "/cover") {
         // Anh bia mac dinh: render trang 1 cua PDF bang pdftoppm (co
         // san trong container TSHT, giong cach he cu render trang).
-        // Khong cache o ban nay: moi lan goi se tai PDF + render lai
-        // (PDF so bao chi vai MB, render 1 trang ~1 giay); co the them
-        // cache sau neu danh sach dong.
+        // CHI RENDER 1 LAN: anh render xong duoc luu vao
+        // STORAGE_DIR/epaper-covers/<publicId>.jpg va phuc vu lai tu
+        // disk cho cac lan sau, kem Cache-Control 1 ngay cho trinh
+        // duyet/CDN. Truoc day moi lan goi deu tai lai PDF + render
+        // lai (do thuc te 7-26s/anh, so 319 con timeout 30s) nen trang
+        // /bao-in load rat cham. Cache co TTL 24h theo mtime: qua 24h
+        // thi render lai 1 lan, de anh bia khong ket vinh vien neu PDF
+        // cua so duoc thay sau. Loi render khong duoc cache. Neu thu
+        // muc cache ghi khong duoc (storage chi doc), code tu roi ve
+        // hanh vi cu (render moi lan) thay vi loi.
         const base = vtcanyApiBase();
         if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
+        const coverDir = path.join(STORAGE_DIR, "epaper-covers");
+        const cachePath = path.join(coverDir, `${publicId}.jpg`);
+        const COVER_TTL_MS = 24 * 60 * 60 * 1000;
+        try {
+          const st = fs.statSync(cachePath);
+          if (st.size > 0 && Date.now() - st.mtimeMs < COVER_TTL_MS) {
+            const buf = fs.readFileSync(cachePath);
+            res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
+            return res.end(buf);
+          }
+        } catch {}
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "epaper-cover-"));
         try {
           const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(30000) });
@@ -704,7 +722,13 @@ const server = http.createServer(async (req, res) => {
           const jpg = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".jpg")).sort()[0];
           if (!jpg) return err(res, 502, "khong render duoc anh bia");
           const buf = fs.readFileSync(path.join(tmpDir, jpg));
-          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length });
+          try {
+            fs.mkdirSync(coverDir, { recursive: true });
+            const tmpCache = path.join(coverDir, `.${publicId}.${process.pid}.tmp`);
+            fs.writeFileSync(tmpCache, buf);
+            fs.renameSync(tmpCache, cachePath);
+          } catch {}
+          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
           return res.end(buf);
         } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
         finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
