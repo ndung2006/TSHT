@@ -43,10 +43,11 @@
   // opts: { box, items, date, nowEl, onReplay(item), replayingKey,
   //         timeshift_available, timeshift_unknown, emptyText,
   //         pageScroll }
-  // pageScroll (TV page only): the schedule has no inner scroll
-  // container anymore — it is a full-width list that scrolls with the
-  // page — so the current program is brought into view with a page
-  // scroll instead of box.scrollTop. Callers that do not pass it
+  // pageScroll (TV page only): on desktop the schedule is a 2-column
+  // panel with its own inner scroll, so the current program is
+  // brought into view by scrolling the panel only (never the page,
+  // never the player). On mobile the panel has no inner scroll, so
+  // it falls back to a page scroll. Callers that do not pass it
   // (radio) keep the exact old container-scroll behaviour.
   // Returns the LIVE item (for now-playing) or null.
   function renderSchedule(opts) {
@@ -91,12 +92,19 @@
       var currentRow = box.querySelector(".sched-row.is-now");
       if (currentRow) {
         if (opts.pageScroll) {
-          // TV page-scroll layout: bring the current program into view
-          // in the page. This only scrolls the document — it never
-          // touches, resets, or reloads the player. While a replay is
-          // playing, do NOT yank the page back to the live row (the
-          // user just chose a replay row to watch).
-          if (!opts.replayingKey && typeof currentRow.scrollIntoView === "function") currentRow.scrollIntoView({ block: "center" });
+          // TV 2-column layout: scroll the schedule panel only when
+          // it has an inner scroll (desktop); otherwise fall back to
+          // a page scroll (mobile). This never touches, resets, or
+          // reloads the player. While a replay is playing, do NOT
+          // yank the view back to the live row (the user just chose
+          // a replay row to watch).
+          if (!opts.replayingKey) {
+            if (box.scrollHeight > box.clientHeight + 10) {
+              box.scrollTop = Math.max(0, currentRow.offsetTop - Math.floor(box.clientHeight / 2) + Math.floor(currentRow.offsetHeight / 2));
+            } else if (typeof currentRow.scrollIntoView === "function") {
+              currentRow.scrollIntoView({ block: "center" });
+            }
+          }
         } else {
           // Inner-scroll layout (radio column): old behaviour, scroll
           // the container only, never the page.

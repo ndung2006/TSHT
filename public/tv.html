@@ -4,7 +4,7 @@
 <title>TSHTTV — Truyền hình trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261026-3">
 <link rel="stylesheet" href="/css/live.css?v=20261026-6">
-<link rel="stylesheet" href="/css/tv-page.css?v=20261027-1"></head>
+<link rel="stylesheet" href="/css/tv-page.css?v=20261027-2"></head>
 <body id="top">
 <!-- Trang Truyền hình TSHTTV — bố cục theo cấu trúc trang /truyen-hinh kiểu
      Tuyên Quang TV (chỉ cấu trúc, không copy logo/ảnh/tiêu đề chương trình
@@ -60,17 +60,20 @@
 </nav>
 
 <section class="live-section" id="live-section">
-  <!-- Bố cục cuộn xuống: player toàn chiều rộng ở trên, lịch EPG toàn
-       chiều rộng ở dưới (cuộn theo trang, không có khung cuộn riêng),
-       rồi tới CHƯƠNG TRÌNH MỚI NHẤT và các mục chuyên mục. Mọi id mà
-       tv.js/live-epg.js dùng (player, sched-date, schedule, now-playing,
-       replay-bar, back-live, player-msg) giữ nguyên, chỉ đổi vị trí
-       trong DOM; logic phát/lịch/xem lại không đổi. -->
+  <!-- Bố cục 2 cột kiểu trang /truyen-hinh tham khảo (chỉ cấu trúc):
+       desktop: player ở cột trái, cột LỊCH PHÁT SÓNG ở cột phải với
+       khung cuộn riêng; mobile (<=900px): 2 cột xếp dọc, lịch cuộn
+       theo trang. Dưới cụm 2 cột mới tới CHƯƠNG TRÌNH MỚI NHẤT và
+       các mục chuyên mục. Mọi id mà tv.js/live-epg.js dùng (player,
+       sched-date, schedule, now-playing, replay-bar, back-live,
+       player-msg) giữ nguyên, chỉ đổi vị trí trong DOM; logic
+       phát/lịch/xem lại không đổi. -->
   <div class="live-head">
     <h2 class="live-title">TRUYỀN HÌNH TRỰC TUYẾN</h2>
   </div>
   <h3 id="channel-name" class="live-channel">Đang tải kênh…</h3>
   <p id="channel-desc" class="live-desc"></p>
+  <div class="live-grid">
   <div class="live-player-col">
     <div class="live-player-wrap">
       <span class="live-badge">● TRỰC TIẾP</span>
@@ -89,6 +92,7 @@
     </div>
     <div id="schedule" class="sched-list"><p class="sched-empty">Đang tải lịch…</p></div>
   </section>
+  </div>
 </section>
 
 <main class="tv-wrap">
@@ -176,7 +180,7 @@
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-6"></script>
-<script src="/js/live-epg.js?v=20261027-1"></script>
+<script src="/js/live-epg.js?v=20261027-2"></script>
 <script src="/js/tv.js?v=20261026-7"></script>
 <script src="/js/tv-extra.js?v=20261026-7"></script>
 </body></html>
