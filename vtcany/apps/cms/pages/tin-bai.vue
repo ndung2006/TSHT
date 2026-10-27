@@ -34,21 +34,33 @@
         <Column header="Sửa đổi gần nhất" style="min-width:13rem">
           <template #body="{ data }">{{ lastEditText(data) }}</template>
         </Column>
-        <Column header="Thao tác" style="min-width:16rem">
+        <Column header="Duyệt gần nhất" style="min-width:11rem">
+          <template #body="{ data }">{{ lastApprovalText(data) }}</template>
+        </Column>
+        <Column header="Thao tác" style="min-width:20rem">
           <template #body="{ data }">
             <Button v-if="can('articles:update')" label="Sửa" size="small" text @click="openEdit(data)" />
-            <Button v-if="can('articles:publish') && data.status !== 'published'" label="Xuất bản" size="small" text
+            <Button v-if="can('articles:update') && data.status === 'draft'" label="Gửi duyệt" size="small" text
+              severity="info" @click="submitItem(data)" />
+            <Button v-if="can('articles:publish') && data.status === 'pending_review'" label="Duyệt" size="small" text
+              severity="success" @click="approveItem(data)" />
+            <Button v-if="can('articles:publish') && data.status === 'pending_review'" label="Trả lại" size="small" text
+              severity="warn" @click="openReturn(data)" />
+            <Button v-if="can('articles:publish') && ((data.status === 'draft' && isFullAdmin) || data.status === 'unpublished')" label="Xuất bản" size="small" text
               severity="success" @click="publishItem(data)" />
             <Button v-if="can('articles:publish') && data.status === 'published'" label="Gỡ xuống" size="small" text
               severity="warn" @click="unpublishItem(data)" />
-            <Button v-if="can('articles:delete') && data.status !== 'published'" label="Xóa" size="small" text
+            <Button v-if="can('articles:delete') && (data.status === 'draft' || data.status === 'unpublished')" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
+            <Button v-if="can('articles:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
           </template>
         </Column>
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Bài đặt giờ xuất bản tương lai hiển thị "Chờ xuất bản" và tự
-        hiện công khai khi tới giờ (không cần chạy thêm tác vụ). Quy trình duyệt nhiều bước chưa áp dụng ở
-        phiên bản này: ai có quyền Công khai đều xuất bản trực tiếp được.</p>
+        hiện công khai khi tới giờ (không cần chạy thêm tác vụ). Quy trình duyệt: Gửi duyệt → TP (Trưởng phòng)
+        → PBĐT (Phó Ban điện tử) → BBT (Ban biên tập) → XB (Xuất bản, duyệt bước cuối = xuất bản). Mỗi bước
+        chỉ Role trùng tên bước hoặc tài khoản toàn quyền mới duyệt được; bài nháp chỉ toàn quyền mới xuất bản
+        trực tiếp được. Tên Role trong CMS phải giữ nguyên viết tắt (khóa chặn bước).</p>
     </div>
 
     <!-- Form bai viet -->
@@ -123,6 +135,34 @@
         <Button label="Đóng" text @click="catDlg = false" />
       </template>
     </Dialog>
+
+    <!-- Tra lai bai (bat buoc ly do) -->
+    <Dialog v-model:visible="returnDlg" modal header="Trả lại bài viết" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Trả lại bài "{{ returnTarget?.title }}" về nháp. Người viết sẽ thấy lý do này.</p>
+        <Textarea v-model="returnReason" rows="3" class="w-full" placeholder="Lý do trả lại *" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="returnDlg = false" />
+        <Button label="Trả lại" severity="warn" :disabled="!returnReason.trim()" @click="saveReturn" />
+      </template>
+    </Dialog>
+
+    <!-- Lich su duyet -->
+    <Dialog v-model:visible="histDlg" modal :header="`Lịch sử duyệt — ${histTarget?.title || ''}`" class="w-full max-w-2xl">
+      <DataTable :value="histItems" size="small">
+        <Column field="actionLabel" header="Hành động" style="min-width:8rem" />
+        <Column field="stepLabel" header="Bước" style="min-width:12rem" />
+        <Column field="actorRole" header="Vai trò" style="min-width:8rem" />
+        <Column field="comment" header="Lý do / ghi chú" />
+        <Column header="Thời gian" style="min-width:10rem">
+          <template #body="{ data }">{{ fmtTime(data.createdAt) }}</template>
+        </Column>
+      </DataTable>
+      <template #footer>
+        <Button label="Đóng" text @click="histDlg = false" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -130,9 +170,13 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Tin bài - VTC ANY CMS' });
 
-const { can } = useCmsAuth();
+const { can, permissions } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
+
+// Tai khoan toan quyen (map quyen '*') duoc xuat ban truc tiep tu nhap;
+// tai khoan thuong phai di qua quy trinh duyet (server chan neu sai).
+const isFullAdmin = computed(() => permissions.value.includes('*'));
 
 const items = ref<any[]>([]);
 const meta = ref({ total: 0, page: 1, limit: 20 });
@@ -144,6 +188,7 @@ const cats = ref<any[]>([]);
 
 const statusOptions = [
   { label: 'Nháp', value: 'draft' },
+  { label: 'Chờ duyệt', value: 'pending_review' },
   { label: 'Đã xuất bản', value: 'published' },
   { label: 'Hạ xuất bản', value: 'unpublished' },
 ];
@@ -152,7 +197,20 @@ function statusText(it: any) {
   if (it.status === 'published' && it.publishAt && new Date(it.publishAt).getTime() > Date.now()) return 'Chờ xuất bản';
   if (it.status === 'published') return 'Đã xuất bản';
   if (it.status === 'unpublished') return 'Hạ xuất bản';
+  if (it.status === 'pending_review') {
+    const label = it.workflowStepLabel ? ` · ${it.workflowStepLabel}` : '';
+    const total = it.workflowTotalSteps ? `/${it.workflowTotalSteps}` : '';
+    return `Chờ duyệt${label} (bước ${it.workflowStep || '?'}${total})`;
+  }
   return 'Nháp';
+}
+function lastApprovalText(it: any) {
+  const a = it.lastApproval;
+  if (!a) return '—';
+  const role = a.actorRole ? ` · ${a.actorRole}` : '';
+  const step = a.stepLabel ? ` (${a.stepLabel})` : '';
+  const comment = a.comment ? ` — ${a.comment}` : '';
+  return `${a.actionLabel || a.action}${step}${role} · ${fmtTime(a.createdAt)}${comment}`;
 }
 function fmtTime(s: string | null | undefined) {
   return s ? s.slice(0, 16).replace('T', ' ') : '';
@@ -245,9 +303,38 @@ function openEdit(it: any) {
   publishAtText.value = isoToLocalInput(it.publishAt);
   dlg.value = true;
 }
+// --- Anh inline trong than bai ---
+// Editor (Quill) chen anh dang base64 (data:) thang vao HTML. Backend
+// gioi han JSON 256kb (main.ts) nen bai co anh base64 lon se lam POST
+// that bai (loi 2026-10-27: tao bai co anh inline that bai 7 lan, xoa
+// anh thi tao duoc ngay). Truoc khi luu, tai tung anh base64 len
+// /uploads/image (stream nhi phan, khong qua JSON parser, giong anh
+// bia) roi thay src bang URL host. Anh da host (/images/..., http...)
+// giu nguyen, khong tai lai. Loi tai anh thi dung luu, giu nguyen
+// form de nguoi dung thu lai, khong mat noi dung.
+async function uploadInlineImages(html: string): Promise<string> {
+  if (!html || !html.includes('data:image/')) return html;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const imgs = Array.from(doc.querySelectorAll('img')).filter((im) => (im.getAttribute('src') || '').startsWith('data:image/'));
+  for (let i = 0; i < imgs.length; i++) {
+    const im = imgs[i];
+    const src = im.getAttribute('src') || '';
+    const m = /^data:(image\/[a-z+]+);base64,/.exec(src);
+    const ext = (m?.[1]?.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const blob = await (await fetch(src)).blob();
+    const res = await api.put<any>('/uploads/image', blob, {
+      'Content-Type': blob.type || m?.[1] || 'image/jpeg',
+      'x-file-name': encodeURIComponent(`noi-dung-${Date.now()}-${i + 1}.${ext}`),
+    });
+    if (!res?.url) throw new Error('Không tải được ảnh trong bài lên máy chủ');
+    im.setAttribute('src', res.url);
+  }
+  return doc.body.innerHTML;
+}
 async function save() {
   saving.value = true;
   try {
+    form.value.body = await uploadInlineImages(form.value.body);
     const payload: any = {
       title: form.value.title.trim(),
       slug: form.value.slug.trim() || undefined,
@@ -295,6 +382,59 @@ async function removeItem(it: any) {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Xóa thất bại', life: 3000 });
+  }
+}
+
+// --- Quy trinh duyet ---
+async function submitItem(it: any) {
+  try {
+    await api.post(`/admin/news/${it.publicId}/submit`);
+    toast.add({ severity: 'success', summary: 'Đã gửi duyệt', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Gửi duyệt thất bại', life: 3000 });
+  }
+}
+async function approveItem(it: any) {
+  try {
+    const r = await api.post<any>(`/admin/news/${it.publicId}/approve`);
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+  }
+}
+const returnDlg = ref(false);
+const returnTarget = ref<any>(null);
+const returnReason = ref('');
+function openReturn(it: any) {
+  returnTarget.value = it;
+  returnReason.value = '';
+  returnDlg.value = true;
+}
+async function saveReturn() {
+  if (!returnTarget.value) return;
+  try {
+    await api.post(`/admin/news/${returnTarget.value.publicId}/return`, { reason: returnReason.value.trim() });
+    toast.add({ severity: 'success', summary: 'Đã trả lại bài viết', life: 2500 });
+    returnDlg.value = false;
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Trả lại thất bại', life: 3000 });
+  }
+}
+const histDlg = ref(false);
+const histTarget = ref<any>(null);
+const histItems = ref<any[]>([]);
+async function openHistory(it: any) {
+  histTarget.value = it;
+  histItems.value = [];
+  histDlg.value = true;
+  try {
+    const r = await api.get<any>(`/admin/news/${it.publicId}/approvals`);
+    histItems.value = r.data || [];
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được lịch sử duyệt', life: 3000 });
   }
 }
 

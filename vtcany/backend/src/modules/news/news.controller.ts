@@ -78,7 +78,7 @@ export class NewsController {
 
   private async actor(req: any) {
     const id = await this.roles.adminIdentity(req.user?.sub || '');
-    return { id: req.user?.sub || null, username: req.user?.username || req.user?.sub || null, roleName: id?.roleName || null };
+    return { id: req.user?.sub || null, username: req.user?.username || req.user?.sub || null, roleName: id?.roleName || null, isFullAdmin: !!id?.isFullAdmin };
   }
 
   @RequirePerms('articles:view')
@@ -111,18 +111,48 @@ export class NewsController {
     return this.news.remove(publicId);
   }
 
-  // Xuat ban truc tiep (v1, chua co quy trinh duyet tin bai): ai co
-  // articles:publish deu xuat ban duoc; workflow se gate lai sau.
+  // Xuat ban truc tiep co gate quy trinh (xem news.service.ts): bai nhap
+  // chi toan quyen moi xuat ban truc tiep; bai dang cho duyet phai duyet
+  // xong (approve buoc cuoi tu xuat ban) hoac toan quyen duyet tat.
   @RequirePerms('articles:publish')
   @Post(':publicId/publish')
   async publish(@Param('publicId') publicId: string, @Body() dto: { publishAt?: string | null }, @Req() req: any) {
-    return this.news.setPublished(publicId, true, dto?.publishAt, await this.actor(req));
+    const a = await this.actor(req);
+    return this.news.setPublished(publicId, true, dto?.publishAt, a, a.isFullAdmin);
   }
 
   @RequirePerms('articles:publish')
   @Post(':publicId/unpublish')
   async unpublish(@Param('publicId') publicId: string, @Req() req: any) {
-    return this.news.setPublished(publicId, false, null, await this.actor(req));
+    const a = await this.actor(req);
+    return this.news.setPublished(publicId, false, null, a, a.isFullAdmin);
+  }
+
+  // Quy trinh duyet tin bai: PV (tac gia) -> TP -> PBDT -> BBT -> XB
+  // (duyet buoc cuoi = xuat ban). Xem news-workflow.ts.
+  @RequirePerms('articles:update')
+  @Post(':publicId/submit')
+  async submit(@Param('publicId') publicId: string, @Req() req: any) {
+    return this.news.submitForReview(publicId, await this.actor(req));
+  }
+
+  @RequirePerms('articles:publish')
+  @Post(':publicId/approve')
+  async approve(@Param('publicId') publicId: string, @Req() req: any) {
+    const a = await this.actor(req);
+    return this.news.approveStep(publicId, a, a.isFullAdmin);
+  }
+
+  @RequirePerms('articles:publish')
+  @Post(':publicId/return')
+  async returnArticle(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
+    return this.news.returnArticle(publicId, await this.actor(req), body?.reason || '');
+  }
+
+  @RequirePerms('articles:view')
+  @Get(':publicId/approvals')
+  async approvals(@Param('publicId') publicId: string) {
+    return this.news.listApprovals(publicId);
   }
 }
 

@@ -1,6 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
+} from './news-workflow';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -75,6 +78,11 @@ export class NewsService {
       authors: row.authors || [],
       tags: row.tags || [],
       status: row.status,
+      // Quy trinh duyet (xem news-workflow.ts). lastApproval do listAdmin gan them.
+      workflowStep: row.workflowStep ?? 0,
+      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
+      workflowTotalSteps: NEWS_WORKFLOW_STEPS.length,
+      lastApproval: (row as any).lastApproval || null,
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       isFeatured: row.isFeatured,
       updatedBy: row.updatedBy,
@@ -82,6 +90,48 @@ export class NewsService {
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
     };
+  }
+
+  private toApproval(row: any) {
+    return {
+      id: row.id, step: row.step, stepLabel: row.stepLabel,
+      actorId: row.actorId, actorRole: row.actorRole,
+      action: row.action, actionLabel: WORKFLOW_ACTION_LABELS[row.action] || row.action,
+      comment: row.comment,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    };
+  }
+
+  /** Gan lastApproval (dong duyet moi nhat) vao cac row cua 1 trang list. */
+  private async attachLastApprovals(rows: any[]) {
+    if (rows.length === 0) return rows;
+    const ids = rows.map((r) => r.id);
+    const all = await this.prisma.newsArticleApproval.findMany({
+      where: { articleId: { in: ids } }, orderBy: { createdAt: 'desc' },
+    });
+    const firstByArticle = new Map<string, any>();
+    for (const a of all) if (!firstByArticle.has(a.articleId)) firstByArticle.set(a.articleId, a);
+    return rows.map((r) => ({ ...r, lastApproval: firstByArticle.has(r.id) ? this.toApproval(firstByArticle.get(r.id)) : null }));
+  }
+
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'publish-direct' | 'unpublish') {
+    try {
+      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+    } catch (e: any) {
+      throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
+    }
+  }
+
+  private async writeApproval(articleId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null) {
+    await this.prisma.newsArticleApproval.create({
+      data: { articleId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment },
+    });
+  }
+
+  private async workflowRow(publicId: string) {
+    const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
+    if (!row) throw new NotFoundException('khong tim thay bai viet');
+    return row;
   }
 
   /** Ban cong khai: khong lo createdBy/updatedBy, khong lo bai chua xuat ban. */
@@ -147,7 +197,8 @@ export class NewsService {
         take: limit,
       }),
     ]);
-    return { data: rows.map((r) => this.toItem(r)), total, page, limit };
+    const withApprovals = await this.attachLastApprovals(rows);
+    return { data: withApprovals.map((r) => this.toItem(r)), total, page, limit };
   }
 
   async getAdmin(publicId: string) {
@@ -211,28 +262,102 @@ export class NewsService {
     return this.toItem(out);
   }
 
-  /** Xoa chi bai nhap hoac da ha xuat ban (bai dang xuat ban phai go xuong truoc). */
+  /** Xoa chi bai nhap hoac da ha xuat ban (bai dang xuat ban phai go xuong truoc, bai dang cho duyet phai tra lai hoac duyet xong). */
   async remove(publicId: string) {
     const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay bai viet');
     if (row.status === 'published') {
       throw new ConflictException('bai dang xuat ban, hay go xuong truoc khi xoa');
     }
+    if (row.status === 'pending_review') {
+      throw new ConflictException('bai dang cho duyet, hay tra lai hoac duyet xong truoc khi xoa');
+    }
     await this.prisma.newsArticle.delete({ where: { id: row.id } });
     return { ok: true };
   }
 
-  /** Xuat ban / go xuong. publishAt tuong lai = cho xuat ban (public API tu an den gio hen). */
-  async setPublished(publicId: string, publish: boolean, publishAt: string | null | undefined, actor: Actor) {
+  // ---------------- Quy trinh duyet (xem news-workflow.ts) ----------------
+
+  async submitForReview(publicId: string, actor: Actor) {
+    const row = await this.workflowRow(publicId);
+    const next = this.applyTransition(row, 'submit');
+    const updated = await this.prisma.newsArticle.update({
+      where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
+    });
+    await this.writeApproval(row.id, next.step, actor.id, actor.roleName, 'submit', null);
+    return this.toItem(updated);
+  }
+
+  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean) {
+    const row = await this.workflowRow(publicId);
+    const step = row.workflowStep ?? 0;
+    if (!canApproveStep(actor.roleName, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${NEWS_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    }
+    const next = this.applyTransition(row, 'approve');
+    const wasFinal = next.status === 'published';
+    const updated = await this.prisma.newsArticle.update({
+      where: { id: row.id },
+      data: { status: next.status, workflowStep: next.step, publishAt: wasFinal ? (row.publishAt || new Date()) : row.publishAt },
+    });
+    await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null);
+    if (wasFinal) {
+      await this.writeApproval(row.id, 0, actor.id, actor.roleName, 'publish', null);
+    }
+    return this.toItem(updated);
+  }
+
+  async returnArticle(publicId: string, actor: Actor, reason: string) {
+    if (!reason || !String(reason).trim()) throw new BadRequestException('tra lai bat buoc co ly do');
+    const row = await this.workflowRow(publicId);
+    const next = this.applyTransition(row, 'return');
+    const updated = await this.prisma.newsArticle.update({
+      where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
+    });
+    await this.writeApproval(row.id, row.workflowStep ?? 0, actor.id, actor.roleName, 'return', String(reason).trim());
+    return this.toItem(updated);
+  }
+
+  async listApprovals(publicId: string) {
+    const row = await this.workflowRow(publicId);
+    const rows = await this.prisma.newsArticleApproval.findMany({
+      where: { articleId: row.id }, orderBy: { createdAt: 'asc' },
+    });
+    return { data: rows.map((r) => this.toApproval(r)) };
+  }
+
+  /**
+   * Xuat ban / go xuong, co gate quy trinh (giong epaper):
+   * - Bai dang cho duyet: chi nguoi duyet buoc cuoi hoac toan quyen moi
+   *   xuat ban tat; tai khoan thuong phai duyet het cac buoc.
+   * - Bai nhap: phai gui duyet truoc; xuat ban truc tiep chi toan quyen.
+   * - Bai da ha xuat ban: xuat ban lai truc tiep duoc (da tung qua xuat ban).
+   * publishAt tuong lai = cho xuat ban (public API tu an den gio hen).
+   */
+  async setPublished(publicId: string, publish: boolean, publishAt: string | null | undefined, actor: Actor, isFullAdmin = false) {
     const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay bai viet');
+    if (publish && row.status === 'published') return this.toItem(row);
+    if (!publish && row.status !== 'published') return this.toItem(row);
+    if (publish && row.status === 'pending_review') {
+      if (!isFullAdmin && (row.workflowStep ?? 0) !== NEWS_WORKFLOW_STEPS.length) {
+        throw new ConflictException(`bai dang cho duyet buoc ${row.workflowStep}/${NEWS_WORKFLOW_STEPS.length}, phai duyet xong moi xuat ban duoc`);
+      }
+      if (!isFullAdmin && !canApproveStep(actor.roleName, false, row.workflowStep ?? 0)) {
+        throw new ForbiddenException('chi vai duyet buoc cuoi hoac toan quyen moi xuat ban bai dang cho duyet');
+      }
+    }
+    if (publish && row.status === 'draft' && !isFullAdmin) {
+      throw new ConflictException('bai nhap phai gui duyet truoc, chi toan quyen moi xuat ban truc tiep duoc');
+    }
     const out = await this.prisma.newsArticle.update({
       where: { id: row.id },
       data: publish
-        ? { status: 'published', publishAt: publishAt ? new Date(publishAt) : row.publishAt || new Date(), updatedBy: actor.username, updatedByRole: actor.roleName }
-        : { status: 'unpublished', updatedBy: actor.username, updatedByRole: actor.roleName },
+        ? { status: 'published', workflowStep: 0, publishAt: publishAt ? new Date(publishAt) : row.publishAt || new Date(), updatedBy: actor.username, updatedByRole: actor.roleName }
+        : { status: 'unpublished', workflowStep: 0, updatedBy: actor.username, updatedByRole: actor.roleName },
       include: { category: true },
     });
+    await this.writeApproval(row.id, 0, actor.id, actor.roleName, publish ? 'publish' : 'unpublish', null);
     return this.toItem(out);
   }
 

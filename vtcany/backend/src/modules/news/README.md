@@ -24,9 +24,20 @@ quy trình duyệt tin bài.
 - Bài viết dùng `articles:view/create/update/publish/delete`.
 - Chuyên mục dùng `category:create/update/delete` (danh sách cho form
   tin bài chỉ cần `articles:view`).
-- V1 chưa có quy trình duyệt: ai có `articles:publish` cũng xuất bản
-  trực tiếp được. Khi làm workflow tin bài (PV → TP → PBĐT → BBT →
-  XB), sẽ gate lại giống `epaper-workflow.ts`.
+- Quy trình duyệt tin bài (từ 2026-10-27, làm theo mẫu
+  `epaper-workflow.ts`): PV (tác giả) → TP → PBĐT → BBT → XB (duyệt
+  bước cuối = xuất bản). Logic thuần ở `news-workflow.ts`, bảng
+  `news_article_approvals` ghi mọi bước, migration
+  `20261027200000_news_workflow`.
+- Chặn bước bằng tên Role (`roleName`): chỉ Role trùng tên bước hoặc
+  tài khoản toàn quyền (`*`) mới duyệt được bước đó; Role chưa tồn
+  tại thì fail-closed. Tên Role trong CMS phải giữ nguyên viết tắt
+  (TP/PBĐT/BBT/XB) — đổi tên sẽ vỡ chặn bước.
+- Bài nháp chỉ toàn quyền mới xuất bản trực tiếp được; bài đang chờ
+  duyệt không xuất bản tắt, không xóa được; trả lại bắt buộc có lý
+  do và về nháp. Bài đã hạ xuất bản thì xuất bản lại trực tiếp được.
+- CMS `/tin-bai` có lọc "Chờ duyệt", cột "Duyệt gần nhất", nút Gửi
+  duyệt/Duyệt/Trả lại và hộp thoại Lịch sử duyệt.
 
 ## API
 

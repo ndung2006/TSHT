@@ -543,7 +543,8 @@ model NewsArticle {
   coverPath    String?      @map("cover_path") // duong dan tuong doi /images/... (uploads/image)
   authors      String[]     @default([])
   tags         String[]     @default([])
-  status       String       @default("draft") // draft | published | unpublished
+  status       String       @default("draft") // draft | pending_review | published | unpublished
+  workflowStep Int          @default(0) @map("workflow_step") // 0 = ngoai quy trinh; k = dang cho duyet buoc k (xem news-workflow.ts)
   publishAt    DateTime?    @map("publish_at")
   isFeatured   Boolean      @default(false) @map("is_featured") // tick len trang chu muc Tin noi bat
   createdBy    String?      @map("created_by") // AdminUser id (JWT sub), khong FK
@@ -551,10 +552,27 @@ model NewsArticle {
   updatedByRole String?     @map("updated_by_role") // ten Role luc sua cuoi (cot audit)
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
+  approvals    NewsArticleApproval[]
 
   @@index([status, publishAt])
   @@index([categoryId, publishAt])
   @@map("news_articles")
+}
+
+model NewsArticleApproval {
+  id         String      @id @default(uuid())
+  articleId  String      @map("article_id")
+  article    NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc ghi (0 = hanh dong ngoai buoc: xuat ban/go xuong)
+  stepLabel  String?     @map("step_label")
+  actorId    String?     @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?     @map("actor_role") // ten Role luc duyet
+  action     String // submit | approve | return | publish | unpublish
+  comment    String? // ly do tra lai
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([articleId, createdAt])
+  @@map("news_article_approvals")
 }
 
 model EpaperIssueRevision {
