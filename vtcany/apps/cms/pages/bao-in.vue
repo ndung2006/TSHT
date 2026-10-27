@@ -44,7 +44,7 @@
           </template>
         </Column>
       </DataTable>
-      <p class="mt-2 text-xs text-neutral-500">Số trang do biên tập nhập tay (hệ thống chưa có trình đọc PDF để đếm trang tự động).
+      <p class="mt-2 text-xs text-neutral-500">Số trang tự đếm khi chọn file PDF (vẫn sửa tay được nếu cần).
         Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.</p>
     </div>
 
@@ -58,9 +58,10 @@
             option-label="label" option-value="value" class="w-full" /></div>
         </div>
         <div><label class="field-label">Tiêu đề *</label><InputText v-model="form.title" class="w-full" /></div>
-        <div><label class="field-label">Ngày phát hành *</label><InputText v-model="form.publishDate" class="w-full"
-          placeholder="YYYY-MM-DD" /></div>
-        <div><label class="field-label">Số trang (nhập tay)</label><InputNumber v-model="form.pageCount" class="w-full" /></div>
+        <div><label class="field-label">Ngày phát hành *</label><input type="date" v-model="form.publishDate"
+          class="p-inputtext p-component w-full" /></div>
+        <div><label class="field-label">Số trang (tự động khi chọn PDF, vẫn sửa tay được)</label><InputNumber
+            v-model="form.pageCount" class="w-full" /></div>
         <div>
           <label class="field-label">File PDF gốc</label>
           <div class="flex items-center gap-2">
@@ -171,7 +172,12 @@ async function onPdfPicked(ev: Event) {
       'Content-Type': 'application/pdf', 'x-file-name': encodeURIComponent(f.name),
     });
     form.value.pdfPath = out.pdfPath || '';
-    toast.add({ severity: 'success', summary: 'Đã tải PDF lên', life: 2500 });
+    if (typeof out.pageCount === 'number' && out.pageCount > 0) {
+      form.value.pageCount = out.pageCount;
+      toast.add({ severity: 'success', summary: `Đã tải PDF lên, tự đếm được ${out.pageCount} trang`, life: 3000 });
+    } else {
+      toast.add({ severity: 'success', summary: 'Đã tải PDF lên (không đếm được số trang, nhập tay giúp)', life: 3000 });
+    }
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.error || e?.message || 'Tải PDF thất bại', life: 3000 });
   } finally { pdfBusy.value = false; }

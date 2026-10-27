@@ -6,6 +6,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { Readable } from 'stream';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, planImage, planUpload } from './upload.plan';
 import { chunkExists, finalPath, rawDir, storageRootDefault, writeChunk } from './local-store';
 import { enqueueTranscode } from './transcode-queue';
@@ -268,7 +270,19 @@ export class UploadsService implements OnModuleInit {
       try { unlinkSync(filePath); } catch { /* chua kip tao file */ }
       throw e;
     }
-    return { id, filename, sizeBytes: bytes, contentType: 'application/pdf', pdfPath: `documents/${id}.pdf` };
+    // Dem so trang bang pdfinfo (poppler, cai san trong Dockerfile) de CMS
+    // tu dien so trang khi chon PDF. Dem loi thi tra null, KHONG fail
+    // upload — bien tap van nhap tay duoc nhu cu.
+    let pageCount: number | null = null;
+    try {
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync('pdfinfo', [filePath], { timeout: 30000 });
+      const m = /^Pages:\s+(\d+)\s*$/m.exec(stdout || '');
+      if (m) pageCount = Number(m[1]);
+    } catch (e: any) {
+      this.logger.warn(`pdfinfo dem trang that bai cho ${id}.pdf: ${e?.message || e}`);
+    }
+    return { id, filename, sizeBytes: bytes, contentType: 'application/pdf', pdfPath: `documents/${id}.pdf`, pageCount };
   }
 
   // Browser bao upload xong (hoac storage webhook) -> chuyen Uploaded, san sang worker.
