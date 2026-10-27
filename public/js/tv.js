@@ -5,8 +5,8 @@
 //   (playVtcanyLive, refresh truoc exp 30 phut); neu backend chua san thi
 //   roi ve luong cu: POST /api/v1/stream-token (link xoay, phut 210) hoac
 //   stream_url truc tiep neu source:"internal".
-// - Cot lich ben phai: GET /api/v1/schedule?channel=<NAME>&date=... . Doi
-//   ngay chi tai lai cot lich, khong khoi dong lai player. Hang lich hien
+// - Lich EPG dang cuon xuong duoi player: GET /api/v1/schedule?channel=<NAME>&date=... . Doi
+//   ngay chi tai lai lich, khong khoi dong lai player. Hang lich hien
 //   trang thai LIVE/UPCOMING/REPLAY theo gio Saigon (port VTCANY
 //   mapEpgSchedule), chuong trinh da phat co replay_url thi co nut
 //   "Xem lai" (timeshift VOD, tua duoc); chuong trinh da phat khong co
@@ -43,7 +43,7 @@
     if (!lastItems) return;
     // TV page only: schedule replay buttons read "PHÁT LẠI" (same onReplay
     // behaviour as before); radio keeps the default "Xem lại" label.
-    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: "PHÁT LẠI", timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn." });
+    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: "PHÁT LẠI", timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true });
     if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
     // TV-page extras (tv-extra.js) render "CHƯƠNG TRÌNH MỚI NHẤT" from this
     // same schedule data and reuse onReplay via window.playScheduleReplay.
@@ -121,7 +121,7 @@
   }
   if (dateInput) {
     dateInput.value = saigonToday();
-    // Chi tai lai cot lich, tuyet doi khong cham vao player (ke ca khi
+    // Chi tai lai lich, tuyet doi khong cham vao player (ke ca khi
     // dang xem lai).
     dateInput.onchange = loadSchedule;
   }

@@ -41,7 +41,13 @@
   function replayKey(p) { return (p.startTime || p.start_time || "") + "|" + (p.title || ""); }
 
   // opts: { box, items, date, nowEl, onReplay(item), replayingKey,
-  //         timeshift_available, timeshift_unknown, emptyText }
+  //         timeshift_available, timeshift_unknown, emptyText,
+  //         pageScroll }
+  // pageScroll (TV page only): the schedule has no inner scroll
+  // container anymore — it is a full-width list that scrolls with the
+  // page — so the current program is brought into view with a page
+  // scroll instead of box.scrollTop. Callers that do not pass it
+  // (radio) keep the exact old container-scroll behaviour.
   // Returns the LIVE item (for now-playing) or null.
   function renderSchedule(opts) {
     var box = opts.box, items = opts.items || [], date = opts.date || saigonToday();
@@ -83,7 +89,20 @@
     }
     if (date === today) {
       var currentRow = box.querySelector(".sched-row.is-now");
-      if (currentRow) box.scrollTop = Math.max(0, currentRow.offsetTop - 60);
+      if (currentRow) {
+        if (opts.pageScroll) {
+          // TV page-scroll layout: bring the current program into view
+          // in the page. This only scrolls the document — it never
+          // touches, resets, or reloads the player. While a replay is
+          // playing, do NOT yank the page back to the live row (the
+          // user just chose a replay row to watch).
+          if (!opts.replayingKey && typeof currentRow.scrollIntoView === "function") currentRow.scrollIntoView({ block: "center" });
+        } else {
+          // Inner-scroll layout (radio column): old behaviour, scroll
+          // the container only, never the page.
+          box.scrollTop = Math.max(0, currentRow.offsetTop - 60);
+        }
+      }
     }
     return liveItem;
   }

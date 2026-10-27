@@ -34,9 +34,35 @@
 .latest-norecord { color: #888; font-size: 0.9rem; }
 .latest-replaying { display: inline-block; background: #b45309; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
 .cat-placeholder { border: 1px solid #ddd; padding: 1rem; background: #fafafa; }
+/* EPG dạng cuộn xuống (chỉ trang TV; live.css và radio không đụng tới).
+   Lịch không còn là cột hẹp bên phải player với khung cuộn riêng nữa:
+   player toàn chiều rộng ở trên, lịch toàn chiều rộng ở dưới và cuộn
+   theo trang. Các quy tắc dưới đây có độ đặc hiệu cao hơn live.css
+   (.live-section .sched-*) và file này nạp sau live.css, nên chúng
+   thắng mà không cần sửa live.css. */
+.live-section .live-player-col { width: 100%; }
+.epg-section { margin-top: 24px; }
+.epg-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.25); padding-bottom: 10px; }
+/* Bỏ khung cuộn riêng của lịch: lịch cao tự nhiên, trang cuộn xuống. */
+.live-section .sched-list { overflow: visible; overflow-y: visible; max-height: none; flex: none; }
+/* Chống cắt badge/nút ở mép phải (lỗi thấy trên ảnh tham khảo): cột giờ
+   cố định và không co, tiêu đề được phép xuống dòng (min-width: 0 là
+   điểm mấu chốt — nếu không, grid item mặc định min-width: auto sẽ
+   đẩy nút/badge tràn khỏi hàng), badge/nút không co và không xuống
+   dòng, nên chúng luôn hiện trọn vẹn ở mọi chiều rộng. */
+.live-section .sched-row { grid-template-columns: 72px minmax(0, 1fr) auto; width: 100%; box-sizing: border-box; }
+.live-section .sched-time { flex-shrink: 0; white-space: nowrap; }
+.live-section .sched-title { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.live-section .sched-badge { flex-shrink: 0; white-space: nowrap; }
+.live-section .sched-action { flex-shrink: 0; white-space: nowrap; }
+.live-section .sched-replay-btn, .live-section .sched-replaying, .live-section .sched-norecord { flex-shrink: 0; white-space: nowrap; }
 .footer { border-top: 3px solid #c00; text-align: center; padding: 1.5rem 1rem 2rem; background: #fff; }
 .footer button { cursor: pointer; padding: 0.4rem 0.8rem; }
 @media (max-width: 800px) {
   .wordmark { font-size: 2.2rem; }
   .latest-grid { grid-template-columns: 1fr; }
+  /* Ghi đè max-height: 420px của live.css cho cột lịch hẹp cũ: trên
+     trang TV, lịch vẫn cao tự nhiên và cuộn theo trang cả ở mobile. */
+  .live-section .sched-list { max-height: none; overflow: visible; overflow-y: visible; }
+  .live-section .sched-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
 }
