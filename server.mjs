@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import os from "node:os";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pool, STORAGE_DIR, resolveStoragePath, storageRelForIssue } from "./lib/db.mjs";
 import { hashPassword, verifyPassword, createSession, createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie, isStaff, isAdmin, canReview } from "./lib/auth.mjs";
@@ -115,7 +116,10 @@ function newEpaperListItem(it) {
     issue_number: it.issueNumber, issue_type: it.issueType,
     publish_date: it.publishDate, title: it.title,
     page_count: it.pageCount, status: "published",
-    cover: resolveVtcanyImageUrl(it.coverPath),
+    // Anh bia mac dinh = anh trang 1 cua PDF: chi khi so khong co anh
+    // bia rieng (coverPath rong) moi tro toi route /cover ben duoi;
+    // anh bia do bien tap chon (neu co) luon duoc uu tien.
+    cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : `/api/v2/epaper/${it.publicId}/cover`,
     url: `/bao-in/${it.slug}`,
   };
 }
@@ -279,7 +283,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v1/issues" ||
       u.pathname === "/api/v2/epaper" ||
-      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf)?$/.test(u.pathname) ||
+      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover)?$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
@@ -679,10 +683,33 @@ const server = http.createServer(async (req, res) => {
       const p = Math.min(page, total_pages);
       return json(res, 200, { items: items.slice((p - 1) * per, p * per), total, page: p, total_pages });
     }
-    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf)?$/);
+    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf|\/cover)?$/);
     if (newEpaperMatch && req.method === "GET") {
       const publicId = newEpaperMatch[1];
-      if (newEpaperMatch[2]) {
+      if (newEpaperMatch[2] === "/cover") {
+        // Anh bia mac dinh: render trang 1 cua PDF bang pdftoppm (co
+        // san trong container TSHT, giong cach he cu render trang).
+        // Khong cache o ban nay: moi lan goi se tai PDF + render lai
+        // (PDF so bao chi vai MB, render 1 trang ~1 giay); co the them
+        // cache sau neu danh sach dong.
+        const base = vtcanyApiBase();
+        if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "epaper-cover-"));
+        try {
+          const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(30000) });
+          if (!r.ok) return err(res, r.status === 404 ? 404 : 502, "khong lay duoc file PDF");
+          const pdfPath = path.join(tmpDir, "issue.pdf");
+          fs.writeFileSync(pdfPath, Buffer.from(await r.arrayBuffer()));
+          await new Promise((resolve, reject) => execFile("pdftoppm", ["-jpeg", "-r", "100", "-f", "1", "-l", "1", pdfPath, path.join(tmpDir, "page")], (e) => e ? reject(e) : resolve()));
+          const jpg = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".jpg")).sort()[0];
+          if (!jpg) return err(res, 502, "khong render duoc anh bia");
+          const buf = fs.readFileSync(path.join(tmpDir, jpg));
+          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length });
+          return res.end(buf);
+        } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
+        finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
+      }
+      if (newEpaperMatch[2] === "/pdf") {
         // Stream PDF goc qua proxy (PDF.js doc truc tiep; khong co nut
         // tai PDF goc o trinh doc cong khai vi khong co login).
         const base = vtcanyApiBase();
