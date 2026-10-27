@@ -24,28 +24,36 @@ const issue = await res.json();
 document.getElementById("title").textContent = issue.title;
 if (issue.can_download) { document.getElementById("download").href = `/api/v1/issues/${issueId}/download`; document.getElementById("download").textContent = "Tải PDF gốc"; }
 else document.getElementById("download").remove();
+// Tien trinh tai + dung trang (hien o header, ke ben tieu de). Chi dung
+// cho so moi; so cu van nap anh co san nhu cu.
+const progressEl = document.getElementById("load-progress");
+const setProgress = (s) => { if (progressEl) progressEl.textContent = s; };
 let total;
+// Doc PDF cua so moi, giu lai cho renderFlipProgressive() o cuoi file.
+// (Khong dung sharedPdfDoc o day vi no khai bao bang let ben duoi,
+// gan trong khoi top-level se loi TDZ.)
+let newPdfDoc = null;
 if (isNew) {
-  // Render toan bo trang tu PDF bang PDF.js thanh anh dataURL roi nap
-  // vao StPageFlip nhu anh flip/thumb cu (cung khung sach 500x707).
+  // Chi TAI file PDF o day (co % tien trinh); viec dung tung trang do
+  // renderFlipProgressive() o cuoi file dam nhan, SAU KHI cac khai bao
+  // let/function ben duoi da chay xong — goi initFlip() trong khoi
+  // top-level nay se loi TDZ vi `flip`/`portrait` chua khoi tao.
   // So trang lay theo PDF that (doc.numPages), khong lay theo so nhap
   // tay neu lech — PDF la su that, so nhap tay chi de hien o danh sach.
   let doc;
-  try { doc = await pdfjs.getDocument(issue.pdf_url).promise; }
-  catch { document.getElementById("title").textContent = "Không tải được file PDF của số báo."; throw new Error("pdf load failed"); }
-  total = doc.numPages;
-  const rendered = [];
-  for (let pn = 1; pn <= total; pn++) {
-    const page = await doc.getPage(pn);
-    const pt = page.getViewport({ scale: 1 });
-    const vp = page.getViewport({ scale: 500 / pt.width });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
-    const url = canvas.toDataURL("image/jpeg", 0.85);
-    rendered.push({ page_number: pn, pdf_page_number: pn, is_cover: pn === 1, is_padding: false, flip: url, thumb: url });
+  try {
+    setProgress("Đang tải file PDF…");
+    const loadingTask = pdfjs.getDocument(issue.pdf_url);
+    loadingTask.onProgress = (p) => {
+      if (p.total > 0) setProgress(`Đang tải file PDF… ${Math.round((p.loaded / p.total) * 100)}%`);
+      else setProgress(`Đang tải file PDF… ${(p.loaded / 1048576).toFixed(1)} MB`);
+    };
+    doc = await loadingTask.promise;
   }
-  issue.pages = rendered;
+  catch { setProgress(""); document.getElementById("title").textContent = "Không tải được file PDF của số báo."; throw new Error("pdf load failed"); }
+  newPdfDoc = doc;
+  total = doc.numPages;
+  issue.pages = [];
 } else {
   total = issue.pages.length;
 }
@@ -404,7 +412,7 @@ function exitRead() {
   $("read-wrap").style.display = "none";
   $("reader-body").style.display = "flex"; $("flip-toolbar").style.display = "flex";
   flipZoom = 1; hideFlipPdfOverlay(); applyFlipZoom();
-  flip.turnToPage(readPage - 1); // G1: back to the exact page
+  if (flip) flip.turnToPage(readPage - 1); // G1: back to the exact page (flip co the chua co khi dang dung trang)
 }
 $("mode-read").onclick = enterRead;
 $("read-exit").onclick = exitRead;
@@ -418,4 +426,41 @@ $("flip-area").addEventListener("dblclick", (e) => {
   if ($("read-wrap").style.display !== "block" && !canPan(flipZoom)) enterRead();
 });
 
-initFlip();
+// So moi: dung tung trang bang PDF.js thanh anh dataURL roi nap vao
+// StPageFlip nhu anh flip/thumb cu (cung khung sach 500x707).
+// Mo sach DAN: ngay sau khi dung xong trang 1 (bia) thi initFlip luon
+// de doc gia doc duoc ngay; cac trang sau moi dung xong thi nap them
+// bang flip.updateFromImages() (StPageFlip 2.0.7 giu nguyen trang hien
+// tai khi update, va turnToPage vuot qua so trang da dung la no-op
+// nen bam nut trong luc dang dung khong loi). Anh nho cap nhat theo
+// qua updateLabel() moi trang. Neu dung loi giua chung, sach van giu
+// cac trang da dung duoc, khong trang tay.
+async function renderFlipProgressive() {
+  const doc = newPdfDoc;
+  let started = false;
+  try {
+    for (let pn = 1; pn <= total; pn++) {
+      const page = await doc.getPage(pn);
+      const pt = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: 500 / pt.width });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      const url = canvas.toDataURL("image/jpeg", 0.85);
+      issue.pages.push({ page_number: pn, pdf_page_number: pn, is_cover: pn === 1, is_padding: false, flip: url, thumb: url });
+      setProgress(`Đang dựng trang ${pn}/${total}…`);
+      if (!started) { initFlip(); started = true; }
+      else { flip.updateFromImages(issue.pages.map((p) => p.flip)); updateLabel(); }
+    }
+  } catch {
+    // Loi giua chung: giu sach voi cac trang da dung duoc, chi xoa tien trinh.
+    // Chi khi chua dung duoc trang nao moi bao loi nhu cu.
+    setProgress("");
+    if (!started) { document.getElementById("title").textContent = "Không dựng được trang báo."; throw new Error("page render failed"); }
+  }
+  setProgress("");
+  if (!started) initFlip();
+}
+
+if (isNew) await renderFlipProgressive();
+else initFlip();
