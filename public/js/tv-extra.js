@@ -46,7 +46,7 @@
       } else {
         action = "<span class='latest-norecord'>Chưa có bản ghi</span>";
       }
-      return "<article class='latest-card'><div class='latest-poster' aria-hidden='true'><span class='play-mark'>▶</span><span>TSHTTV</span></div>"
+      return "<article class='latest-card'><div class='latest-poster' aria-hidden='true'><span class='play-mark'>▶</span></div>"
         + "<p class='latest-time'>" + esc(p.start_time || (p.startTime ? p.startTime.slice(11, 16) : "")) + "</p>"
         + "<p class='latest-title'>" + esc(p.title) + "</p>"
         + "<p class='latest-action'>" + action + "</p></article>";
