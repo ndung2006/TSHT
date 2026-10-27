@@ -81,6 +81,29 @@ form tạo/sửa (tải PDF trước qua `/uploads/pdf` rồi gắn `pdfPath` v�
 dialog “Sửa loại số” riêng cho số đã xuất bản (bắt buộc lý do, ghi rõ
 số/slug/URL không đổi), xuất bản/gỡ xuống, tải PDF gốc, xóa số nháp.
 
+## Anh trang render san phia server (Hybrid, trinh doc cong khai)
+
+Muc tieu: mo trang dau trong 1–2 giay thay vi tai het PDF ~10MB roi
+moi dung bang PDF.js. Co che ket hop:
+
+- Fit (100%, ca flip lan thumbnail): trinh doc dung anh JPEG do
+  server render san, khong tai PDF. Route cong khai (khong JWT, chi
+  so da xuat ban): `GET /api/v1/epaper/:publicId/pages/:page` — render
+  lazy o lan goi dau tien bang `pdftoppm -jpeg -jpegopt quality=85
+  -scale-to 1600` (canh lon nhat 1600px) roi cache tren storage ben
+  vung tai `page-images/<publicId>-<size>-<mtime>/page-NNN.jpg`.
+  Fingerprint = kich thuoc + mtime cua PDF nen thay PDF la render lai.
+  Detail cong khai tra them `pdfPageCount` (dem that bang pdfinfo,
+  khong lay so nhap tay) + `pageVersion` (fingerprint) de trinh doc
+  gan `?v=` vao URL anh; neu dem loi thi detail tra null va trinh doc
+  fallback ve PDF.js tien trinh nhu cu.
+- Zoom >100%: GIU NGUYEN overlay PDF.js sac net kieu Foxit (a7521df)
+  + che do Doc dung PDF.js do phan giai cao — anh server chi phuc vu
+  muc fit, khong can 300dpi. PDF chi tai o trinh duyet khi zoom/Doc.
+- TSHT proxy: `/api/v2/epaper/:publicId/pages/:page` (public, khong
+  login) stream anh tu backend; detail proxy dung `pages` tu
+  `pdfPageCount`/`pageVersion`, rong thi fallback PDF.js.
+
 ## Kênh TV/radio nhập tay
 
 Đã có sẵn và không sửa trong đợt này: trang “Truyền hình & EPG” của CMS

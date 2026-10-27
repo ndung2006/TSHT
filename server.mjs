@@ -283,7 +283,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v1/issues" ||
       u.pathname === "/api/v2/epaper" ||
-      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover)?$/.test(u.pathname) ||
+      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover|\/pages\/\d+)?$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/(cover|pdf)$/.test(u.pathname) ||
       /^\/api\/v1\/issues\/\d+\/pages\/\d+\/(flip|thumb)$/.test(u.pathname) ||
@@ -683,7 +683,7 @@ const server = http.createServer(async (req, res) => {
       const p = Math.min(page, total_pages);
       return json(res, 200, { items: items.slice((p - 1) * per, p * per), total, page: p, total_pages });
     }
-    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf|\/cover)?$/);
+    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf|\/cover|\/pages\/\d+)?$/);
     if (newEpaperMatch && req.method === "GET") {
       const publicId = newEpaperMatch[1];
       if (newEpaperMatch[2] === "/cover") {
@@ -733,6 +733,22 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
         finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
       }
+      if (newEpaperMatch[2] && newEpaperMatch[2].startsWith("/pages/")) {
+        // Anh trang render san phia server (Hybrid): proxy thang anh
+        // JPEG tu backend (backend render lazy + cache tren storage
+        // ben vung). Trang dau tai ve la doc duoc ngay, khong can
+        // cho tai het PDF 10MB + dung bang PDF.js nhu truoc.
+        const base = vtcanyApiBase();
+        if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
+        const pn = newEpaperMatch[2].slice("/pages/".length);
+        try {
+          const r = await fetch(`${base}/epaper/${publicId}/pages/${pn}`, { signal: AbortSignal.timeout(30000) });
+          if (!r.ok) return err(res, r.status === 404 ? 404 : 502, "khong lay duoc anh trang");
+          const buf = Buffer.from(await r.arrayBuffer());
+          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
+          return res.end(buf);
+        } catch (e) { return err(res, 502, "khong lay duoc anh trang"); }
+      }
       if (newEpaperMatch[2] === "/pdf") {
         // Stream PDF goc qua proxy (PDF.js doc truc tiep; khong co nut
         // tai PDF goc o trinh doc cong khai vi khong co login).
@@ -749,9 +765,23 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/epaper/${publicId}`);
       if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay so bao");
       const it = ext.data;
-      // Dang cu cua trinh doc: pages rong = bao hieu trinh doc tu render
-      // trang tu PDF bang PDF.js (so moi khong co anh trang render san).
-      return json(res, 200, { ...newEpaperListItem(it), id: it.publicId, can_download: false, pdf_url: `/api/v2/epaper/${publicId}/pdf`, pages: [] });
+      // Hybrid: neu backend dem duoc so trang that cua PDF thi tra danh
+      // sach URL anh trang render san — trinh doc mo sach ngay tu anh
+      // server, khong tai PDF, khong dung bang PDF.js o muc fit.
+      // pages rong = backend chua co anh (hoac dem loi) => trinh doc
+      // fallback ve PDF.js tien trinh nhu cu. Chan 200 de khoi tra mang
+      // URL khong lo neu PDF loi bat thuong.
+      const pdfCount = Number(it.pdfPageCount) || 0;
+      const pages = [];
+      if (pdfCount > 0) {
+        const ver = it.pageVersion ? `?v=${encodeURIComponent(it.pageVersion)}` : "";
+        const n = Math.min(pdfCount, 200);
+        for (let pn = 1; pn <= n; pn++) {
+          const url = `/api/v2/epaper/${publicId}/pages/${pn}${ver}`;
+          pages.push({ page_number: pn, pdf_page_number: pn, is_cover: pn === 1, is_padding: false, flip: url, thumb: url });
+        }
+      }
+      return json(res, 200, { ...newEpaperListItem(it), id: it.publicId, can_download: false, pdf_url: `/api/v2/epaper/${publicId}/pdf`, pages });
     }
 
     // ---- Create issue + upload PDF (D1 + C1/C2/C4/C6) ----

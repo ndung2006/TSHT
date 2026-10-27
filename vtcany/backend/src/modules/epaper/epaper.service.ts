@@ -1,5 +1,10 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UploadsService } from '../uploads/uploads.service';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs';
+import { join } from 'path';
 import { checkPatch, generatePublicId, isIssueType, issueSlug, issueUrl, parsePublishDate } from './epaper.utils';
 import {
   EPAPER_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
@@ -12,7 +17,84 @@ import {
 // tao/cap nhat; khong bao gio tu dem gia. TODO: dem tu dong khi co pdf parser.
 @Injectable()
 export class EpaperService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private uploads: UploadsService) {}
+
+  // --- Anh trang render san phia server (Hybrid, thay cho PDF.js ve toan
+  // bo o muc fit) ---
+  // Moi trang duoc render LAZY o lan goi dau tien bang pdftoppm (poppler,
+  // co san trong Dockerfile nho poppler-utils) roi cache tren storage
+  // ben vung: page-images/<publicId>-<fingerprint>/page-NNN.jpg.
+  // Fingerprint = kich thuoc + mtime cua file PDF => thay PDF la doi
+  // thu muc cache => render lai, khong bao gio phuc vu anh cua PDF cu.
+  // Do phan giai fit: canh lon nhat 1600px, JPEG q85 (nhanh trang dau;
+  // zoom >100% van dung overlay PDF.js sac net nhu cu, khong phu thuoc
+  // vao anh nay — vi vay khong can 300dpi cho anh fit).
+  private pageRenderJobs = new Map<string, Promise<string>>();
+  private pdfCountCache = new Map<string, number | null>();
+
+  /** Thong tin PDF cua so da xuat ban (404 neu chua xuat ban / chua co PDF). */
+  async publishedPdfInfo(publicId: string): Promise<{ pdfPath: string; fingerprint: string; pdfPageCount: number | null }> {
+    const pdfPath = await this.publishedPdfPath(publicId);
+    if (!pdfPath) throw new NotFoundException('so bao chua co file PDF');
+    const root = this.uploads.storageRoot();
+    const abs = join(root, pdfPath);
+    if (!abs.startsWith(root) || !existsSync(abs)) throw new NotFoundException('file PDF khong ton tai');
+    const st = statSync(abs);
+    const fingerprint = `${st.size}-${Math.trunc(st.mtimeMs)}`;
+    const cacheKey = `${publicId}-${fingerprint}`;
+    let pdfPageCount = this.pdfCountCache.get(cacheKey);
+    if (pdfPageCount === undefined) {
+      pdfPageCount = null;
+      try {
+        const execFileAsync = promisify(execFile);
+        const { stdout } = await execFileAsync('pdfinfo', [abs], { timeout: 30000 });
+        const m = /^Pages:\s+(\d+)\s*$/m.exec(stdout || '');
+        if (m) pdfPageCount = Number(m[1]);
+      } catch { /* null => trinh doc fallback ve PDF.js nhu cu */ }
+      this.pdfCountCache.set(cacheKey, pdfPageCount);
+    }
+    return { pdfPath, fingerprint, pdfPageCount };
+  }
+
+  /** Duong dan anh cua 1 trang (render lazy neu chua co, chong stampede). */
+  async pageImage(publicId: string, page: number): Promise<{ abs: string; fingerprint: string }> {
+    const info = await this.publishedPdfInfo(publicId);
+    if (!Number.isInteger(page) || page < 1 || (info.pdfPageCount !== null && page > info.pdfPageCount)) {
+      throw new NotFoundException('trang khong ton tai');
+    }
+    const root = this.uploads.storageRoot();
+    const dir = join(root, 'page-images', `${publicId}-${info.fingerprint}`);
+    const name = `page-${String(page).padStart(3, '0')}.jpg`;
+    const abs = join(dir, name);
+    if (existsSync(abs)) return { abs, fingerprint: info.fingerprint };
+    let job = this.pageRenderJobs.get(abs);
+    if (!job) {
+      job = (async () => {
+        if (existsSync(abs)) return abs;
+        mkdirSync(dir, { recursive: true });
+        const tmpPrefix = join(dir, `.tmp-${process.pid}-${page}`);
+        const execFileAsync = promisify(execFile);
+        await execFileAsync('pdftoppm', [
+          '-jpeg', '-jpegopt', 'quality=85', '-scale-to', '1600',
+          '-f', String(page), '-l', String(page),
+          join(root, info.pdfPath), tmpPrefix,
+        ], { timeout: 60000 });
+        // pdftoppm dat ten <prefix>-<so trang co pad>.jpg; chi co 1 file
+        // vi chi render 1 trang, loc dung prefix + '-' de tranh nham
+        // trang 1 voi trang 12 khi chay song song.
+        const produced = readdirSync(dir)
+          .filter((f) => f.startsWith(`${tmpPrefix.split('/').pop()}-`) && f.endsWith('.jpg'))
+          .sort();
+        if (produced.length === 0) throw new NotFoundException('khong render duoc trang');
+        renameSync(join(dir, produced[0]), abs);
+        return abs;
+      })();
+      this.pageRenderJobs.set(abs, job);
+      job.then(() => this.pageRenderJobs.delete(abs), () => this.pageRenderJobs.delete(abs));
+    }
+    await job;
+    return { abs, fingerprint: info.fingerprint };
+  }
 
   private toItem(row: any) {
     return {

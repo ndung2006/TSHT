@@ -29,31 +29,42 @@ else document.getElementById("download").remove();
 const progressEl = document.getElementById("load-progress");
 const setProgress = (s) => { if (progressEl) progressEl.textContent = s; };
 let total;
-// Doc PDF cua so moi, giu lai cho renderFlipProgressive() o cuoi file.
-// (Khong dung sharedPdfDoc o day vi no khai bao bang let ben duoi,
-// gan trong khoi top-level se loi TDZ.)
+// Doc PDF cua so moi, giu lai cho renderFlipProgressive() (fallback) o
+// cuoi file. (Khong dung sharedPdfDoc o day vi no khai bao bang let
+// ben duoi, gan trong khoi top-level se loi TDZ.)
+// newPdfDoc === null nghia la che do anh server (Hybrid): khong tai
+// PDF, khong dung bang PDF.js o muc fit.
 let newPdfDoc = null;
 if (isNew) {
-  // Chi TAI file PDF o day (co % tien trinh); viec dung tung trang do
-  // renderFlipProgressive() o cuoi file dam nhan, SAU KHI cac khai bao
-  // let/function ben duoi da chay xong — goi initFlip() trong khoi
-  // top-level nay se loi TDZ vi `flip`/`portrait` chua khoi tao.
-  // So trang lay theo PDF that (doc.numPages), khong lay theo so nhap
-  // tay neu lech — PDF la su that, so nhap tay chi de hien o danh sach.
-  let doc;
-  try {
-    setProgress("Đang tải file PDF…");
-    const loadingTask = pdfjs.getDocument(issue.pdf_url);
-    loadingTask.onProgress = (p) => {
-      if (p.total > 0) setProgress(`Đang tải file PDF… ${Math.round((p.loaded / p.total) * 100)}%`);
-      else setProgress(`Đang tải file PDF… ${(p.loaded / 1048576).toFixed(1)} MB`);
-    };
-    doc = await loadingTask.promise;
+  if (issue.pages && issue.pages.length > 0) {
+    // Anh trang render san tu server (Hybrid): sach mo ngay tu anh
+    // server (ca flip lan thumbnail), khong tai PDF, khong dung trang
+    // bang PDF.js o muc fit. Zoom >100% van dung overlay PDF.js sac
+    // net nhu cu (a7521df), che do Doc cung vay — PDF chi tai khi
+    // zoom hoac sang che do Doc.
+    total = issue.pages.length;
+  } else {
+    // Fallback (backend chua co anh): tai PDF co % tien trinh, dung dan
+    // bang PDF.js — viec dung do renderFlipProgressive() o cuoi file
+    // dam nhan, SAU KHI cac khai bao let/function ben duoi da chay
+    // xong (goi initFlip() trong khoi top-level se loi TDZ).
+    // So trang lay theo PDF that (doc.numPages), khong lay theo so
+    // nhap tay neu lech — PDF la su that.
+    let doc;
+    try {
+      setProgress("Đang tải file PDF…");
+      const loadingTask = pdfjs.getDocument(issue.pdf_url);
+      loadingTask.onProgress = (p) => {
+        if (p.total > 0) setProgress(`Đang tải file PDF… ${Math.round((p.loaded / p.total) * 100)}%`);
+        else setProgress(`Đang tải file PDF… ${(p.loaded / 1048576).toFixed(1)} MB`);
+      };
+      doc = await loadingTask.promise;
+    }
+    catch { setProgress(""); document.getElementById("title").textContent = "Không tải được file PDF của số báo."; throw new Error("pdf load failed"); }
+    newPdfDoc = doc;
+    total = doc.numPages;
+    issue.pages = [];
   }
-  catch { setProgress(""); document.getElementById("title").textContent = "Không tải được file PDF của số báo."; throw new Error("pdf load failed"); }
-  newPdfDoc = doc;
-  total = doc.numPages;
-  issue.pages = [];
 } else {
   total = issue.pages.length;
 }
@@ -426,8 +437,9 @@ $("flip-area").addEventListener("dblclick", (e) => {
   if ($("read-wrap").style.display !== "block" && !canPan(flipZoom)) enterRead();
 });
 
-// So moi: dung tung trang bang PDF.js thanh anh dataURL roi nap vao
-// StPageFlip nhu anh flip/thumb cu (cung khung sach 500x707).
+// Fallback cho so moi khi backend chua co anh trang: dung tung trang
+// bang PDF.js thanh anh dataURL roi nap vao StPageFlip nhu anh
+// flip/thumb cu (cung khung sach 500x707).
 // Mo sach DAN: ngay sau khi dung xong trang 1 (bia) thi initFlip luon
 // de doc gia doc duoc ngay; cac trang sau moi dung xong thi nap them
 // bang flip.updateFromImages() (StPageFlip 2.0.7 giu nguyen trang hien
@@ -462,5 +474,7 @@ async function renderFlipProgressive() {
   if (!started) initFlip();
 }
 
-if (isNew) await renderFlipProgressive();
-else initFlip();
+if (isNew) {
+  if (newPdfDoc) await renderFlipProgressive(); // fallback PDF.js
+  else { setProgress(""); initFlip(); } // anh server: mo sach ngay
+} else initFlip();
