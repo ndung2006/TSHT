@@ -24,6 +24,7 @@ async function loadIssues() {
       ${it.status === "pending_review" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="publish" data-id="${it.id}">Xuất bản</button> <button data-act="reject" data-id="${it.id}">Trả lại nháp</button>` : ""}
       ${it.status === "published" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="unpublish" data-id="${it.id}">Gỡ xuống</button>` : ""}
       ${ME.role === "admin" ? `<button data-act="replace-pdf" data-id="${it.id}">Thay PDF</button>` : ""}
+      ${ME.role === "admin" ? `<button data-act="change-type" data-id="${it.id}" data-type="${it.issue_type}" data-number="${it.issue_number}">Sửa loại số</button>` : ""}
       ${it.status === "unpublished" && (ME.role === "reviewer" || ME.role === "admin") ? `<button data-act="publish" data-id="${it.id}">Xuất bản lại</button>` : ""}
       </div>
       <div class="checks" data-id="${it.id}">${CHECKS.map(([k, label]) => `<label><input type="checkbox" data-k="${k}"> ${label}</label>`).join(" ")}
@@ -47,6 +48,26 @@ async function loadIssues() {
         const d = await api(`/api/v1/issues/${id}/audit`);
         document.querySelector(`.audit[data-id="${id}"]`).textContent =
           d.items.map((a) => `${a.created_at} ${a.username || "?"}: ${a.action}`).join(" | ") || "(chưa có)";
+      } else if (act === "change-type") {
+        // Phuong an B (2026-10-27): chi doi rieng issue_type, khong doi
+        // so bao, khong doi slug/URL. Server chan doi kem truong khac,
+        // chan trung (issue_type, issue_number), doi hoi change_reason
+        // va ghi revision + audit. Chi admin thay nut nay.
+        const cur = btn.dataset.type, num = btn.dataset.number;
+        const other = cur === "vung_cao" ? "thuong" : "vung_cao";
+        const next = prompt(`Đổi loại số ${num} từ "${cur}" sang loại nào? Nhập đúng thuong hoặc vung_cao:`, other);
+        if (next === null) return;
+        const nt = next.trim();
+        if (!["thuong", "vung_cao"].includes(nt)) { alert("Loại số chỉ nhận thuong hoặc vung_cao."); return; }
+        if (nt === cur) { alert("Loại số mới trùng loại cũ, không đổi gì."); return; }
+        const reason = prompt("Lý do đổi loại số (bắt buộc, sẽ ghi vào revision + nhật ký):", "");
+        if (!reason || !reason.trim()) return;
+        if (!confirm(`Đổi loại số ${num} từ "${cur}" sang "${nt}"?\nSố báo và URL không đổi. Chỉ đổi trường loại số để lọc /bao-in đúng.`)) return;
+        try {
+          const d = await api(`/api/v1/issues/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue_type: nt, change_reason: reason.trim() }) });
+          alert(`Đã đổi loại số ${d.issue_number} sang ${d.issue_type}. URL giữ nguyên: ${d.url}`);
+          await loadIssues();
+        } catch (e) { alert(e.message); }
       } else if (act === "replace-pdf") {
         const reason = prompt("Lý do thay PDF (bắt buộc):", "Thay file mẫu bằng file thật");
         if (!reason || !reason.trim()) return;

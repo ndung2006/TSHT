@@ -833,8 +833,22 @@ async function patchIssue(client, user, issue, b, res) {
   // VTCANY gate (in addition to canEdit below): articles:update.
   if (user && user.auth_source === "vtcany" && !hasVtcanyPermission(user.vtcany_permissions || [], "articles:update")) return err(res, 403, "tai khoan VTCANY khong co quyen articles:update cho hanh dong nay");
   const wasPublished = !!issue.published_at;
-  if (wasPublished && (b.issue_number !== undefined || b.issue_type !== undefined)) {
-    return err(res, 409, "so da xuat ban: khong doi so bao/loai so vi slug da khoa (trigger DB cung chan doi slug)");
+  // Phuong an B (2026-10-27): so da xuat ban VAN KHONG doi duoc so bao
+  // (slug khoa, trigger DB cung chan), nhung DUOC doi rieng issue_type.
+  // Ly do an toan: slug chi gom so bao + id nen doi loai khong doi slug,
+  // URL khong vo; doi loai phai kem change_reason, ghi revision + audit,
+  // chi admin (canEdit ben duoi) duoc doi, va phai la doi RIENG loai.
+  const typeChange = wasPublished && b.issue_type !== undefined && b.issue_type !== issue.issue_type;
+  if (wasPublished && b.issue_number !== undefined && b.issue_number !== issue.issue_number) {
+    return err(res, 409, "so da xuat ban: khong doi so bao vi slug da khoa (trigger DB cung chan doi slug)");
+  }
+  if (typeChange) {
+    if (!["thuong", "vung_cao"].includes(b.issue_type)) return err(res, 400, "issue_type chi nhan thuong hoac vung_cao");
+    if (b.title !== undefined || b.publish_date !== undefined || b.scheduled_publish_at !== undefined) {
+      return err(res, 409, "doi loai so cua so da xuat ban chi duoc doi rieng issue_type, khong kem doi tieu de/ngay/lich");
+    }
+    const dup = await client.query("SELECT id FROM issues WHERE issue_number=$1 AND issue_type=$2 AND id<>$3 LIMIT 1", [issue.issue_number, b.issue_type, issue.id]);
+    if (dup.rows.length) return err(res, 409, "da co so bao nay o loai so moi (UNIQUE issue_type, issue_number)");
   }
   if (b.slug !== undefined) return err(res, 403, "slug khong duoc doi qua API");
   const canEdit = isAdmin(user) || (user.role === "publisher" && ["draft", "pending_review"].includes(issue.status) && issue.created_by === user.id);
@@ -852,7 +866,7 @@ async function patchIssue(client, user, issue, b, res) {
     const slug = wasPublished ? issue.slug : slugFor(number, issue.id);
     await client.query("UPDATE issues SET title=COALESCE($2,title), publish_date=COALESCE($3,publish_date), issue_number=$4, issue_type=$5, slug=$6, scheduled_publish_at=COALESCE($7,scheduled_publish_at) WHERE id=$1",
       [issue.id, b.title || null, b.publish_date || null, number, type, slug, b.scheduled_publish_at || null]);
-    await audit(client, user.id, "issue", issue.id, "update", { fields: Object.keys(b), change_reason: b.change_reason || null });
+    await audit(client, user.id, "issue", issue.id, "update", { fields: Object.keys(b), change_reason: b.change_reason || null, ...(typeChange ? { issue_type_from: issue.issue_type, issue_type_to: b.issue_type } : {}) });
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
