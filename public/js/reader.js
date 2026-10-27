@@ -15,9 +15,16 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 // nguyen cho so cu.
 const newMatch = location.pathname.match(/^\/bao-in\/bao-tuyen-quang-so-\d+-([0-9a-f]{24})$/);
 const isNew = !!newMatch;
+// Cache-buster cho request detail so moi: Cloudflare edge cache giu
+// ban JSON cu (khong co `pages`) toi da 4h bat chap origin no-cache,
+// nen trinh doc cu bi ket o nhanh fallback PDF.js du backend + proxy
+// da co anh trang. Gan ?v= theo ban reader (doi moi lan sua reader)
+// de edge coi la URL moi va tra JSON moi ngay. Proxy TSHT chi xet
+// pathname nen query nay khong anh huong logic server.
+const READER_BUILD = "20261027-5";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
-const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}` : `/api/v1/issues/${issueId}`);
+const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}?v=${READER_BUILD}` : `/api/v1/issues/${issueId}`);
 // Public reader: so da xuat ban khong can login; so nhap/cho duyet van 403 o server.
 if (!res.ok) { document.getElementById("title").textContent = "Không tìm thấy số báo hoặc không có quyền xem."; throw new Error("issue not found"); }
 const issue = await res.json();
