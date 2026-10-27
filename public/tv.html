@@ -1,20 +1,19 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TSHTTV — Truyền hình trực tuyến</title>
+<title>Truyền hình trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261026-3">
 <link rel="stylesheet" href="/css/live.css?v=20261026-6">
-<link rel="stylesheet" href="/css/tv-page.css?v=20261027-5"></head>
+<link rel="stylesheet" href="/css/tv-page.css?v=20261027-6"></head>
 <body id="top">
-<!-- Trang Truyền hình TSHTTV — bố cục theo cấu trúc trang /truyen-hinh kiểu
+<!-- Trang Truyền hình — bố cục theo cấu trúc trang /truyen-hinh kiểu
      Tuyên Quang TV (chỉ cấu trúc, không copy logo/ảnh/tiêu đề chương trình
      của trang tham khảo). Nội dung thật duy nhất: luồng live, lịch EPG và
      xem lại qua API TSHT (nguồn backend VTCANY trước, fallback AIO trực
      tiếp). TSHT chưa có kho video theo chuyên mục, nên các mục chuyên mục
      dưới đây chỉ là khung ghi rõ trạng thái chờ, không bịa chương trình.
-     Nhãn "TSHTTV" chỉ là tên hiển thị trên trang này; mã kênh nguồn trong
-     mọi API vẫn là TUYENQUANG, toàn site không đổi tên (trang chủ/footer/
-     báo in vẫn là TSHT). -->
+     Không còn nhãn thương hiệu TSHTTV trên trang (đã bỏ theo yêu cầu);
+     mã kênh nguồn trong mọi API vẫn là TUYENQUANG. -->
 <div class="utility">
   <nav class="utility-links" aria-label="Liên kết chính">
     <a href="/truyen-hinh">TRUYỀN HÌNH</a>
@@ -29,7 +28,6 @@
 </div>
 
 <header class="masthead">
-  <div class="wordmark">TSHTTV</div>
   <p class="wordmark-sub">TRUYỀN HÌNH TRỰC TUYẾN</p>
 </header>
 
@@ -71,13 +69,11 @@
   <div class="live-head">
     <h2 class="live-title">TRUYỀN HÌNH TRỰC TUYẾN</h2>
   </div>
-  <h3 id="channel-name" class="live-channel">Đang tải kênh…</h3>
   <p id="channel-desc" class="live-desc"></p>
   <div class="live-grid">
   <div class="live-player-col">
     <div class="live-player-wrap">
       <span class="live-badge">● TRỰC TIẾP</span>
-      <span class="live-brand-chip" aria-hidden="true">TSHTTV</span>
       <video id="player" controls playsinline poster=""></video>
     </div>
     <div id="player-wrap"></div>
@@ -181,6 +177,6 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-6"></script>
 <script src="/js/live-epg.js?v=20261027-2"></script>
-<script src="/js/tv.js?v=20261027-3"></script>
+<script src="/js/tv.js?v=20261027-4"></script>
 <script src="/js/tv-extra.js?v=20261026-7"></script>
 </body></html>

@@ -157,10 +157,9 @@
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
     var ch = (d.items || []).filter(function (c) { return c.kind === "tv" && (!c.status || c.status === "RUNNING"); })[0];
-    if (!ch) { document.getElementById("channel-name").textContent = "Chưa có kênh truyền hình đang phát"; showMsg("Không có kênh truyền hình RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng."); loadSchedule(); return; }
-    // Display brand only: the page shows TSHTTV, while currentChannel
-    // above stays the source channel name (TUYENQUANG) for all API calls.
-    document.getElementById("channel-name").textContent = "TSHTTV";
+    if (!ch) { showMsg("Không có kênh truyền hình đang phát (không có kênh RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng)."); loadSchedule(); return; }
+    // Khong hien ten kenh dang text tren trang (nhan TSHTTV da bo);
+    // currentChannel van la ten kenh nguon (TUYENQUANG) cho moi API.
     document.getElementById("channel-desc").textContent = ch.description || "";
     if (nowEl && ch.epgNow) nowEl.textContent = fmtEpgNow(ch.epgNow);
     currentChannel = ch.name;
