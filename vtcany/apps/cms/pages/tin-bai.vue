@@ -55,6 +55,7 @@
               severity="warn" @click="unpublishItem(data)" />
             <Button v-if="can('articles:delete') && (data.status === 'draft' || data.status === 'unpublished')" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
+            <Button v-if="can('articles:view')" label="Xem duyệt" size="small" text @click="openReview(data)" />
             <Button v-if="can('articles:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
           </template>
         </Column>
@@ -236,6 +237,66 @@
       </DataTable>
       <template #footer>
         <Button label="Đóng" text @click="histDlg = false" />
+      </template>
+    </Dialog>
+
+    <!-- Xem duyet bai (theo mau popup Xem duyet bao in: 96vw, footer nut theo trang thai + quyen) -->
+    <Dialog v-model:visible="reviewDlg" modal :header="`Xem duyệt — ${reviewItem?.title || ''}`"
+      class="w-[96vw] max-w-[96vw]" @hide="closeReview">
+      <div v-if="reviewItem" class="flex flex-col gap-2">
+        <p class="text-sm text-neutral-400">{{ reviewItem.category?.name || '—' }} · {{ statusText(reviewItem) }} · {{ lastApprovalText(reviewItem) }}</p>
+        <div v-if="reviewSodBlocked" class="p-3 rounded-lg border border-amber-700 bg-amber-950/40 flex flex-wrap items-center gap-2">
+          <p class="text-sm flex-1 min-w-52">Bạn đã xử lý bước trước của bài này nên duyệt thường sẽ bị chặn theo quy tắc tách nhiệm vụ. Chỉ dùng ngoại lệ cho tin nóng thật sự — lượt duyệt này sẽ được ghi log là ngoại lệ.</p>
+          <Button label="Duyệt với ngoại lệ tin nóng" size="small" severity="warn" @click="openExceptionApprove(reviewItem)" />
+        </div>
+        <div class="flex gap-2">
+          <Button label="Nội dung" size="small" :text="reviewTab !== 0" @click="reviewTab = 0" />
+          <Button label="Lịch sử duyệt" size="small" :text="reviewTab !== 1" @click="reviewTab = 1" />
+        </div>
+        <div v-if="reviewTab === 0" class="flex flex-col gap-3 max-h-[70dvh] overflow-y-auto pr-1">
+          <div class="flex flex-wrap gap-2">
+            <Tag :value="contentTypeLabel(reviewItem.contentType)" severity="secondary" />
+            <Tag v-if="reviewItem.isSpotlight" value="Tiêu điểm" severity="success" />
+            <Tag v-if="reviewItem.isPhoto" value="Tin ảnh" severity="info" />
+            <Tag v-if="reviewItem.isInfographic" value="Infographic" severity="info" />
+            <Tag v-if="reviewItem.isFeatured" value="Nổi bật trang chủ" severity="success" />
+            <Tag v-if="reviewItem.localNews" :value="`Tin địa phương: ${reviewItem.localNews}`" severity="secondary" />
+            <Tag :value="reviewItem.allowComments === false ? 'Tắt bình luận' : 'Mở bình luận'" severity="secondary" />
+          </div>
+          <h2 class="text-xl font-semibold leading-snug">{{ reviewItem.title }}</h2>
+          <p v-if="reviewItem.sapo" class="text-sm text-neutral-300 leading-relaxed">{{ reviewItem.sapo }}</p>
+          <img v-if="reviewItem.coverPath" :src="resolveMedia(reviewItem.coverPath)" :alt="reviewItem.title" class="w-full max-h-96 object-cover rounded-lg" />
+          <p class="text-xs text-neutral-400">
+            {{ (reviewItem.authors || []).join(', ') || '—' }}
+            <span v-if="reviewItem.publishAt"> · {{ fmtTime(reviewItem.publishAt) }}</span>
+            <span v-if="reviewItem.status === 'published' && reviewItem.publishAt && new Date(reviewItem.publishAt).getTime() > Date.now()"> · Chờ xuất bản (hẹn giờ)</span>
+          </p>
+          <div v-if="reviewItem.body" class="text-sm leading-relaxed" v-html="reviewItem.body" />
+          <p v-else class="text-sm text-neutral-400">Chưa có nội dung.</p>
+        </div>
+        <div v-else>
+          <DataTable :value="reviewHist" size="small">
+            <Column field="actionLabel" header="Hành động" style="min-width:8rem" />
+            <Column field="stepLabel" header="Bước" style="min-width:12rem" />
+            <Column field="actorRole" header="Vai trò" style="min-width:8rem" />
+            <Column field="actorName" header="Người xử lý" style="min-width:10rem" />
+            <Column header="Ngoại lệ" style="min-width:10rem">
+              <template #body="{ data }">{{ data.isException ? ('Tin nóng' + (data.exceptionReason ? ' — ' + data.exceptionReason : '')) : '—' }}</template>
+            </Column>
+            <Column field="comment" header="Lý do / ghi chú" />
+            <Column header="Thời gian" style="min-width:10rem">
+              <template #body="{ data }">{{ fmtTime(data.createdAt) }}</template>
+            </Column>
+          </DataTable>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="reviewDlg = false" />
+        <Button v-if="reviewItem && can('articles:update') && reviewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="reviewSubmit" />
+        <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="reviewApprove" />
+        <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="reviewReturn" />
+        <Button v-if="reviewItem && can('articles:publish') && ((reviewItem.status === 'draft' && isFullAdmin) || reviewItem.status === 'unpublished')" label="Xuất bản" severity="success" @click="reviewPublish" />
+        <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'published'" label="Gỡ xuống" severity="warn" @click="reviewUnpublish" />
       </template>
     </Dialog>
   </div>
@@ -676,6 +737,96 @@ async function openHistory(it: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được lịch sử duyệt', life: 3000 });
   }
 }
+
+// --- Xem duyet bai (theo mau popup Xem duyet bao in) ---
+const reviewDlg = ref(false);
+const reviewItem = ref<any>(null);
+const reviewTab = ref(0);
+const reviewHist = ref<any[]>([]);
+/** Id nguoi dung hien tai, decode tu JWT sub (khong can secret, khong goi backend). */
+function currentUserId(): string | null {
+  try {
+    const t = localStorage.getItem('cms_token') || sessionStorage.getItem('cms_token');
+    if (!t) return null;
+    let part = t.split('.')[1] || '';
+    if (!part) return null;
+    part = part.replace(/-/g, '+').replace(/_/g, '/');
+    part += '='.repeat((4 - (part.length % 4)) % 4);
+    return JSON.parse(atob(part))?.sub || null;
+  } catch { return null; }
+}
+/** Nguoi xu ly buoc truoc = ban ghi lich su moi nhat (API tra theo thu tu asc).
+ * Neu chua tai duoc lich su, dung lastApproval cua hang danh sach. */
+const reviewPrevActorId = computed(() => {
+  if (reviewHist.value.length) return reviewHist.value[reviewHist.value.length - 1]?.actorId || null;
+  return reviewItem.value?.lastApproval?.actorId || null;
+});
+/** Kiem tra SoD chu dong trong popup: trung nguoi xu ly buoc truoc thi canh
+ * bao ngay, khong cho approve mu roi moi doan chuoi loi 403 (co che da hong
+ * 2 lan live). Chi ap dung khi bai dang cho duyet. */
+const reviewSodBlocked = computed(() => {
+  if (!reviewItem.value || reviewItem.value.status !== 'pending_review') return false;
+  const prev = reviewPrevActorId.value;
+  const me = currentUserId();
+  return !!(prev && me && prev === me);
+});
+async function openReview(it: any) {
+  reviewItem.value = it;
+  reviewTab.value = 0;
+  reviewHist.value = [];
+  reviewDlg.value = true;
+  try {
+    const r = await api.get<any>(`/admin/news/${it.publicId}/approvals`);
+    reviewHist.value = r.data || [];
+  } catch { /* tab lich su hien trong; canh bao SoD dung lastApproval */ }
+}
+function closeReview() { reviewItem.value = null; reviewHist.value = []; reviewTab.value = 0; }
+/** Sau moi hanh dong trong popup, nap lai danh sach va chi reviewItem ve hang
+ * moi nhat (cung publicId). Neu hang roi khoi danh sach da loc thi dong popup. */
+async function refreshReview() {
+  if (!reviewItem.value) return;
+  const pid = reviewItem.value.publicId;
+  await load(meta.value.page);
+  const fresh = items.value.find((x: any) => x.publicId === pid);
+  if (fresh) {
+    reviewItem.value = fresh;
+    try { const r = await api.get<any>(`/admin/news/${pid}/approvals`); reviewHist.value = r.data || []; } catch {}
+  } else {
+    reviewDlg.value = false;
+  }
+}
+async function reviewSubmit() {
+  if (!reviewItem.value) return;
+  await submitItem(reviewItem.value);
+  await refreshReview();
+}
+async function reviewApprove() {
+  if (!reviewItem.value) return;
+  if (reviewSodBlocked.value) { openExceptionApprove(reviewItem.value); return; }
+  await approveItem(reviewItem.value);
+  await refreshReview();
+}
+function reviewReturn() {
+  if (reviewItem.value) openReturn(reviewItem.value);
+}
+async function reviewPublish() {
+  if (!reviewItem.value) return;
+  await publishItem(reviewItem.value);
+  await refreshReview();
+}
+async function reviewUnpublish() {
+  if (!reviewItem.value) return;
+  await unpublishItem(reviewItem.value);
+  await refreshReview();
+}
+/** Hanh dong qua dialog phu (tra lai / ngoai le) khong co hook tra ve nen
+ * dong bo lai popup khi dialog phu dong (chi khi no mo tu popup nay). */
+watch(excDlg, async (v) => {
+  if (!v && reviewDlg.value && reviewItem.value && excTarget.value?.publicId === reviewItem.value.publicId) await refreshReview();
+});
+watch(returnDlg, async (v) => {
+  if (!v && reviewDlg.value && reviewItem.value && returnTarget.value?.publicId === reviewItem.value.publicId) await refreshReview();
+});
 
 // --- Chuyen muc ---
 const catDlg = ref(false);
