@@ -614,7 +614,10 @@ async function approveItem(it: any) {
     toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
     load(meta.value.page);
   } catch (e: any) {
-    const msg = e?.response?.data?.message || e?.message || '';
+    // ofetch dat body loi da parse vao e.data, khong phai e.response.data
+    // (e.message chi la "[POST] url: 403" nen dialog ngoai le khong bao
+    // gio mo duoc neu chi doc 2 truong cu — dung nhu live-run 2026-10-28).
+    const msg = e?.data?.message || e?.response?.data?.message || e?.message || '';
     // Tach nhiem vu (Dot 1b): server chan khi nguoi duyet trung nguoi xu ly
     // buoc truoc — mo dialog ngoai le tin nong de duyet tiep co ghi log.
     if (String(msg).includes('tach nhiem vu')) { openExceptionApprove(it); return; }
