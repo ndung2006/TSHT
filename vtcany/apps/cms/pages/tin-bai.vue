@@ -462,26 +462,44 @@ function pickLib(item: any) {
     return;
   }
   libDlg.value = false;
-  // Cung hoa chen anh (Dot 1b, sua sau khi automation thu 5 lan deu thay
-  // editor trong du hop chon mo duoc): hoan insert toi sau khi hop thu
-  // vien dong han (tranh race focus/modal cua PrimeVue Dialog) roi moi
-  // focus + insertEmbed; dong bo tuong minh form.body tu DOM cua Quill
-  // ngay sau insert (neu sync text-change -> v-model da dung thi day la
-  // no-op; neu sync loi thi day la duong cuu). Khong nhung base64 moi.
+  // Cung hoa chen anh (Dot 1b + va sau chan doan 2026-10-28): hoan insert
+  // toi sau khi hop thu vien dong han (tranh race focus/modal cua
+  // PrimeVue Dialog). Duong chinh lay instance Quill DANG SONG tu ref
+  // cua component tai thoi diem insert, thay vi dung editorQuill bat tu
+  // @load — vi @load khong giu duoc instance song (nut .cms-lib-btn
+  // tao trong onEditorLoad chua tung xuat hien) nen insert cu chet im.
+  // Chen TRUOC newline cuoi: getLength() da tinh '\n' cuoi tai lieu,
+  // chen tai getLength() de bi Quill chuan hoa mat. Khong nhung
+  // base64 moi.
   const doInsert = () => {
-    const quill = editorQuill.value;
+    // PrimeVue Editor expose .quill tren component instance; neu khong
+    // co thi suy bien an toan ve editorQuill cu (duong cu, co the chet
+    // nhu truoc, nhung khong lam hong gi them).
+    const quill = (editorRef.value as any)?.quill || editorQuill.value;
     try {
       if (quill) {
         quill.focus();
-        const range = quill.getSelection(true);
-        const index = range ? range.index : quill.getLength();
+        const range = quill.getSelection();
+        const index = range ? range.index : Math.max(0, quill.getLength() - 1);
         quill.insertEmbed(index, 'image', url, 'user');
         quill.setSelection(index + 1, 0, 'silent');
         form.value.body = quill.root.innerHTML;
         return;
       }
-    } catch { /* roi xuong fallback append */ }
-    form.value.body = `${form.value.body || ''}<p><img src="${url}"></p>`;
+    } catch { /* roi xuong fallback append + ep render */ }
+    // Fallback: append vao model ROI ep editor render lai bang Quill API
+    // (thay v-model tu ben ngoai khong lam PrimeVue 4 + Quill 2 hien
+    // thi lai — loi renderValue da biet). 'silent' de khong phat
+    // text-change trung; sau do sync tay form.body tu DOM Quill.
+    const next = `${form.value.body || ''}<p><img src="${url}"></p>`;
+    form.value.body = next;
+    try {
+      const q = (editorRef.value as any)?.quill || editorQuill.value;
+      if (q) {
+        q.setContents(q.clipboard.convert({ html: next }), 'silent');
+        form.value.body = q.root.innerHTML;
+      }
+    } catch { /* giu nguyen model; luc Luu van gui kem anh */ }
   };
   nextTick(() => { setTimeout(doInsert, 50); });
 }
