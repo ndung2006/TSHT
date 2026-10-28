@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
+  NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
 } from './news-workflow';
 import { normalizeContentType } from './news-content';
 
@@ -106,14 +106,29 @@ export class NewsService {
     };
   }
 
-  private toApproval(row: any) {
+  private toApproval(row: any, names?: Map<string, string>) {
     return {
       id: row.id, step: row.step, stepLabel: row.stepLabel,
       actorId: row.actorId, actorRole: row.actorRole,
+      actorName: (row.actorId && names?.get(row.actorId)) || null,
       action: row.action, actionLabel: WORKFLOW_ACTION_LABELS[row.action] || row.action,
       comment: row.comment,
+      isException: row.isException ?? false, exceptionReason: row.exceptionReason ?? null,
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
     };
+  }
+
+  /** Giai quyet ten nguoi xu ly tu actorId (AdminUser) de hien thi lich su
+   *  luan chuyen day du "ai — buoc nao — hanh dong gi — luc nao". */
+  private async resolveActorNames(actorIds: (string | null)[]) {
+    const ids = [...new Set(actorIds.filter((x): x is string => !!x))];
+    const map = new Map<string, string>();
+    if (!ids.length) return map;
+    const users = await this.prisma.adminUser.findMany({
+      where: { id: { in: ids } }, select: { id: true, fullName: true, username: true, email: true },
+    });
+    for (const u of users) map.set(u.id, u.fullName || u.username || u.email || u.id);
+    return map;
   }
 
   /** Gan lastApproval (dong duyet moi nhat) vao cac row cua 1 trang list. */
@@ -136,9 +151,10 @@ export class NewsService {
     }
   }
 
-  private async writeApproval(articleId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null) {
+  private async writeApproval(articleId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.newsArticleApproval.create({
-      data: { articleId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment },
+      data: { articleId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment,
+        isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
   }
 
@@ -326,11 +342,21 @@ export class NewsService {
     return this.toItem(updated);
   }
 
-  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean) {
+  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
     if (!canApproveStep(actor.roleName, isFullAdmin, step)) {
       throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${NEWS_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    }
+    // Tach nhiem vu (Dot 1b): nguoi xu ly buoc truoc khong duoc duyet buoc
+    // sau cua cung mot bai. Ap dung cho ca toan quyen — truong hop ngoai le
+    // tin nong phai di qua co breakingNews va duoc ghi log ro rang.
+    const prev = await this.prisma.newsArticleApproval.findFirst({
+      where: { articleId: row.id }, orderBy: { createdAt: 'desc' },
+    });
+    const sod = checkSeparationOfDuties(prev?.actorId || null, actor.id, !!opts?.breakingNews);
+    if (!sod.allowed) {
+      throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot bai; dung ngoai le tin nong neu can');
     }
     const next = this.applyTransition(row, 'approve');
     const wasFinal = next.status === 'published';
@@ -338,7 +364,8 @@ export class NewsService {
       where: { id: row.id },
       data: { status: next.status, workflowStep: next.step, publishAt: wasFinal ? (row.publishAt || new Date()) : row.publishAt },
     });
-    await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null);
+    await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null,
+      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
     if (wasFinal) {
       await this.writeApproval(row.id, 0, actor.id, actor.roleName, 'publish', null);
     }
@@ -361,7 +388,8 @@ export class NewsService {
     const rows = await this.prisma.newsArticleApproval.findMany({
       where: { articleId: row.id }, orderBy: { createdAt: 'asc' },
     });
-    return { data: rows.map((r) => this.toApproval(r)) };
+    const names = await this.resolveActorNames(rows.map((r) => r.actorId));
+    return { data: rows.map((r) => this.toApproval(r, names)) };
   }
 
   /**

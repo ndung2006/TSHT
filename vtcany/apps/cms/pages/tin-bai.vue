@@ -207,12 +207,28 @@
       </template>
     </Dialog>
 
+    <!-- Ngoai le tin nong (tach nhiem vu, Dot 1b) -->
+    <Dialog v-model:visible="excDlg" modal header="Duyệt với ngoại lệ tin nóng" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Bạn đã xử lý bước trước của bài "{{ excTarget?.title }}" nên quy tắc tách nhiệm vụ chặn lượt duyệt này. Chỉ dùng ngoại lệ cho tin nóng thật sự — lượt duyệt này sẽ được ghi log là ngoại lệ.</p>
+        <Textarea v-model="excReason" rows="3" class="w-full" placeholder="Lý do ngoại lệ (nếu có)" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="excDlg = false" />
+        <Button label="Duyệt với ngoại lệ tin nóng" severity="warn" @click="confirmExceptionApprove" />
+      </template>
+    </Dialog>
+
     <!-- Lich su duyet -->
     <Dialog v-model:visible="histDlg" modal :header="`Lịch sử duyệt — ${histTarget?.title || ''}`" class="w-full max-w-2xl">
       <DataTable :value="histItems" size="small">
         <Column field="actionLabel" header="Hành động" style="min-width:8rem" />
         <Column field="stepLabel" header="Bước" style="min-width:12rem" />
         <Column field="actorRole" header="Vai trò" style="min-width:8rem" />
+        <Column field="actorName" header="Người xử lý" style="min-width:10rem" />
+        <Column header="Ngoại lệ" style="min-width:10rem">
+          <template #body="{ data }">{{ data.isException ? ('Tin nóng' + (data.exceptionReason ? ' — ' + data.exceptionReason : '')) : '—' }}</template>
+        </Column>
         <Column field="comment" header="Lý do / ghi chú" />
         <Column header="Thời gian" style="min-width:10rem">
           <template #body="{ data }">{{ fmtTime(data.createdAt) }}</template>
@@ -446,18 +462,28 @@ function pickLib(item: any) {
     return;
   }
   libDlg.value = false;
-  const quill = editorQuill.value;
-  try {
-    if (quill) {
-      quill.focus();
-      const range = quill.getSelection(true);
-      const index = range ? range.index : quill.getLength();
-      quill.insertEmbed(index, 'image', url, 'user');
-      quill.setSelection(index + 1, 0, 'silent');
-      return;
-    }
-  } catch { /* roi xuong fallback append */ }
-  form.value.body = `${form.value.body || ''}<p><img src="${url}"></p>`;
+  // Cung hoa chen anh (Dot 1b, sua sau khi automation thu 5 lan deu thay
+  // editor trong du hop chon mo duoc): hoan insert toi sau khi hop thu
+  // vien dong han (tranh race focus/modal cua PrimeVue Dialog) roi moi
+  // focus + insertEmbed; dong bo tuong minh form.body tu DOM cua Quill
+  // ngay sau insert (neu sync text-change -> v-model da dung thi day la
+  // no-op; neu sync loi thi day la duong cuu). Khong nhung base64 moi.
+  const doInsert = () => {
+    const quill = editorQuill.value;
+    try {
+      if (quill) {
+        quill.focus();
+        const range = quill.getSelection(true);
+        const index = range ? range.index : quill.getLength();
+        quill.insertEmbed(index, 'image', url, 'user');
+        quill.setSelection(index + 1, 0, 'silent');
+        form.value.body = quill.root.innerHTML;
+        return;
+      }
+    } catch { /* roi xuong fallback append */ }
+    form.value.body = `${form.value.body || ''}<p><img src="${url}"></p>`;
+  };
+  nextTick(() => { setTimeout(doInsert, 50); });
 }
 
 // --- Anh inline trong than bai ---
@@ -562,6 +588,29 @@ async function approveItem(it: any) {
   try {
     const r = await api.post<any>(`/admin/news/${it.publicId}/approve`);
     toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message || '';
+    // Tach nhiem vu (Dot 1b): server chan khi nguoi duyet trung nguoi xu ly
+    // buoc truoc — mo dialog ngoai le tin nong de duyet tiep co ghi log.
+    if (String(msg).includes('tach nhiem vu')) { openExceptionApprove(it); return; }
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: msg || 'Duyệt thất bại', life: 3000 });
+  }
+}
+const excDlg = ref(false);
+const excTarget = ref<any>(null);
+const excReason = ref('');
+function openExceptionApprove(it: any) {
+  excTarget.value = it;
+  excReason.value = '';
+  excDlg.value = true;
+}
+async function confirmExceptionApprove() {
+  if (!excTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/news/${excTarget.value.publicId}/approve`, { breakingNews: true, breakingNewsReason: excReason.value.trim() || undefined });
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản (ngoại lệ tin nóng)' : 'Đã duyệt với ngoại lệ tin nóng', life: 2500 });
+    excDlg.value = false;
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });

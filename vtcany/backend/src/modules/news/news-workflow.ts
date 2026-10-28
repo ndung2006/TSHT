@@ -108,3 +108,21 @@ export const WORKFLOW_ACTION_LABELS: Record<string, string> = {
   publish: 'xuat ban',
   unpublish: 'go xuong',
 };
+
+export interface SeparationCheck {
+  allowed: boolean;
+  /** true khi cho qua nho ngoai le tin nong (service phai ghi log ngoai le). */
+  isException: boolean;
+}
+
+/** Tach nhiem vu (Dot 1b): nguoi xu ly buoc truoc khong duoc duyet buoc sau
+ *  cua cung mot bai. previousActorId = actorId cua ban ghi approval gan
+ *  nhat da dua bai toi buoc hien tai (submit cho buoc 1, approve buoc k-1
+ *  cho buoc k). Khong xac dinh duoc (ban ghi cu thieu actorId) thi cho qua
+ *  vi khong the chung minh la cung nguoi. Ngoai le tin nong chi duoc chap
+ *  nhan khi breakingNews = true; service ghi log ngoai le ro rang. */
+export function checkSeparationOfDuties(previousActorId: string | null, actorId: string | null, breakingNews = false): SeparationCheck {
+  if (!previousActorId || !actorId || previousActorId !== actorId) return { allowed: true, isException: false };
+  if (breakingNews) return { allowed: true, isException: true };
+  return { allowed: false, isException: false };
+}

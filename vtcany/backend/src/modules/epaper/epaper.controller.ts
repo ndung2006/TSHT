@@ -175,9 +175,9 @@ export class EpaperController {
 
   @RequirePerms('epaper:publish')
   @Post(':publicId/approve')
-  async approve(@Param('publicId') publicId: string, @Req() req: any) {
+  async approve(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
     const id = await this.identity(req);
-    const row = await this.epaper.approveStep(publicId, id.actorId, id.actorRole, id.isFullAdmin);
+    const row = await this.epaper.approveStep(publicId, id.actorId, id.actorRole, id.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '' });
     this.auditSafe(req, 'epaper.workflow.approve', row.publicId);
     return row;
   }

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs';
 import { join } from 'path';
 import { checkPatch, generatePublicId, isIssueType, issueSlug, issueUrl, parsePublishDate } from './epaper.utils';
 import {
-  EPAPER_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
+  EPAPER_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
 } from './epaper-workflow';
 
 // Dich vu so bao in (E-paper) cho CMS VTCANY, thuoc repo TSHT.
@@ -148,26 +148,43 @@ export class EpaperService {
     };
   }
 
-  private toApproval(row: any) {
+  private toApproval(row: any, names?: Map<string, string>) {
     return {
       id: row.id,
       step: row.step,
       stepLabel: row.stepLabel,
       actorId: row.actorId,
       actorRole: row.actorRole,
+      actorName: (row.actorId && names?.get(row.actorId)) || null,
       action: row.action,
       actionLabel: WORKFLOW_ACTION_LABELS[row.action] || row.action,
       comment: row.comment,
+      isException: row.isException ?? false,
+      exceptionReason: row.exceptionReason ?? null,
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
     };
   }
 
-  private async writeApproval(issueId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null) {
+  /** Giai quyet ten nguoi xu ly tu actorId (AdminUser) de hien thi lich su
+   *  luan chuyen day du "ai — buoc nao — hanh dong gi — luc nao". */
+  private async resolveActorNames(actorIds: (string | null)[]) {
+    const ids = [...new Set(actorIds.filter((x): x is string => !!x))];
+    const map = new Map<string, string>();
+    if (!ids.length) return map;
+    const users = await this.prisma.adminUser.findMany({
+      where: { id: { in: ids } }, select: { id: true, fullName: true, username: true, email: true },
+    });
+    for (const u of users) map.set(u.id, u.fullName || u.username || u.email || u.id);
+    return map;
+  }
+
+  private async writeApproval(issueId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.epaperIssueApproval.create({
       data: {
         issueId, step, stepLabel: stepLabel(step),
         actorId: actorId || null, actorRole: actorRole || null,
         action, comment: comment || null,
+        isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null,
       },
     });
   }
@@ -389,11 +406,21 @@ export class EpaperService {
     return this.toItem(updated);
   }
 
-  async approveStep(publicId: string, actorId: string | null, actorRole: string | null, isFullAdmin: boolean) {
+  async approveStep(publicId: string, actorId: string | null, actorRole: string | null, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
     if (!canApproveStep(actorRole, isFullAdmin, step)) {
       throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${EPAPER_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    }
+    // Tach nhiem vu (Dot 1b): nguoi xu ly buoc truoc khong duoc duyet buoc
+    // sau cua cung mot so. Ap dung cho ca toan quyen — truong hop ngoai le
+    // tin nong phai di qua co breakingNews va duoc ghi log ro rang.
+    const prev = await this.prisma.epaperIssueApproval.findFirst({
+      where: { issueId: row.id }, orderBy: { createdAt: 'desc' },
+    });
+    const sod = checkSeparationOfDuties(prev?.actorId || null, actorId, !!opts?.breakingNews);
+    if (!sod.allowed) {
+      throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot so; dung ngoai le tin nong neu can');
     }
     const next = this.applyTransition(row, 'approve');
     const wasFinal = next.status === 'published';
@@ -402,7 +429,8 @@ export class EpaperService {
       where: { id: row.id },
       data: { status: next.status, workflowStep: next.step, publishedAt: wasFinal ? new Date() : row.publishedAt },
     });
-    await this.writeApproval(row.id, step, actorId, actorRole, 'approve', null);
+    await this.writeApproval(row.id, step, actorId, actorRole, 'approve', null,
+      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
     if (wasFinal) {
       await this.writeRevision(row.id, actorId, 'xuat ban', before);
       await this.writeApproval(row.id, 0, actorId, actorRole, 'publish', null);
@@ -429,7 +457,8 @@ export class EpaperService {
     const rows = await this.prisma.epaperIssueApproval.findMany({
       where: { issueId: row.id }, orderBy: { createdAt: 'asc' },
     });
-    return { data: rows.map((r) => this.toApproval(r)) };
+    const names = await this.resolveActorNames(rows.map((r) => r.actorId));
+    return { data: rows.map((r) => this.toApproval(r, names)) };
   }
 
   async setPublished(publicId: string, publish: boolean, actorId: string | null, actorRole: string | null = null, isFullAdmin = false) {

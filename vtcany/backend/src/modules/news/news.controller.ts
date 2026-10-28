@@ -164,9 +164,9 @@ export class NewsController {
 
   @RequirePerms('articles:publish')
   @Post(':publicId/approve')
-  async approve(@Param('publicId') publicId: string, @Req() req: any) {
+  async approve(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
     const a = await this.actor(req);
-    return this.news.approveStep(publicId, a, a.isFullAdmin);
+    return this.news.approveStep(publicId, a, a.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '' });
   }
 
   @RequirePerms('articles:publish')

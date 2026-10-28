@@ -60,7 +60,9 @@
 </template>
 
 <script setup lang="ts">
-const { user, role, logout, dark, toggleDark } = useCmsAuth();
+import { visibleMenu } from '~/utils/workspaces';
+
+const { user, role, logout, dark, toggleDark, permissions } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
 const route = useRoute();
@@ -107,60 +109,7 @@ async function submitPw() {
   }
 }
 
-const groups = [
-  {
-    label: 'Nội dung',
-    items: [
-      { to: '/phim', label: 'Phim', icon: 'pi-video' },
-      { to: '/videos', label: 'Videos', icon: 'pi-play' },
-      { to: '/short', label: 'Short', icon: 'pi-bolt' },
-      { to: '/tap-tin', label: 'Tập tin', icon: 'pi-folder-open' },
-      { to: '/thu-vien', label: 'Thư viện', icon: 'pi-images' },
-      { to: '/the-loai', label: 'Thể loại', icon: 'pi-tags' },
-      { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user' },
-      { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list' },
-      { to: '/bai-viet', label: 'Bài viết', icon: 'pi-file-edit' },
-      { to: '/bao-in', label: 'Báo in', icon: 'pi-book' },
-      { to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper' },
-      { to: '/su-kien', label: 'Sự kiện', icon: 'pi-calendar' },
-      { to: '/danh-muc', label: 'Danh mục', icon: 'pi-folder' },
-      { to: '/truyen-hinh', label: 'Truyền hình & EPG', icon: 'pi-tv' },
-    ],
-  },
-  {
-    label: 'Hiển thị',
-    items: [
-      { to: '/banner', label: 'Banner', icon: 'pi-flag' },
-      { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images' },
-    ],
-  },
-  {
-    label: 'Người dùng',
-    items: [
-      { to: '/nguoi-dung', label: 'Người dùng', icon: 'pi-users' },
-      { to: '/thong-bao', label: 'Thông báo', icon: 'pi-bell' },
-      { to: '/tu-khoa', label: 'Từ khoá', icon: 'pi-search' },
-    ],
-  },
-  {
-    label: 'Thống kê',
-    items: [
-      { to: '/thong-ke', label: 'Thống kê', icon: 'pi-chart-bar' },
-    ],
-  },
-  {
-    label: 'Quản trị',
-    items: [
-      { to: '/goi-cuoc', label: 'Gói cước', icon: 'pi-credit-card' },
-      { to: '/livestream', label: 'Livestream', icon: 'pi-broadcast-tower' },
-      { to: '/cai-dat', label: 'Cài đặt', icon: 'pi-cog' },
-      { to: '/nhat-ky', label: 'Nhật ký', icon: 'pi-history' },
-      { to: '/roles', label: 'Quản lý quyền', icon: 'pi-shield' },
-      { to: '/admins', label: 'Quản trị viên', icon: 'pi-user-edit' },
-      { to: '/phong-ban', label: 'Phòng ban', icon: 'pi-sitemap' },
-    ],
-  },
-];
+const groups = computed(() => visibleMenu(permissions.value));
 
 const titles: Record<string, string> = {
   '/': 'Dashboard',

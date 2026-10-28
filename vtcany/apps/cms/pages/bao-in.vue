@@ -135,6 +135,18 @@
       </template>
     </Dialog>
 
+    <!-- Ngoai le tin nong (tach nhiem vu, Dot 1b) -->
+    <Dialog v-model:visible="excDlg" modal header="Duyệt với ngoại lệ tin nóng" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Bạn đã xử lý bước trước của số <b>{{ excTarget?.issueNumber }}</b> nên quy tắc tách nhiệm vụ chặn lượt duyệt này. Chỉ dùng ngoại lệ cho tin nóng thật sự — lượt duyệt này sẽ được ghi log là ngoại lệ.</p>
+        <Textarea v-model="excReason" rows="3" class="w-full" placeholder="Lý do ngoại lệ (nếu có)" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="excDlg = false" />
+        <Button label="Duyệt với ngoại lệ tin nóng" severity="warn" @click="confirmExceptionApprove" />
+      </template>
+    </Dialog>
+
     <!-- Lich su duyet theo buoc -->
     <Dialog v-model:visible="histDlg" modal header="Lịch sử duyệt" class="w-full max-w-2xl">
       <div v-if="histTarget" class="flex flex-col gap-2">
@@ -144,6 +156,8 @@
           <Column header="Hành động"><template #body="{ data }">{{ data.actionLabel || data.action }}</template></Column>
           <Column header="Bước"><template #body="{ data }">{{ data.stepLabel || '—' }}</template></Column>
           <Column header="Vai trò"><template #body="{ data }">{{ data.actorRole || '?' }}</template></Column>
+          <Column header="Người xử lý"><template #body="{ data }">{{ data.actorName || '—' }}</template></Column>
+          <Column header="Ngoại lệ"><template #body="{ data }">{{ data.isException ? ('Tin nóng' + (data.exceptionReason ? ' — ' + data.exceptionReason : '')) : '—' }}</template></Column>
           <Column header="Lý do / ghi chú"><template #body="{ data }">{{ data.comment || '—' }}</template></Column>
           <Column header="Thời gian"><template #body="{ data }">{{ fmtTime(data.createdAt) }}</template></Column>
         </DataTable>
@@ -380,6 +394,29 @@ async function approveItem(it: any) {
   try {
     const r = await api.post<any>(`/admin/epaper/${it.publicId}/approve`);
     toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message || '';
+    // Tach nhiem vu (Dot 1b): server chan khi nguoi duyet trung nguoi xu ly
+    // buoc truoc — mo dialog ngoai le tin nong de duyet tiep co ghi log.
+    if (String(msg).includes('tach nhiem vu')) { openExceptionApprove(it); return; }
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: msg || 'Duyệt thất bại', life: 3000 });
+  }
+}
+const excDlg = ref(false);
+const excTarget = ref<any>(null);
+const excReason = ref('');
+function openExceptionApprove(it: any) {
+  excTarget.value = it;
+  excReason.value = '';
+  excDlg.value = true;
+}
+async function confirmExceptionApprove() {
+  if (!excTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/epaper/${excTarget.value.publicId}/approve`, { breakingNews: true, breakingNewsReason: excReason.value.trim() || undefined });
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản (ngoại lệ tin nóng)' : 'Đã duyệt với ngoại lệ tin nóng', life: 2500 });
+    excDlg.value = false;
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });

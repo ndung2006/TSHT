@@ -520,6 +520,8 @@ model EpaperIssueApproval {
   actorRole  String?  @map("actor_role") // ten Role luc hanh dong (de hien thi audit)
   action     String   // submit | approve | return | publish | unpublish
   comment    String?  // ly do tra lai / ghi chu
+  isException Boolean @default(false) @map("is_exception") // Dot 1b: duyet voi ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason") // ly do ngoai le tin nong (neu co)
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([issueId, createdAt])
@@ -601,6 +603,8 @@ model NewsArticleApproval {
   actorRole  String?     @map("actor_role") // ten Role luc duyet
   action     String // submit | approve | return | publish | unpublish
   comment    String? // ly do tra lai
+  isException Boolean @default(false) @map("is_exception") // Dot 1b: duyet voi ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason") // ly do ngoai le tin nong (neu co)
   createdAt  DateTime    @default(now()) @map("created_at")
 
   @@index([articleId, createdAt])
