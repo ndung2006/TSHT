@@ -670,6 +670,12 @@ async function submitItem(it: any) {
   }
 }
 async function approveItem(it: any) {
+  // Kiem tra SoD chu dong (dong bo voi popup): trung nguoi xu ly buoc truoc
+  // (truong "Duyet gan nhat" cua hang) thi mo thang dialog ngoai le, khong
+  // goi approve mu roi moi doan chuoi loi 403. Luoi bat chuoi loi giu lam fallback.
+  const prevActor = it.lastApproval?.actorId || null;
+  const me = currentUserId();
+  if (prevActor && me && prevActor === me) { openExceptionApprove(it); return; }
   try {
     const r = await api.post<any>(`/admin/news/${it.publicId}/approve`);
     toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
