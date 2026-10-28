@@ -82,7 +82,7 @@ async function save() {
 async function removeItem(d: any) {
   if (!window.confirm(`Xóa phòng ban "${d.name}"?`)) return;
   try {
-    await api.delete(`/admin/departments/${d.publicId}`);
+    await api.del(`/admin/departments/${d.publicId}`);
     toast.add({ severity: 'success', summary: 'Đã xóa', life: 2500 });
     load();
   } catch (e: any) {

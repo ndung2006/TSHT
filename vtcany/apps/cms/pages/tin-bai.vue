@@ -540,7 +540,7 @@ async function unpublishItem(it: any) {
 async function removeItem(it: any) {
   if (!window.confirm(`Xóa bài "${it.title}"?`)) return;
   try {
-    await api.delete(`/admin/news/${it.publicId}`);
+    await api.del(`/admin/news/${it.publicId}`);
     toast.add({ severity: 'success', summary: 'Đã xóa', life: 2500 });
     load(meta.value.page);
   } catch (e: any) {
@@ -644,7 +644,7 @@ async function saveCat() {
 async function removeCat(c: any) {
   if (!window.confirm(`Xóa chuyên mục "${c.name}"?`)) return;
   try {
-    await api.delete(`/admin/news-categories/${c.publicId}`);
+    await api.del(`/admin/news-categories/${c.publicId}`);
     toast.add({ severity: 'success', summary: 'Đã xóa chuyên mục', life: 2500 });
     await loadCats();
     load(meta.value.page);
