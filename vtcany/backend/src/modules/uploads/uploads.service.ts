@@ -196,6 +196,18 @@ export class UploadsService implements OnModuleInit {
       .map((r) => ({ ...r, url: this.imageUrl(r) }));
   }
 
+  /** Xoa ban ghi khoi bo nho trong tien trinh (phuc vu xoa thu vien).
+   * Bat buoc: list() cua MediaLibrary merge DB + in-memory, ban in-memory
+   * thang the — neu chi xoa row DB thi ban ghi se hien lai cho toi khi
+   * backend restart. Video: xoa ca records map + videoHls lien quan. */
+  dropMedia(id: string): void {
+    this.images = this.images.filter((r) => r.id !== id);
+    this.records.delete(id);
+    for (const [videoId, v] of this.videoHls.entries()) {
+      if (v.uploadId === id) this.videoHls.delete(videoId);
+    }
+  }
+
   async saveImage(stream: Readable, filename: string, contentType: string): Promise<ImageRecord & { url: string }> {
     const { id, ext } = planImage(filename, contentType);
     const dir = this.imagesDir();

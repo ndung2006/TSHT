@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { unlinkSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from './uploads.service';
 import {
@@ -46,5 +48,30 @@ export class MediaLibraryService {
       ...this.uploads.listUploads().map(mapMemoryVideo),
     ];
     return mergeAndPage(dbItems, memoryItems, q);
+  }
+
+  // Xoa 1 ban ghi thu vien theo id (id = MediaItem.id = MediaAsset.id, uuid
+  // hoac img-... cho anh — khong bao gio dinh danh theo ten hien thi vi ten
+  // trung nhau giua cac ban ghi). Khong tim thay trong DB -> 404 (ban ghi
+  // chi co trong bo nho in-memory, chua kip persist, cung roi vao day).
+  // Thu tu: purge in-memory truoc roi xoa row DB, sau do moi xoa file vat ly
+  // (best-effort): file da mat (ban ghi mo coi) thi bo qua loi, row van xoa
+  // thanh cong. Chi xoa file trong storage/images theo basename cua fileUrl;
+  // video (fileUrl rong, HLS o storage/hls/<id>/) chi xoa row + bo nho, khong
+  // don dep thu muc HLS trong dot nay. Khong co khoa ngoai nao tro toi
+  // MediaAsset (anh/video chi duoc tham chieu bang chuoi URL trong noi dung),
+  // nen xoa row khong vi pham toan ven DB.
+  async remove(id: string) {
+    const row = await this.prisma.mediaAsset.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('khong tim thay tap tin trong thu vien');
+    this.uploads.dropMedia(id);
+    await this.prisma.mediaAsset.delete({ where: { id } });
+    if (row.fileUrl && row.fileUrl.startsWith('/images/')) {
+      const name = row.fileUrl.split('/').pop() || '';
+      if (name && !name.includes('/') && !name.includes('\\')) {
+        try { unlinkSync(join(this.uploads.imagesDir(), name)); } catch { /* file da mat: bo qua */ }
+      }
+    }
+    return { ok: true };
   }
 }

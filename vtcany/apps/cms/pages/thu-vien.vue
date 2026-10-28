@@ -24,6 +24,7 @@
         </div>
         <p class="text-[11px] text-neutral-500">{{ fmtSize(it.sizeBytes) }} · {{ fmtDate(it.createdAt) }}</p>
         <Button v-if="it.url || it.posterUrl" label="Sao chép URL" icon="pi pi-copy" size="small" text @click="copyUrl(it.url || it.posterUrl)" />
+        <Button v-if="can('catalog:delete')" label="Xóa" icon="pi pi-trash" size="small" text severity="danger" @click="removeItem(it)" />
       </div>
     </div>
 
@@ -41,6 +42,7 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Thư viện - VTC ANY CMS' });
 
+const { can } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
 
@@ -79,6 +81,18 @@ function fmtDate(ms: number) {
 async function copyUrl(u: string) {
   try { await navigator.clipboard.writeText(u); toast.add({ severity: 'success', summary: 'Đã sao chép URL', life: 2000 }); }
   catch { toast.add({ severity: 'warn', summary: u, life: 3000 }); }
+}
+async function removeItem(it: any) {
+  // Xoa theo id (khong theo ten hien thi: ten trung nhau giua cac ban ghi).
+  // useApi chi co del, khong co delete — dung api.del nhu cac nut Xoa khac.
+  if (!window.confirm(`Xóa tập tin "${it.filename}" khỏi thư viện?`)) return;
+  try {
+    await api.del(`/admin/media/${it.id}`);
+    toast.add({ severity: 'success', summary: 'Đã xóa tập tin', life: 2500 });
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Xóa thất bại', life: 3000 });
+  }
 }
 async function load(page = 1) {
   loading.value = true;
