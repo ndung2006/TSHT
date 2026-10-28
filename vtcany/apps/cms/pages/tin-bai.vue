@@ -456,7 +456,13 @@ function openLib() {
   loadLib(1);
 }
 function pickLib(item: any) {
-  const url = item?.url;
+  // Chen URL DA RESOLVE (tuyet doi, origin backend) chu khong chen url
+  // tho tu API: url tho la tuong doi (/images/...) khi backend khong set
+  // VOD_PUBLIC_BASE_URL; chen tho vao bai thi trinh duyet hieu thanh
+  // cms origin -> 404 -> icon hong ben vung ca sau khi Luu (da chung
+  // minh bang bai nhap test 2026-10-28). resolveMedia da co san trong
+  // file nay, dung cho ca duong insert chinh lan fallback.
+  const url = resolveMedia(item?.url);
   if (!url) {
     toast.add({ severity: 'warn', summary: 'Ảnh này chưa có URL dùng được', life: 3000 });
     return;

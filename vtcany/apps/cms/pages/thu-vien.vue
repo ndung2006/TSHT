@@ -23,7 +23,7 @@
           <Tag v-if="it.status" :value="it.status" :severity="it.status === 'done' ? 'success' : 'warn'" />
         </div>
         <p class="text-[11px] text-neutral-500">{{ fmtSize(it.sizeBytes) }} · {{ fmtDate(it.createdAt) }}</p>
-        <Button v-if="it.url || it.posterUrl" label="Sao chép URL" icon="pi pi-copy" size="small" text @click="copyUrl(it.url || it.posterUrl)" />
+        <Button v-if="it.url || it.posterUrl" label="Sao chép URL" icon="pi pi-copy" size="small" text @click="copyUrl(resolveMedia(it.url || it.posterUrl))" />
         <Button v-if="can('catalog:delete')" label="Xóa" icon="pi pi-trash" size="small" text severity="danger" @click="removeItem(it)" />
       </div>
     </div>
