@@ -115,6 +115,7 @@ const groups = [
       { to: '/videos', label: 'Videos', icon: 'pi-play' },
       { to: '/short', label: 'Short', icon: 'pi-bolt' },
       { to: '/tap-tin', label: 'Tập tin', icon: 'pi-folder-open' },
+      { to: '/thu-vien', label: 'Thư viện', icon: 'pi-images' },
       { to: '/the-loai', label: 'Thể loại', icon: 'pi-tags' },
       { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user' },
       { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list' },
@@ -156,6 +157,7 @@ const groups = [
       { to: '/nhat-ky', label: 'Nhật ký', icon: 'pi-history' },
       { to: '/roles', label: 'Quản lý quyền', icon: 'pi-shield' },
       { to: '/admins', label: 'Quản trị viên', icon: 'pi-user-edit' },
+      { to: '/phong-ban', label: 'Phòng ban', icon: 'pi-sitemap' },
     ],
   },
 ];
@@ -166,6 +168,7 @@ const titles: Record<string, string> = {
   '/videos': 'Quản lý Videos',
   '/short': 'Quản lý Short',
   '/tap-tin': 'Thư viện Tập tin',
+  '/thu-vien': 'Thư viện media',
   '/the-loai': 'Quản lý Thể loại',
   '/dien-vien': 'Quản lý Diễn viên',
   '/danh-sach-phat': 'Quản lý Danh sách phát',
@@ -187,6 +190,7 @@ const titles: Record<string, string> = {
   '/nhat-ky': 'Nhật ký hoạt động',
   '/roles': 'Quản lý quyền',
   '/admins': 'Quản trị viên',
+  '/phong-ban': 'Phòng ban',
 };
 const pageTitle = computed(() => titles[route.path] || 'VTC ANY CMS');
 const displayName = computed(() => user.value?.email || user.value?.username || 'Admin');

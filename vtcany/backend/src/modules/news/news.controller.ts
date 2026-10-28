@@ -45,6 +45,32 @@ class ArticleDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
+
+  // Dot 1a: dinh dang + co hien thi + nhan tin dia phuong. contentType la
+  // bi service reject (400); DTO chi khai bao de whitelist khong luoc mat.
+  @IsOptional()
+  @IsString()
+  contentType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isSpotlight?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isPhoto?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isInfographic?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  allowComments?: boolean;
+
+  @IsOptional()
+  @IsString()
+  localNews?: string | null;
 }
 
 class CategoryDto {

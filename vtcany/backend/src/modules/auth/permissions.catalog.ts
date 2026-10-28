@@ -36,6 +36,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: 'episodes', label: 'Tập phim', actions: FIVE },
   { key: 'articles', label: 'Bài viết', actions: FIVE },
   { key: 'epaper', label: 'Báo in', actions: FIVE },
+  { key: 'departments', label: 'Phòng ban', actions: FIVE },
   { key: 'events', label: 'Sự kiện', actions: FIVE },
   { key: 'keywords', label: 'Từ khoá tìm kiếm', actions: FIVE },
   { key: 'banners', label: 'Banner', actions: FIVE },

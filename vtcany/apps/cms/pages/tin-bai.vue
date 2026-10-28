@@ -31,6 +31,9 @@
         <Column header="Nổi bật" style="width:7rem">
           <template #body="{ data }"><Tag :value="data.isFeatured ? 'Có' : 'Không'" :severity="data.isFeatured ? 'success' : 'secondary'" /></template>
         </Column>
+        <Column header="Định dạng" style="min-width:8rem">
+          <template #body="{ data }">{{ contentTypeLabel(data.contentType) }}</template>
+        </Column>
         <Column header="Sửa đổi gần nhất" style="min-width:13rem">
           <template #body="{ data }">{{ lastEditText(data) }}</template>
         </Column>
@@ -72,10 +75,38 @@
           <label class="field-label">Sapo (tóm tắt, tối đa 500 ký tự) — {{ form.sapo.length }}/500</label>
           <Textarea v-model="form.sapo" rows="3" class="w-full" maxlength="500" />
         </div>
-        <div><label class="field-label">Nội dung</label><Editor v-model="form.body" editor-style="height: 320px" /></div>
+        <div><label class="field-label">Nội dung</label>
+          <Editor ref="editorRef" v-model="form.body" editor-style="height: 320px" @load="onEditorLoad" />
+          <div class="flex flex-wrap items-center gap-2 mt-2">
+            <Button label="Chèn ảnh từ thư viện" icon="pi pi-images" size="small" severity="secondary" @click="openLib" />
+            <span class="text-xs text-neutral-500">Ảnh chèn từ thư viện là URL đã host (không nhúng base64). Nút ảnh trên thanh công cụ vẫn tải file như cũ; ảnh base64 sẽ được chuyển thành URL khi lưu.</span>
+          </div>
+        </div>
         <div><label class="field-label">Chuyên mục</label>
           <Dropdown v-model="form.categoryId" :options="catOptions" option-label="label" option-value="value"
             placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><label class="field-label">Định dạng nội dung (Dot 1a: mọi loại dùng chung một form; form riêng theo loại để Dot 2)</label>
+            <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
+          </div>
+          <div><label class="field-label">Nhãn tin địa phương (chọn một cách duy nhất: trường này)</label>
+            <InputText v-model="form.localNews" class="w-full" placeholder="VD: Tuyên Quang" />
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-4 pb-1">
+          <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
+            <label for="spot">Tiêu điểm (lên cột Tiêu điểm)</label>
+          </div>
+          <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" />
+            <label for="photo">Tin ảnh</label>
+          </div>
+          <div class="flex items-center gap-2"><Checkbox v-model="form.isInfographic" binary input-id="info" />
+            <label for="info">Infographic</label>
+          </div>
+          <div class="flex items-center gap-2"><Checkbox v-model="form.allowComments" binary input-id="cmt" />
+            <label for="cmt">Cho phép bình luận</label>
+          </div>
         </div>
         <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="form.coverPath" ratio="16/9" /></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -95,6 +126,34 @@
         <Button label="Hủy" text @click="dlg = false" />
         <Button :label="editing ? 'Lưu' : 'Tạo'" :loading="saving" @click="save"
           :disabled="!form.title.trim() || form.sapo.length > 500" />
+      </template>
+    </Dialog>
+
+    <!-- Chon anh tu thu vien media (Dot 1a) -->
+    <Dialog v-model:visible="libDlg" modal header="Chọn ảnh từ thư viện" class="w-full max-w-3xl">
+      <div class="flex gap-2 mb-3">
+        <InputText v-model="libQ" placeholder="Tìm tên file..." class="flex-1" @keyup.enter="loadLib(1)" />
+        <Button label="Tìm" size="small" @click="loadLib(1)" />
+      </div>
+      <div v-if="libLoading" class="text-sm text-neutral-400">Đang tải...</div>
+      <div v-else-if="!libItems.length" class="text-sm text-neutral-400">Chưa có ảnh nào trong thư viện.</div>
+      <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60dvh] overflow-y-auto pr-1">
+        <button v-for="im in libItems" :key="im.id" type="button" class="text-left group" @click="pickLib(im)">
+          <span class="block aspect-square rounded-lg overflow-hidden bg-neutral-800">
+            <img :src="resolveMedia(im.url)" class="w-full h-full object-cover" :alt="im.filename" loading="lazy" />
+          </span>
+          <span class="block text-[11px] text-neutral-400 truncate mt-1 group-hover:text-neutral-200">{{ im.filename }}</span>
+        </button>
+      </div>
+      <div class="flex items-center justify-between mt-3">
+        <span class="text-xs text-neutral-400">Trang {{ libMeta.page }} — tổng {{ libMeta.total }} ảnh</span>
+        <span class="flex gap-2">
+          <Button label="Trước" size="small" text :disabled="libMeta.page <= 1" @click="loadLib(libMeta.page - 1)" />
+          <Button label="Sau" size="small" text :disabled="libMeta.page * libMeta.limit >= libMeta.total" @click="loadLib(libMeta.page + 1)" />
+        </span>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="libDlg = false" />
       </template>
     </Dialog>
 
@@ -258,7 +317,23 @@ function onPage(e: any) { load(Math.floor(e.first / e.rows) + 1); }
 const dlg = ref(false);
 const editing = ref<any>(null);
 const saving = ref(false);
-const form = ref({ title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false });
+// Dot 1a: dinh dang + co hien thi + nhan tin dia phuong (moi loai bai tam
+// dung chung mot form; form rieng theo loai de Dot 2).
+const contentTypeOptions = [
+  { label: 'Bài viết', value: 'text' },
+  { label: 'Video', value: 'video' },
+  { label: 'Audio / Podcast', value: 'audio' },
+  { label: 'Chùm ảnh', value: 'gallery' },
+  { label: 'Infographic', value: 'infographic' },
+  { label: 'Emagazine / Longform', value: 'emagazine' },
+];
+function contentTypeLabel(v: string | null | undefined) {
+  return contentTypeOptions.find((o) => o.value === (v || 'text'))?.label || 'Bài viết';
+}
+const form = ref({
+  title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
+  contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
+});
 const authorsText = ref('');
 const tagsText = ref('');
 const publishAtText = ref('');
@@ -286,7 +361,10 @@ function splitList(s: string) {
 }
 function openAdd() {
   editing.value = null;
-  form.value = { title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false };
+  form.value = {
+    title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
+    contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
+  };
   authorsText.value = '';
   tagsText.value = '';
   publishAtText.value = '';
@@ -297,12 +375,91 @@ function openEdit(it: any) {
   form.value = {
     title: it.title || '', slug: it.slug || '', sapo: it.sapo || '', body: it.body || '',
     categoryId: it.category?.publicId || '', coverPath: it.coverPath || '', isFeatured: !!it.isFeatured,
+    contentType: it.contentType || 'text', isSpotlight: !!it.isSpotlight, isPhoto: !!it.isPhoto,
+    isInfographic: !!it.isInfographic, allowComments: it.allowComments !== false, localNews: it.localNews || '',
   };
   authorsText.value = (it.authors || []).join(', ');
   tagsText.value = (it.tags || []).join(', ');
   publishAtText.value = isoToLocalInput(it.publishAt);
   dlg.value = true;
 }
+// --- Chen anh tu thu vien media (Dot 1a) ---
+// PrimeVue Editor phat event @load kem Quill instance. Chen them 1 nut
+// "Thu vien" vao toolbar Quill (ben canh nut anh mac dinh) de bien tap
+// vien chon anh da host thay vi tai file -> base64. Nut duoi editor la
+// du phong neu toolbar tuy bien that bai. Chen bang URL host, KHONG bao
+// gio nhung base64 vao noi dung.
+const editorRef = ref<any>(null);
+const editorQuill = ref<any>(null);
+// URL media dang tuong doi (/images/...) thuoc ve backend: hien thi phai
+// ghep voi origin cua apiBase (giong ImagePicker), neu khong trinh duyet
+// hieu thanh cms origin -> 404. Gia tri chen vao bai giu nguyen url goc.
+function resolveMedia(u: string) {
+  if (!u) return '';
+  if (/^(https?:)?\/\//.test(u) || u.startsWith('data:')) return u;
+  if (!u.startsWith('/')) return u;
+  try { return new URL(useRuntimeConfig().public.apiBase as string).origin + u; } catch { return u; }
+}
+const libDlg = ref(false);
+const libItems = ref<any[]>([]);
+const libMeta = ref({ total: 0, page: 1, limit: 20 });
+const libLoading = ref(false);
+const libQ = ref('');
+function onEditorLoad(e: any) {
+  const quill = e?.instance;
+  if (!quill) return;
+  editorQuill.value = quill;
+  try {
+    const toolbar = quill.getModule('toolbar')?.container;
+    if (toolbar && !toolbar.querySelector('.cms-lib-btn')) {
+      const span = document.createElement('span');
+      span.className = 'ql-formats';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cms-lib-btn';
+      btn.title = 'Chèn ảnh từ thư viện';
+      btn.innerHTML = '<i class="pi pi-images"></i>';
+      btn.addEventListener('click', () => openLib());
+      span.appendChild(btn);
+      toolbar.appendChild(span);
+    }
+  } catch { /* toolbar tuy bien that bai: nut duoi editor van dung duoc */ }
+}
+async function loadLib(page = 1) {
+  libLoading.value = true;
+  try {
+    const r = await api.get<any>('/admin/media', { kind: 'image', q: libQ.value || undefined, page, limit: libMeta.value.limit });
+    libItems.value = r.data || [];
+    libMeta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được thư viện', life: 3000 });
+  } finally { libLoading.value = false; }
+}
+function openLib() {
+  libDlg.value = true;
+  loadLib(1);
+}
+function pickLib(item: any) {
+  const url = item?.url;
+  if (!url) {
+    toast.add({ severity: 'warn', summary: 'Ảnh này chưa có URL dùng được', life: 3000 });
+    return;
+  }
+  libDlg.value = false;
+  const quill = editorQuill.value;
+  try {
+    if (quill) {
+      quill.focus();
+      const range = quill.getSelection(true);
+      const index = range ? range.index : quill.getLength();
+      quill.insertEmbed(index, 'image', url, 'user');
+      quill.setSelection(index + 1, 0, 'silent');
+      return;
+    }
+  } catch { /* roi xuong fallback append */ }
+  form.value.body = `${form.value.body || ''}<p><img src="${url}"></p>`;
+}
+
 // --- Anh inline trong than bai ---
 // Editor (Quill) chen anh dang base64 (data:) thang vao HTML. Backend
 // gioi han JSON 256kb (main.ts) nen bai co anh base64 lon se lam POST
@@ -346,6 +503,12 @@ async function save() {
       tags: splitList(tagsText.value),
       publishAt: localInputToIso(publishAtText.value),
       isFeatured: form.value.isFeatured,
+      contentType: form.value.contentType,
+      isSpotlight: form.value.isSpotlight,
+      isPhoto: form.value.isPhoto,
+      isInfographic: form.value.isInfographic,
+      allowComments: form.value.allowComments,
+      localNews: form.value.localNews.trim() || null,
     };
     if (editing.value) await api.patch(`/admin/news/${editing.value.publicId}`, payload);
     else await api.post('/admin/news', payload);

@@ -237,6 +237,10 @@ model AdminUser {
   roleId       String?    @map("role_id")
   roleName     String?    @map("role_name")
   role         Role?      @relation(fields: [roleId], references: [id])
+  // Phong ban truc thuoc (Dot 1a, chi du lieu nen): FK nullable, khong
+  // bat buoc; logic loc buoc duyet theo phong de Dot 4.
+  departmentId String?    @map("department_id")
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   status       String     @default("active") // active|disabled
   lastLogin    DateTime?  @map("last_login")
   createdAt    DateTime   @default(now()) @map("created_at")
@@ -254,6 +258,24 @@ model Role {
   createdAt   DateTime    @default(now()) @map("created_at")
 
   @@map("roles")
+}
+
+// Phong ban / don vi trong toa soan (Dot 1a, chi du lieu nen).
+// Dung de gan AdminUser vao phong; logic loc buoc duyet TP theo phong
+// va nhuan but theo phong de Dot 4. Khong co cap cha-con o Dot 1a.
+model Department {
+  id        String      @id @default(uuid())
+  publicId  String      @unique @map("public_id") // 24 hex, theo quy uoc chung
+  name      String
+  slug      String      @unique
+  sortOrder Int         @default(0) @map("sort_order")
+  isVisible Boolean     @default(true) @map("is_visible")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  users     AdminUser[]
+
+  @@index([sortOrder])
+  @@map("departments")
 }
 
 model AuditLog {
@@ -547,6 +569,16 @@ model NewsArticle {
   workflowStep Int          @default(0) @map("workflow_step") // 0 = ngoai quy trinh; k = dang cho duyet buoc k (xem news-workflow.ts)
   publishAt    DateTime?    @map("publish_at")
   isFeatured   Boolean      @default(false) @map("is_featured") // tick len trang chu muc Tin noi bat
+  // Dinh dang noi dung (Dot 1a, chuan hoa content_type): text | video |
+  // audio | gallery | infographic | emagazine. Chi bai standard (text)
+  // ton tai truoc Dot 1a; cac loai khac dung chung form o Dot 1a, form
+  // rieng theo loai de Dot 2. Xem news-content.ts (validate).
+  contentType  String       @default("text") @map("content_type")
+  isSpotlight  Boolean      @default(false) @map("is_spotlight") // tick len cot Tieu diem
+  isPhoto      Boolean      @default(false) @map("is_photo") // co Tin anh
+  isInfographic Boolean     @default(false) @map("is_infographic") // co Infographic
+  allowComments Boolean     @default(true) @map("allow_comments") // hien khung binh luan
+  localNews    String?      @map("local_news") // nhan Tin dia phuong (1 cach duy nhat: truong nay)
   createdBy    String?      @map("created_by") // AdminUser id (JWT sub), khong FK
   updatedBy    String?      @map("updated_by") // username hoac sub cua nguoi sua cuoi (cot audit)
   updatedByRole String?     @map("updated_by_role") // ten Role luc sua cuoi (cot audit)
@@ -573,6 +605,19 @@ model NewsArticleApproval {
 
   @@index([articleId, createdAt])
   @@map("news_article_approvals")
+}
+
+// Su kien luot xem bai (Dot 1a, CHI thu thap — chua dashboard, chua
+// chong lam dung). Ton trong rieng tu: chi luu bai duoc xem (publicId)
+// hoac duong dan + thoi diem; KHONG luu IP, user-agent, user id.
+model PageView {
+  id              String   @id @default(uuid())
+  articlePublicId String?  @map("article_public_id")
+  path            String   @default("")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([articlePublicId, createdAt])
+  @@map("page_views")
 }
 
 model EpaperIssueRevision {

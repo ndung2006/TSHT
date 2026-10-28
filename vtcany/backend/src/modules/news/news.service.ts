@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, stepLabel, transition,
 } from './news-workflow';
+import { normalizeContentType } from './news-content';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -34,6 +35,13 @@ export interface ArticleInput {
   tags?: string[];
   publishAt?: string | null;
   isFeatured?: boolean;
+  // Dot 1a: dinh dang + co hien thi + nhan tin dia phuong (xem news-content.ts).
+  contentType?: string;
+  isSpotlight?: boolean;
+  isPhoto?: boolean;
+  isInfographic?: boolean;
+  allowComments?: boolean;
+  localNews?: string | null;
 }
 
 @Injectable()
@@ -85,6 +93,12 @@ export class NewsService {
       lastApproval: (row as any).lastApproval || null,
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       isFeatured: row.isFeatured,
+      contentType: row.contentType ?? 'text',
+      isSpotlight: row.isSpotlight ?? false,
+      isPhoto: row.isPhoto ?? false,
+      isInfographic: row.isInfographic ?? false,
+      allowComments: row.allowComments ?? true,
+      localNews: row.localNews ?? null,
       updatedBy: row.updatedBy,
       updatedByRole: row.updatedByRole,
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
@@ -148,6 +162,12 @@ export class NewsService {
       tags: row.tags || [],
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       isFeatured: row.isFeatured,
+      contentType: row.contentType ?? 'text',
+      isSpotlight: row.isSpotlight ?? false,
+      isPhoto: row.isPhoto ?? false,
+      isInfographic: row.isInfographic ?? false,
+      allowComments: row.allowComments ?? true,
+      localNews: row.localNews ?? null,
     };
   }
 
@@ -155,6 +175,12 @@ export class NewsService {
     if (!input.title || !input.title.trim()) throw new BadRequestException('tieu de bat buoc');
     if (input.sapo !== undefined && input.sapo.length > 500) {
       throw new BadRequestException('sapo toi da 500 ky tu');
+    }
+    // content_type la -> 400 (khong am tham ep ve 'text' khi client gui sai).
+    try {
+      normalizeContentType(input.contentType);
+    } catch (e: any) {
+      throw new BadRequestException(e?.message || 'content_type khong hop le');
     }
   }
 
@@ -225,6 +251,12 @@ export class NewsService {
         status: 'draft',
         publishAt: input.publishAt ? new Date(input.publishAt) : null,
         isFeatured: !!input.isFeatured,
+        contentType: normalizeContentType(input.contentType),
+        isSpotlight: !!input.isSpotlight,
+        isPhoto: !!input.isPhoto,
+        isInfographic: !!input.isInfographic,
+        allowComments: input.allowComments !== false,
+        localNews: input.localNews?.trim() ? input.localNews.trim() : null,
         createdBy: actor.id,
         updatedBy: actor.username,
         updatedByRole: actor.roleName,
@@ -237,7 +269,7 @@ export class NewsService {
   async patch(publicId: string, input: Partial<ArticleInput>, actor: Actor) {
     const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay bai viet');
-    this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo });
+    this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo, contentType: input.contentType });
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = input.title.trim();
     if (input.slug !== undefined || input.title !== undefined) {
@@ -254,6 +286,12 @@ export class NewsService {
     if (input.tags !== undefined) data.tags = input.tags;
     if (input.publishAt !== undefined) data.publishAt = input.publishAt ? new Date(input.publishAt) : null;
     if (input.isFeatured !== undefined) data.isFeatured = !!input.isFeatured;
+    if (input.contentType !== undefined) data.contentType = normalizeContentType(input.contentType);
+    if (input.isSpotlight !== undefined) data.isSpotlight = !!input.isSpotlight;
+    if (input.isPhoto !== undefined) data.isPhoto = !!input.isPhoto;
+    if (input.isInfographic !== undefined) data.isInfographic = !!input.isInfographic;
+    if (input.allowComments !== undefined) data.allowComments = !!input.allowComments;
+    if (input.localNews !== undefined) data.localNews = input.localNews?.trim() ? input.localNews.trim() : null;
     const out = await this.prisma.newsArticle.update({
       where: { id: row.id },
       data,
