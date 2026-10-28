@@ -390,7 +390,28 @@ async function submitItem(it: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Gửi duyệt thất bại', life: 3000 });
   }
 }
+/** Id nguoi dung hien tai, decode tu JWT sub (khong can secret, khong goi backend).
+ * Giong helper ben tin-bai.vue — dung chung cho kiem tra SoD chu dong. */
+function currentUserId(): string | null {
+  try {
+    const t = localStorage.getItem('cms_token') || sessionStorage.getItem('cms_token');
+    if (!t) return null;
+    let part = t.split('.')[1] || '';
+    if (!part) return null;
+    part = part.replace(/-/g, '+').replace(/_/g, '/');
+    part += '='.repeat((4 - (part.length % 4)) % 4);
+    return JSON.parse(atob(part))?.sub || null;
+  } catch { return null; }
+}
 async function approveItem(it: any) {
+  // Kiem tra SoD chu dong (dong bo voi tin-bai.vue): trung nguoi xu ly buoc
+  // truoc (truong "Duyet gan nhat" cua hang) thi mo thang dialog ngoai le,
+  // khong goi approve mu roi moi doan chuoi loi 403. Luoi bat chuoi loi giu
+  // lam fallback. Bao phu ca nut Duyet ngoai danh sach va nut Duyệt trong
+  // popup Xem duyệt (reviewApprove cung goi ham nay).
+  const prevActor = it.lastApproval?.actorId || null;
+  const me = currentUserId();
+  if (prevActor && me && prevActor === me) { openExceptionApprove(it); return; }
   try {
     const r = await api.post<any>(`/admin/epaper/${it.publicId}/approve`);
     toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt xong và xuất bản' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
