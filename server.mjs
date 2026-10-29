@@ -553,6 +553,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/truyen-hinh") return serveFile(res, path.join(PUBLIC, "tv.html"));
     if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"));
     if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));
+    if (u.pathname === "/nen-tang-so") return serveFile(res, path.join(PUBLIC, "nen-tang-so.html"));
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
