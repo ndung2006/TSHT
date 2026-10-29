@@ -16,6 +16,10 @@ import { EpaperModule } from './modules/epaper/epaper.module';
 import { NewsModule } from './modules/news/news.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
+import { ZoneModule } from './modules/zones/zone.module';
+import { CrossmediaModule } from './modules/crossmedia/crossmedia.module';
+import { EventsModule } from './modules/events/events.module';
+import { LiveblogModule } from './modules/liveblog/liveblog.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -37,6 +41,10 @@ import { HealthController } from './health.controller';
     NewsModule,
     DepartmentsModule,
     DistributionModule,
+    ZoneModule,
+    CrossmediaModule,
+    EventsModule,
+    LiveblogModule,
   ],
   controllers: [HealthController],
 })

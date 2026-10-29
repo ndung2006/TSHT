@@ -52,9 +52,12 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
   // (3) Xuat ban Bao dien tu
   { to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles' },
+  { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
+  { to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog' },
   { to: '/danh-muc', label: 'Danh mục', icon: 'pi-folder', workspace: 'online', module: 'categories' },
   { to: '/banner', label: 'Banner', icon: 'pi-flag', workspace: 'online', module: 'banners' },
   { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images', workspace: 'online', module: 'layout' },
+  { to: '/vung-hien-thi', label: 'Vùng hiển thị', icon: 'pi-th-large', workspace: 'online', module: 'zones' },
   { to: '/phan-phoi', label: 'Phân phối', icon: 'pi-share-alt', workspace: 'online', module: 'distribution' },
   // (4) Quan tri chung
   { to: '/nguoi-dung', label: 'Người dùng', icon: 'pi-users', workspace: 'admin', module: 'users' },

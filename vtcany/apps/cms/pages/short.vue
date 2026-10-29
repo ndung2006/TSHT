@@ -30,6 +30,7 @@
         <Column header="Thao tác" style="min-width:12rem">
           <template #body="{ data }">
             <Button v-if="can('catalog:write')" :label="data.isVisible ? 'Ẩn' : 'Xuất bản'" size="small" text :severity="data.isVisible ? 'warn' : 'success'" @click="togglePublish(data)" />
+            <Button v-if="can('articles:create') && data.isVisible" label="Tạo bản nháp Báo điện tử" size="small" text severity="info" @click="convertToDraft('shorts', data)" />
             <Button v-if="can('catalog:write')" label="Sửa" size="small" text @click="openEdit(data)" />
             <Button v-if="can('catalog:write')" label="Xóa" size="small" text severity="danger" @click="confirmDelete(confirm, data.id, data.title)" />
           </template>
@@ -262,6 +263,19 @@ async function togglePublish(row: any) {
     load();
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.error?.message || e?.message, life: 3000 });
+  }
+}
+// Goi 1C: chuyen doi cheo — tu short da xuat ban tao ban nhap Bao dien tu
+// (nhap o trang thai Nhap, di quy trinh tin bai binh thuong). Nut chi hien
+// khi short dang hien thi (isVisible) va tai khoan co articles:create;
+// server chan lai neu nguon chua xuat ban (fail-closed).
+async function convertToDraft(entity: string, row: any) {
+  try {
+    const r = await api.post<any>('/admin/crossmedia/from-tv', { entity, id: row.id });
+    toast.add({ severity: 'success', summary: 'Đã tạo bản nháp', detail: `“${r?.title || row.title}” đã tạo trong Tin bài, trạng thái Nháp.`, life: 4000 });
+    navigateTo('/tin-bai');
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
   }
 }
 async function save() {

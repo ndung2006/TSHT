@@ -1,7 +1,7 @@
 import {
   Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { RolesService } from '../auth/roles.service';
@@ -51,6 +51,19 @@ class ArticleDto {
   @IsOptional()
   @IsString()
   contentType?: string;
+
+  // Goi 1B (fix 2026-10-29): formatData BAT BUOC khai bao o day. Ly do:
+  // main.ts dung ValidationPipe whitelist:true nen POST tao bai (@Body()
+  // dto: ArticleDto — class that) se luoc bo moi truong khong khai bao,
+  // service nhan formatData=undefined -> luu null -> tao bai mat media.
+  // PATCH dung Partial<ArticleDto> (runtime metatype Object) nen pipe bo
+  // qua, formatData di qua nguyen ven — vi vay sua thi luu duoc, dung
+  // su khong nhat quan tao/cap nhat. Validate that (chi 4 key media,
+  // scheme nguy hiem -> 400) do service dam nhan qua normalizeFormatData;
+  // DTO chi giu truong di qua. null di qua @IsOptional (bai khong media).
+  @IsOptional()
+  @IsObject()
+  formatData?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()
@@ -224,6 +237,13 @@ export class NewsPublicController {
   @Get(':slug')
   async get(@Param('slug') slug: string) {
     return this.news.getPublic(slug);
+  }
+
+  // Goi 1D: giai slug cu -> slug hien tai (cho TSHT chuyen 301). Hai doan
+  // nen khong dung route ':slug' (1 doan); chi tra ve khi bai dang xuat ban.
+  @Get('slug-redirects/:slug')
+  async slugRedirect(@Param('slug') slug: string) {
+    return this.news.resolveSlugRedirect(slug);
   }
 }
 

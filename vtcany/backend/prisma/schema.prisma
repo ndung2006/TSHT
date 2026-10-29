@@ -543,6 +543,7 @@ model NewsCategory {
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
   articles  NewsArticle[]
+  newsroomEvents NewsroomEvent[]
 
   @@index([parentId, sortOrder])
   @@map("news_categories")
@@ -576,6 +577,12 @@ model NewsArticle {
   // ton tai truoc Dot 1a; cac loai khac dung chung form o Dot 1a, form
   // rieng theo loai de Dot 2. Xem news-content.ts (validate).
   contentType  String       @default("text") @map("content_type")
+  // Media dinh dang (Goi 1B): { videoUrl?, audioUrl?, imageUrl?, images? }.
+  // Chi URL da host, khong base64; xem news-format-data.ts (normalize).
+  formatData   Json?        @map("format_data")
+  // Nguon goc chuyen doi cheo (Goi 1C): { type: 'tv-video' | 'tv-short' |
+  // 'epaper', id, title, ... } — chi admin thay, khong hien cong khai.
+  sourceRef    Json?        @map("source_ref")
   isSpotlight  Boolean      @default(false) @map("is_spotlight") // tick len cot Tieu diem
   isPhoto      Boolean      @default(false) @map("is_photo") // co Tin anh
   isInfographic Boolean     @default(false) @map("is_infographic") // co Infographic
@@ -587,10 +594,30 @@ model NewsArticle {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   approvals    NewsArticleApproval[]
+  zoneItems    ZoneItem[]
+  slugRedirects NewsSlugRedirect[]
 
   @@index([status, publishAt])
   @@index([categoryId, publishAt])
   @@map("news_articles")
+}
+
+// Goi 1D: lich su slug cu cua bai viet (chuyen huong 301 khi doi slug).
+// Ghi khi patch() doi slug cua bai tung xuat ban (published/unpublished);
+// bai nhap/cho duyet doi slug khong ghi (slug cu chua tung cong khai).
+// Tra cuu chi tra ve khi bai DANG xuat ban (xem resolveSlugRedirect),
+// nen go bai/xoa bai tu lam redirect het hieu luc; xoa bai cascade xoa
+// ca redirect (onDelete: Cascade). Slug hien tai luon thang truoc
+// redirect (getPublic tim slug song truoc), nen slug cu duoc tai su dung
+// boi bai khac khong bi redirect cu chen ngang.
+model NewsSlugRedirect {
+  id        String      @id @default(uuid())
+  oldSlug   String      @unique @map("old_slug")
+  articleId String      @map("article_id")
+  article   NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@map("news_slug_redirects")
 }
 
 model NewsArticleApproval {
@@ -679,4 +706,167 @@ model DistributionTarget {
 
   @@unique([postId, platform])
   @@map("distribution_targets")
+}
+
+// Vung hien thi trang chu — Goi 1A Zone/Widget Manager. Zone la vi tri
+// co dinh theo layout that trang chu (seed trong migration, khong tao
+// zone tu do o 1A); ZoneItem la bai ghim vao vung, toi da mot vung cho
+// moi bai (UNIQUE articleId) de bai da ghim khong hien lai trong danh
+// sach chon cua vung khac. Xoa bai -> item tu mat (Cascade). Zone
+// khong doi trang thai hay buoc duyet cua bai.
+model Zone {
+  id          String     @id @default(uuid())
+  key         String     @unique // tieu-diem | tin-moi-nhat
+  name        String
+  description String     @default("")
+  slotLimit   Int        @map("slot_limit") // so slot theo layout that
+  sortOrder   Int        @default(0) @map("sort_order")
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  items       ZoneItem[]
+
+  @@map("zones")
+}
+
+model ZoneItem {
+  id        String      @id @default(uuid())
+  zoneId    String      @map("zone_id")
+  zone      Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  articleId String      @map("article_id")
+  article   NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  sortOrder Int         @default(0) @map("sort_order")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@unique([articleId])
+  @@index([zoneId, sortOrder])
+  @@map("zone_items")
+}
+
+// ---------------------------------------------------------------------------
+// Goi 2A (Nguoi 2) — Su kien toa soan + Tuong thuat truc tiep (liveblog),
+// giai doan 1: backend + CMS + API (hien thi cong khai do goi 1E tich hop).
+// Workflow 1 buoc duyet theo mau news/epaper (xem events-workflow.ts va
+// liveblog-workflow.ts):
+//   Su kien:  QLSK (tac gia) tao + gui duyet -> TBT duyet = xuat ban.
+//   Liveblog: PVTT (tac gia) tao + gui duyet -> PTTT duyet = xuat ban.
+// Ten Role viet tat la khoa chan buoc (fail-closed), SoD ap dung ca tai
+// khoan toan quyen, ngoai le duy nhat la tin nong co ghi log.
+// Quyet dinh da chot 2026-10-29: Liveblog.eventId NULLABLE (liveblog gan
+// su kien hoac dung doc lap); KHONG realtime o 2A; buoc nop giu mau —
+// chi can quyen update, khoa role + SoD nam o buoc duyet.
+// Ten model dung NewsroomEvent (khong dung Event tran) de tranh nham voi
+// su kien catalog OTT (key quyen 'events', trang su-kien.vue san co).
+// ---------------------------------------------------------------------------
+model NewsroomEvent {
+  id           String       @id @default(uuid())
+  publicId     String       @unique @map("public_id") // 24 hex, theo quy uoc chung
+  title        String
+  slug         String       @unique
+  description  String       @default("") // mo ta ngan (HTML/text do CMS quyet)
+  coverPath    String?      @map("cover_path") // duong dan tuong doi, hien thi qua resolveMedia()
+  categoryId   String?      @map("category_id")
+  category     NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  startsAt     DateTime?    @map("starts_at") // thoi gian dien ra su kien
+  endsAt       DateTime?    @map("ends_at")
+  status       String       @default("draft") // draft | pending_review | published | unpublished
+  workflowStep Int          @default(0) @map("workflow_step") // 0 = ngoai quy trinh; 1 = cho TBT duyet
+  publishAt    DateTime?    @map("publish_at") // theo quy uoc news: hen gio + loc cong khai
+  createdBy    String?      @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy    String?      @map("updated_by")
+  updatedByRole String?     @map("updated_by_role")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  approvals    NewsroomEventApproval[]
+  liveblogs    Liveblog[]
+
+  @@index([status, publishAt])
+  @@map("newsroom_events")
+}
+
+// Lich su duyet su kien — chep nguyen khuon NewsArticleApproval.
+model NewsroomEventApproval {
+  id         String        @id @default(uuid())
+  eventId    String        @map("event_id")
+  event      NewsroomEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc ghi (0 = hanh dong ngoai buoc: xuat ban/go xuong)
+  stepLabel  String?       @map("step_label")
+  actorId    String?       @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?       @map("actor_role") // ten Role luc duyet
+  action     String // submit | approve | return | publish | unpublish
+  comment    String? // ly do tra lai
+  isException Boolean @default(false) @map("is_exception") // duyet voi ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason") // ly do ngoai le tin nong (neu co)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([eventId, createdAt])
+  @@map("newsroom_event_approvals")
+}
+
+// Tuong thuat truc tiep: 1 liveblog gom nhieu dong tuong thuat (entries)
+// sap theo createdAt ASC. eventId NULLABLE — liveblog gan 1 su kien toa
+// soan hoac dung doc lap (chot 2026-10-29).
+model Liveblog {
+  id           String        @id @default(uuid())
+  publicId     String        @unique @map("public_id") // 24 hex
+  title        String
+  slug         String        @unique
+  description  String        @default("")
+  coverPath    String?       @map("cover_path")
+  eventId      String?       @map("event_id")
+  event        NewsroomEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  status       String        @default("draft") // draft | pending_review | published | unpublished
+  workflowStep Int           @default(0) @map("workflow_step") // 0 = ngoai quy trinh; 1 = cho PTTT duyet
+  publishAt    DateTime?     @map("publish_at")
+  createdBy    String?       @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy    String?       @map("updated_by")
+  updatedByRole String?      @map("updated_by_role")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  approvals    LiveblogApproval[]
+  entries      LiveblogEntry[]
+
+  @@index([status, publishAt])
+  @@index([eventId])
+  @@map("liveblogs")
+}
+
+// Lich su duyet liveblog — chep nguyen khuon NewsArticleApproval.
+model LiveblogApproval {
+  id         String   @id @default(uuid())
+  liveblogId String   @map("liveblog_id")
+  liveblog   Liveblog @relation(fields: [liveblogId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc ghi (0 = hanh dong ngoai buoc)
+  stepLabel  String?  @map("step_label")
+  actorId    String?  @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?  @map("actor_role")
+  action     String // submit | approve | return | publish | unpublish
+  comment    String? // ly do tra lai
+  isException Boolean @default(false) @map("is_exception") // ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([liveblogId, createdAt])
+  @@map("liveblog_approvals")
+}
+
+// Dong tuong thuat trong 1 liveblog. Khong duyet rieng tung dong: chuoi
+// PVTT -> PTTT duyet ca liveblog (chot thiet ke 2A). Thu tu timeline =
+// createdAt ASC. mediaPath la duong dan file da upload qua /uploads,
+// khong nhung base64 (gioi han JSON backend 256kb).
+model LiveblogEntry {
+  id           String   @id @default(uuid())
+  liveblogId   String   @map("liveblog_id")
+  liveblog     Liveblog @relation(fields: [liveblogId], references: [id], onDelete: Cascade)
+  body         String   @default("") // noi dung dong tin (HTML tu editor)
+  mediaPath    String?  @map("media_path")
+  isPinned     Boolean  @default(false) @map("is_pinned") // ghim dong quan trong
+  createdBy    String?  @map("created_by")
+  updatedBy    String?  @map("updated_by")
+  updatedByRole String? @map("updated_by_role")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([liveblogId, createdAt])
+  @@map("liveblog_entries")
 }

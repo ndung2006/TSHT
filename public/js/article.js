@@ -34,6 +34,27 @@
       "<p class=\"news-meta\">" + esc(it.category ? it.category.name : "") +
       (it.publishAt ? " · " + esc(fmtDate(it.publishAt)) : "") + "</p></div>";
   }
+  // Media dinh dang (Goi 1B): hien thi theo contentType, URL da duoc proxy
+  // TSHT resolve (tuong doi -> origin backend, tuyet doi giu nguyen).
+  // Khong dung iframe (sanitize se loc bo) — video/audio dung the native.
+  function mediaHtml(it) {
+    var fd = it.formatData || {};
+    if (it.contentType === "video" && fd.videoUrl) {
+      return "<video class=\"article-media\" controls preload=\"metadata\" src=\"" + esc(fd.videoUrl) + "\"></video>";
+    }
+    if (it.contentType === "audio" && fd.audioUrl) {
+      return "<audio class=\"article-media\" controls src=\"" + esc(fd.audioUrl) + "\"></audio>";
+    }
+    if (it.contentType === "gallery" && fd.images && fd.images.length) {
+      return "<div class=\"article-gallery\">" + fd.images.map(function (u) {
+        return "<img src=\"" + esc(u) + "\" alt=\"\" loading=\"lazy\">";
+      }).join("") + "</div>";
+    }
+    if (it.contentType === "infographic" && fd.imageUrl) {
+      return "<img class=\"article-infographic\" src=\"" + esc(fd.imageUrl) + "\" alt=\"\">";
+    }
+    return "";
+  }
   var slug = decodeURIComponent(location.pathname.replace(/^\/tin\//, ""));
   var box = document.getElementById("article");
   var rel = document.getElementById("related");
@@ -51,7 +72,8 @@
         "<h1>" + esc(it.title) + "</h1>" +
         (it.sapo ? "<p class=\"article-sapo\">" + esc(it.sapo) + "</p>" : "") +
         (it.cover ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
-        "<div class=\"article-body\">" + sanitize(it.body) + "</div>" + tags;
+        mediaHtml(it) +
+        "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + sanitize(it.body) + "</div>" + tags;
       rel.innerHTML = (it.related && it.related.length)
         ? it.related.map(card).join("")
         : "<p>Chưa có bài liên quan.</p>";
