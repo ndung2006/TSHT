@@ -15,6 +15,12 @@ export interface FormatData {
   audioUrl?: string;
   imageUrl?: string;
   images?: string[];
+  // Index signature de Prisma chap nhan khi ghi JSONB: truong JSONB cua
+  // Prisma doi kieu InputJsonObject (index signature tuy chon), nen
+  // interface thieu index signature se loi TS2322 o build. Index phai
+  // gom undefined vi cac prop tuy chon (videoUrl?... ) duoi strict se
+  // co kieu string | undefined (thieu undefined se loi TS2411).
+  [key: string]: string | string[] | undefined;
 }
 
 export const MAX_GALLERY_IMAGES = 30;
