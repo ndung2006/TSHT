@@ -55,6 +55,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/danh-muc', label: 'Danh mục', icon: 'pi-folder', workspace: 'online', module: 'categories' },
   { to: '/banner', label: 'Banner', icon: 'pi-flag', workspace: 'online', module: 'banners' },
   { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images', workspace: 'online', module: 'layout' },
+  { to: '/phan-phoi', label: 'Phân phối', icon: 'pi-share-alt', workspace: 'online', module: 'distribution' },
   // (4) Quan tri chung
   { to: '/nguoi-dung', label: 'Người dùng', icon: 'pi-users', workspace: 'admin', module: 'users' },
   { to: '/thong-bao', label: 'Thông báo', icon: 'pi-bell', workspace: 'admin', module: 'notifications' },

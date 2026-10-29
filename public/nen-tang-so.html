@@ -48,5 +48,46 @@
     </section>
   </div>
   <p class="note">Lịch phát sóng vẫn xem tại <a href="/lich-phat-song">trang Lịch phát sóng</a> và trên trang <a href="/truyen-hinh">Truyền hình</a>.</p>
+  <section id="dist-list" style="display:none;margin-top:1.5rem">
+    <h2 style="font-size:1.15rem">Nội dung đã phân phối</h2>
+    <div id="dist-items" class="platform-grid"></div>
+  </section>
 </main>
+<script>
+(function () {
+  var labels = { app: 'App', facebook: 'Facebook', tiktok: 'TikTok' };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  fetch('/api/v2/distribution?limit=20').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    var items = (d && d.items) || [];
+    if (!items.length) return;
+    var wrap = document.getElementById('dist-list');
+    var box = document.getElementById('dist-items');
+    box.innerHTML = items.map(function (it) {
+      var media = '';
+      if (it.media) {
+        media = it.mediaType === 'video'
+          ? '<p><a href="' + esc(it.media) + '" target="_blank" rel="noopener">Xem video</a></p>'
+          : '<img src="' + esc(it.media) + '" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px">';
+      }
+      var badges = (it.targets || []).map(function (t) {
+        var name = labels[t.platform] || t.platform;
+        if (t.status === 'posted' && t.url && t.url !== '/nen-tang-so') {
+          return '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(name) + ' ↗</a>';
+        }
+        if (t.status === 'posted') return esc(name) + ' ✓';
+        if (t.status === 'ready') return esc(name) + ' (sắp lên)';
+        return esc(name);
+      }).join(' · ');
+      return '<article class="platform-card">' + media + '<h2>' + esc(it.title) + '</h2>' +
+        (it.caption ? '<p>' + esc(it.caption) + '</p>' : '') +
+        '<p class="status">' + badges + '</p></article>';
+    }).join('');
+    wrap.style.display = 'block';
+  }).catch(function () { /* hub van hien 3 the nen tang khi API loi */ });
+})();
+</script>
 </body></html>

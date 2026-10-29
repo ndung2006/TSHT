@@ -154,6 +154,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/news" ||
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/news-categories" ||
+      u.pathname === "/api/v2/distribution" ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
     // POST /api/v1/stream-token la public co chu dich: no chi tra link master
@@ -539,6 +540,27 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/news-categories`);
       if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
       return json(res, 200, { data: ext.data || [] });
+    }
+
+    // ---- Doc cong khai phan phoi da nen tang (giai doan 2) ----
+    // GET /api/v2/distribution — chi bai published tu backend (backend tu
+    // loc; proxy chi ghep origin backend cho media tuong doi nhu tin bai).
+    if (req.method === "GET" && u.pathname === "/api/v2/distribution") {
+      const bq = new URLSearchParams();
+      for (const k of ["page", "limit", "platform"]) {
+        const v = u.searchParams.get(k);
+        if (v) bq.set(k, v);
+      }
+      const ext = await fetchVtcanyEpaperJson(`/distribution?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach phan phoi");
+      const d = ext.data || {};
+      const items = (d.data || []).map((it) => ({
+        publicId: it.publicId, title: it.title, caption: it.caption || "",
+        media: it.mediaUrl ? resolveVtcanyImageUrl(it.mediaUrl) : "",
+        mediaType: it.mediaType || "image", publishedAt: it.publishedAt,
+        targets: (it.targets || []).map((t) => ({ platform: t.platform, status: t.status, url: t.url || null })),
+      }));
+      return json(res, 200, { items, total: d.total || 0, page: d.page || 1, limit: d.limit || 20 });
     }
 
     // ---- Health check (Coolify/Docker): khong can DB, khong can login.

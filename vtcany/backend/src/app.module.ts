@@ -15,6 +15,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { EpaperModule } from './modules/epaper/epaper.module';
 import { NewsModule } from './modules/news/news.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
+import { DistributionModule } from './modules/distribution/distribution.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -35,6 +36,7 @@ import { HealthController } from './health.controller';
     EpaperModule,
     NewsModule,
     DepartmentsModule,
+    DistributionModule,
   ],
   controllers: [HealthController],
 })

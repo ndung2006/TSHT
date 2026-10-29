@@ -11,7 +11,7 @@ const labels = (groups) => groups.map((g) => g.label);
 test('toan quyen (*) thay du 4 workspace va toan bo menu', () => {
   const groups = visibleMenu(['*']);
   assert.deepEqual(labels(groups), WORKSPACES.map((w) => w.label));
-  assert.equal(routes(groups).length, 27);
+  assert.equal(routes(groups).length, 28);
 });
 
 test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong gate quyen', () => {
@@ -47,4 +47,10 @@ test('hasModulePermission: module null luon hien; sai module thi an', () => {
   assert.equal(hasModulePermission(['articles:view'], 'articles'), true);
   assert.equal(hasModulePermission(['articles:view'], 'epaper'), false);
   assert.equal(hasModulePermission(['*'], 'epaper'), true);
+});
+
+test('chi co quyen distribution thi thay Phan phoi o workspace Bao dien tu, khong thay Tin bai', () => {
+  const groups = visibleMenu(['distribution:view']);
+  const online = groups.find((g) => g.label === 'Xuất bản Báo điện tử');
+  assert.deepEqual(routes([online]), ['/phan-phoi']);
 });

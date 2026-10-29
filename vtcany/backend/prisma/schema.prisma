@@ -637,3 +637,46 @@ model EpaperIssueRevision {
   @@unique([issueId, revisionNo])
   @@map("epaper_issue_revisions")
 }
+
+// Giai doan 2 nen tang so: bai phan phoi da nen tang (app/Facebook/TikTok).
+// Y nghia cac trang thai dich:
+// - app: tu dong "posted" khi bai duoc xuat ban (bai hien tren /nen-tang-so);
+//   go xuat ban thi tro ve draft. Khong co buoc tay.
+// - facebook: chi chuan bi o giai doan nay (ready khi bai xuat ban); chua
+//   goi Graph API vi chua co token ket noi — khong bao gio tu gan "posted"
+//   neu khong co link that do nguoi dung nhap.
+// - tiktok: dang tay qua TikTok Studio: nguoi dung dang xong roi dan link
+//   ve, CMS ghi nhan "posted" + url + postedAt (khong goi API TikTok).
+model DistributionPost {
+  id          String               @id @default(uuid())
+  publicId    String               @unique @map("public_id")
+  title       String
+  caption     String?
+  mediaUrl    String?              @map("media_url")
+  mediaType   String               @default("image") @map("media_type")
+  status      String               @default("draft") @map("status")
+  publishedAt DateTime?            @map("published_at")
+  createdBy   String?              @map("created_by")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  targets     DistributionTarget[]
+
+  @@index([status, publishedAt])
+  @@map("distribution_posts")
+}
+
+model DistributionTarget {
+  id        String           @id @default(uuid())
+  postId    String           @map("post_id")
+  post      DistributionPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform  String
+  status    String           @default("draft")
+  url       String?
+  postedAt  DateTime?        @map("posted_at")
+  note      String?
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@unique([postId, platform])
+  @@map("distribution_targets")
+}
