@@ -11,7 +11,7 @@ const labels = (groups) => groups.map((g) => g.label);
 test('toan quyen (*) thay du 4 workspace va toan bo menu', () => {
   const groups = visibleMenu(['*']);
   assert.deepEqual(labels(groups), WORKSPACES.map((w) => w.label));
-  assert.equal(routes(groups).length, 28);
+  assert.equal(routes(groups).length, 29);
 });
 
 test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong gate quyen', () => {

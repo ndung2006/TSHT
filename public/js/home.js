@@ -183,8 +183,23 @@
       })
       .catch(function () { el.innerHTML = "<p>Chưa tải được tin bài.</p>"; });
   }
-  loadNewsBlock("/api/v2/news?featured=1&limit=4", "news-featured", "Chưa có tin nổi bật.");
-  loadNewsBlock("/api/v2/news?limit=8", "news-latest", "Chưa có tin bài.");
+  // --- Vung hien thi trang chu — Goi 1A Zone/Widget Manager ---
+  // Khoi tin doc tu zone (bai ghim + lap day tu nhien den du slot).
+  // Zone chua co (backend truoc deploy 1A) thi roi ve URL tin cu de
+  // trang chu khong trong trong cua so deploy.
+  function loadZoneBlock(zoneKey, elId, fallbackUrl, emptyText) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    fetch("/api/v2/zones/" + zoneKey)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [];
+        el.innerHTML = items.length ? items.map(newsCard).join("") : "<p>" + emptyText + "</p>";
+      })
+      .catch(function () { loadNewsBlock(fallbackUrl, elId, emptyText); });
+  }
+  loadZoneBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin nổi bật.");
+  loadZoneBlock("tin-moi-nhat", "news-latest", "/api/v2/news?limit=8", "Chưa có tin bài.");
   // Catnav that: thay link placeholder bang chuyen muc that (cap 1);
   // neu khong tai duoc thi giu nguyen link cu + ghi chu nhu cu.
   (function loadCategories() {

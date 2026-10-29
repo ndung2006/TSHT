@@ -587,6 +587,7 @@ model NewsArticle {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   approvals    NewsArticleApproval[]
+  zoneItems    ZoneItem[]
 
   @@index([status, publishAt])
   @@index([categoryId, publishAt])
@@ -679,4 +680,39 @@ model DistributionTarget {
 
   @@unique([postId, platform])
   @@map("distribution_targets")
+}
+
+// Vung hien thi trang chu — Goi 1A Zone/Widget Manager. Zone la vi tri
+// co dinh theo layout that trang chu (seed trong migration, khong tao
+// zone tu do o 1A); ZoneItem la bai ghim vao vung, toi da mot vung cho
+// moi bai (UNIQUE articleId) de bai da ghim khong hien lai trong danh
+// sach chon cua vung khac. Xoa bai -> item tu mat (Cascade). Zone
+// khong doi trang thai hay buoc duyet cua bai.
+model Zone {
+  id          String     @id @default(uuid())
+  key         String     @unique // tieu-diem | tin-moi-nhat
+  name        String
+  description String     @default("")
+  slotLimit   Int        @map("slot_limit") // so slot theo layout that
+  sortOrder   Int        @default(0) @map("sort_order")
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  items       ZoneItem[]
+
+  @@map("zones")
+}
+
+model ZoneItem {
+  id        String      @id @default(uuid())
+  zoneId    String      @map("zone_id")
+  zone      Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  articleId String      @map("article_id")
+  article   NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  sortOrder Int         @default(0) @map("sort_order")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@unique([articleId])
+  @@index([zoneId, sortOrder])
+  @@map("zone_items")
 }

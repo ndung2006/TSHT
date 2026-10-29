@@ -154,6 +154,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/news" ||
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/news-categories" ||
+      /^\/api\/v2\/zones\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/distribution" ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
@@ -540,6 +541,19 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/news-categories`);
       if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
       return json(res, 200, { data: ext.data || [] });
+    }
+
+    // ---- Vung hien thi trang chu — Goi 1A Zone/Widget Manager ----
+    // GET /api/v2/zones/:key — khoi cong khai cua mot vung (bai ghim +
+    // lap day tu nhien den du slot). Chi bai da xuat ban, anh bia ghep
+    // origin backend nhu tin bai. Backend chua co zone (truoc deploy)
+    // thi tra 502 de home.js roi ve URL tin cu.
+    const zoneMatch = u.pathname.match(/^\/api\/v2\/zones\/([a-z0-9-]+)$/);
+    if (req.method === "GET" && zoneMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/zones/${zoneMatch[1]}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong lay duoc vung hien thi");
+      const d = ext.data || {};
+      return json(res, 200, { key: d.key, name: d.name, slotLimit: d.slotLimit, items: (d.items || []).map(newsListItem) });
     }
 
     // ---- Doc cong khai phan phoi da nen tang (giai doan 2) ----
