@@ -48,6 +48,8 @@
               severity="success" @click="setPublished(data, true)" />
             <Button v-if="can('epaper:publish') && data.status === 'published'" label="Gỡ xuống" size="small" text
               severity="warn" @click="setPublished(data, false)" />
+            <Button v-if="can('articles:create') && data.status === 'published'" label="Tạo bản nháp Báo điện tử" size="small" text
+              severity="info" @click="convertIssueToDraft(data)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Tải PDF" size="small" text
               @click="downloadPdf(data)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Xem duyệt" size="small" text
@@ -377,6 +379,21 @@ async function setPublished(it: any, publish: boolean) {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Thao tác thất bại', life: 3000 });
+  }
+}
+
+// Goi 1C: chuyen doi cheo — tu so bao da xuat ban tao ban nhap Bao dien tu
+// (nhap o trang thai Nhap, di quy trinh tin bai binh thuong; noi dung tom
+// tat + link ve so bao goc + anh bia neu co). Nut chi hien khi so da xuat
+// ban va tai khoan co articles:create; server chan lai neu so chua xuat ban
+// (fail-closed). Khong doi trang thai hay quy trinh cua so bao goc.
+async function convertIssueToDraft(it: any) {
+  try {
+    const r = await api.post<any>('/admin/crossmedia/from-epaper', { publicId: it.publicId });
+    toast.add({ severity: 'success', summary: 'Đã tạo bản nháp', detail: `“${r?.title || it.title}” đã tạo trong Tin bài, trạng thái Nháp.`, life: 4000 });
+    navigateTo('/tin-bai');
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
   }
 }
 

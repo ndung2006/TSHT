@@ -46,6 +46,9 @@ export interface ArticleInput {
   isInfographic?: boolean;
   allowComments?: boolean;
   localNews?: string | null;
+  // Goi 1C: nguon goc ban nhap chuyen doi cheo { type, id, title, ... }
+  // (xem crossmedia-map.ts). Chi admin thay, khong hien cong khai.
+  sourceRef?: unknown;
 }
 
 @Injectable()
@@ -99,6 +102,8 @@ export class NewsService {
       isFeatured: row.isFeatured,
       contentType: row.contentType ?? 'text',
       formatData: row.formatData ?? null,
+      // Goi 1C: nguon goc chuyen doi cheo (chi admin thay, khong hien cong khai).
+      sourceRef: row.sourceRef ?? null,
       isSpotlight: row.isSpotlight ?? false,
       isPhoto: row.isPhoto ?? false,
       isInfographic: row.isInfographic ?? false,
@@ -286,6 +291,8 @@ export class NewsService {
         isFeatured: !!input.isFeatured,
         contentType: normalizeContentType(input.contentType),
         formatData: normalizeFormatData(input.formatData) ?? undefined,
+        // Goi 1C: luu nguon goc chuyen doi cheo (neu co).
+        sourceRef: (input.sourceRef as any) ?? undefined,
         isSpotlight: !!input.isSpotlight,
         isPhoto: !!input.isPhoto,
         isInfographic: !!input.isInfographic,
