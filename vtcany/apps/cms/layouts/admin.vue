@@ -124,6 +124,8 @@ const titles: Record<string, string> = {
   '/bai-viet': 'Quản lý Bài viết',
   '/bao-in': 'Báo in',
   '/tin-bai': 'Tin bài',
+  '/su-kien-toa-soan': 'Sự kiện tòa soạn',
+  '/tuong-thuat': 'Tường thuật trực tiếp',
   '/su-kien': 'Quản lý Sự kiện',
   '/danh-muc': 'Quản lý Danh mục',
   '/truyen-hinh': 'Truyền hình & EPG',
