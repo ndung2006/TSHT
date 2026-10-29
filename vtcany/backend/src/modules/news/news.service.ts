@@ -318,6 +318,18 @@ export class NewsService {
         input.slug?.trim() ? input.slug : input.title ?? row.title,
         row.id,
       );
+      // Goi 1D: doi slug cua bai tung xuat ban -> ghi lich su de chuyen 301.
+      // Chi ghi khi bai tung cong khai (published/unpublished); bai nhap/
+      // cho duyet doi slug khong ghi vi slug cu chua tung xuat hien cong khai.
+      // Upsert: slug cu duoc tai su dung boi bai khac roi doi tiep thi ban ghi
+      // moi nhat thang (slug song luon duoc getPublic uu tien truoc redirect).
+      if (data.slug !== row.slug && (row.status === 'published' || row.status === 'unpublished')) {
+        await this.prisma.newsSlugRedirect.upsert({
+          where: { oldSlug: row.slug },
+          update: { articleId: row.id },
+          create: { oldSlug: row.slug, articleId: row.id },
+        });
+      }
     }
     if (input.sapo !== undefined) data.sapo = input.sapo;
     if (input.body !== undefined) data.body = input.body;
@@ -576,6 +588,21 @@ export class NewsService {
         })
       : [];
     return { ...this.toPublicItem(row), related: related.map((r) => this.toPublicItem(r)) };
+  }
+
+  /** Goi 1D: giai slug cu -> slug hien tai cua bai DANG xuat ban (cho 301).
+   * Chi tra ve khi bai con cong khai (published + publishAt <= now); bai
+   * da go xuong/xoa thi redirect het hieu luc (404) chu khong lo bai an.
+   * Goi tu route cong khai /news/slug-redirects/:slug; slug song luon
+   * duoc getPublic xu ly truoc nen ham nay khong bao gio chen ngang slug that. */
+  async resolveSlugRedirect(oldSlug: string) {
+    const redir = await this.prisma.newsSlugRedirect.findUnique({ where: { oldSlug } });
+    if (!redir) throw new NotFoundException('khong tim thay chuyen huong');
+    const row = await this.prisma.newsArticle.findUnique({ where: { id: redir.articleId } });
+    if (!row || row.status !== 'published' || !row.publishAt || row.publishAt > new Date()) {
+      throw new NotFoundException('khong tim thay chuyen huong');
+    }
+    return { slug: row.slug };
   }
 
   /** Cay chuyen muc hien (cha + con), sap xep theo sortOrder. */

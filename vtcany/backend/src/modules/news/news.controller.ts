@@ -238,6 +238,13 @@ export class NewsPublicController {
   async get(@Param('slug') slug: string) {
     return this.news.getPublic(slug);
   }
+
+  // Goi 1D: giai slug cu -> slug hien tai (cho TSHT chuyen 301). Hai doan
+  // nen khong dung route ':slug' (1 doan); chi tra ve khi bai dang xuat ban.
+  @Get('slug-redirects/:slug')
+  async slugRedirect(@Param('slug') slug: string) {
+    return this.news.resolveSlugRedirect(slug);
+  }
 }
 
 @Controller('news-categories')

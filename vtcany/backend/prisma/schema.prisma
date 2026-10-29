@@ -594,10 +594,29 @@ model NewsArticle {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   approvals    NewsArticleApproval[]
   zoneItems    ZoneItem[]
+  slugRedirects NewsSlugRedirect[]
 
   @@index([status, publishAt])
   @@index([categoryId, publishAt])
   @@map("news_articles")
+}
+
+// Goi 1D: lich su slug cu cua bai viet (chuyen huong 301 khi doi slug).
+// Ghi khi patch() doi slug cua bai tung xuat ban (published/unpublished);
+// bai nhap/cho duyet doi slug khong ghi (slug cu chua tung cong khai).
+// Tra cuu chi tra ve khi bai DANG xuat ban (xem resolveSlugRedirect),
+// nen go bai/xoa bai tu lam redirect het hieu luc; xoa bai cascade xoa
+// ca redirect (onDelete: Cascade). Slug hien tai luon thang truoc
+// redirect (getPublic tim slug song truoc), nen slug cu duoc tai su dung
+// boi bai khac khong bi redirect cu chen ngang.
+model NewsSlugRedirect {
+  id        String      @id @default(uuid())
+  oldSlug   String      @unique @map("old_slug")
+  articleId String      @map("article_id")
+  article   NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@map("news_slug_redirects")
 }
 
 model NewsArticleApproval {

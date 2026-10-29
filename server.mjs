@@ -17,6 +17,7 @@ import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, v
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
+import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
@@ -587,6 +588,46 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { items, total: d.total || 0, page: d.page || 1, limit: d.limit || 20 });
     }
 
+    // ---- SEO Goi 1D: robots.txt + sitemap.xml dong ----
+    // Sitemap tu cap nhat theo du lieu cong khai: bai da xuat ban (phan
+    // trang limit 50 vi backend chan tran), chuyen muc hien, so bao da
+    // xuat ban (phan trang limit 100), + trang chu. Bai go xuong mat khoi
+    // listPublic nen tu roi khoi sitemap; so bao in khong co sitemap rieng
+    // (theo tai lieu 1D: khong dung sitemap cua bao in) nen chi lay URL
+    // doc so hien co, khong doi cau truc URL nao. Upstream loi -> 502
+    // (khong tra sitemap thieu, de crawler khong hieu lam bai da mat).
+    // Cache no-cache de sitemap luon moi sau xuat ban/go bai.
+    if (req.method === "GET" && u.pathname === "/robots.txt") {
+      const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+      return send(res, 200, buildRobotsTxt(origin), "text/plain", { "Cache-Control": "no-cache, must-revalidate" });
+    }
+    if (req.method === "GET" && u.pathname === "/sitemap.xml") {
+      const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+      const urls = [{ loc: origin + "/" }];
+      let page = 1;
+      for (;;) {
+        const ext = await fetchVtcanyEpaperJson(`/news?page=${page}&limit=50`);
+        if (!ext.ok) return err(res, 502, "khong lay duoc sitemap");
+        const items = ext.data.data || [];
+        for (const it of items) urls.push({ loc: `${origin}/tin/${it.slug}`, lastmod: it.publishAt || null });
+        if (items.length < 50 || page >= 200) break;
+        page++;
+      }
+      const cats = await fetchVtcanyEpaperJson(`/news-categories`);
+      if (!cats.ok) return err(res, 502, "khong lay duoc sitemap");
+      for (const s of flattenCategorySlugs(cats.data || [])) urls.push({ loc: `${origin}/chuyen-muc/${s}` });
+      let epage = 1;
+      for (;;) {
+        const ext = await fetchVtcanyEpaperJson(`/epaper?page=${epage}&limit=100`);
+        if (!ext.ok) return err(res, 502, "khong lay duoc sitemap");
+        const items = ext.data.data || [];
+        for (const it of items) urls.push({ loc: `${origin}/bao-in/${it.slug}`, lastmod: it.publishDate || null });
+        if (items.length < 100 || epage >= 20) break;
+        epage++;
+      }
+      return send(res, 200, buildSitemapXml(urls), "application/xml", { "Cache-Control": "no-cache, must-revalidate" });
+    }
+
     // ---- Health check (Coolify/Docker): khong can DB, khong can login.
     if (u.pathname === "/health") return json(res, 200, { ok: true, service: "epaper-phase1" });
 
@@ -603,7 +644,45 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
-    if (/^\/tin\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "article.html"));
+    // Goi 1D: trang bai viet kem meta SEO phia server (title, description,
+    // canonical, Open Graph) de crawler doc duoc ngay tu HTML dau tien,
+    // khong doi JS chay moi set title nhu truoc. Fail-open: backend loi
+    // thi tra article.html tran nhu cu (trang van chay bang client fetch).
+    // Slug cu (404) -> tra slug-redirects -> 301 ve slug hien tai; slug la
+    // hoan toan khong ton tai thi van tra article.html tran (hanh vi cu).
+    if (/^\/tin\/[a-z0-9-]+$/.test(u.pathname)) {
+      const slug = u.pathname.slice(5);
+      const ext = await fetchVtcanyEpaperJson(`/news/${slug}`);
+      if (ext.ok) {
+        try {
+          const html = await fs.promises.readFile(path.join(PUBLIC, "article.html"), "utf8");
+          const it = ext.data;
+          const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+          const canonicalUrl = `${origin}/tin/${it.slug}`;
+          const meta = buildArticleMeta({
+            title: it.title, sapo: it.sapo,
+            coverUrl: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+            categoryName: it.category ? it.category.name : "",
+            publishAt: it.publishAt || "",
+            canonicalUrl,
+          });
+          const out = html.replace(
+            "<title>Tin bài — TSHT</title>",
+            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+          );
+          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+        } catch {
+          return serveFile(res, path.join(PUBLIC, "article.html"));
+        }
+      }
+      if (ext.status === 404) {
+        const redir = await fetchVtcanyEpaperJson(`/news/slug-redirects/${slug}`);
+        if (redir.ok && redir.data && redir.data.slug && redir.data.slug !== slug) {
+          return send(res, 301, "", "text/plain", { Location: `/tin/${redir.data.slug}` });
+        }
+      }
+      return serveFile(res, path.join(PUBLIC, "article.html"));
+    }
     if (/^\/chuyen-muc\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "category.html"));
     // A3: never serve sample assets or storage directly; content only via /api routes above.
     if (u.pathname.startsWith("/assets/") || u.pathname.startsWith("/storage/")) return err(res, 404, "not found");
