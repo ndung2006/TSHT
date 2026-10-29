@@ -4,14 +4,17 @@
 <title>Nền tảng số</title>
 <link rel="stylesheet" href="/css/home.css?v=20261027-5">
 <style>
-  .platforms { max-width: 960px; margin: 0 auto; padding: 1rem; }
+  .platforms { max-width: 1180px; margin: 0 auto; padding: 1rem; }
   .platforms h1 { font-size: 1.4rem; margin: 0.5rem 0; }
   .platforms .lead { color: #444; }
-  .platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-top: 1rem; }
-  .platform-card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
-  .platform-card h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
-  .platform-card p { margin: 0.3rem 0; color: #444; }
-  .platform-card .status { font-weight: 600; }
+  .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .sv-card { display: block; text-decoration: none; color: inherit; }
+  .sv-thumb { position: relative; aspect-ratio: 2/3; overflow: hidden; border-radius: 8px; background: #111; }
+  .sv-thumb img, .sv-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .sv-badge { position: absolute; left: 8px; bottom: 8px; background: #c00; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .sv-card h3 { font-size: 15px; margin: 8px 0 0; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .sv-empty { color: #555; margin-top: 1rem; }
   .platforms .note { margin-top: 1.5rem; color: #555; }
 </style></head>
 <body id="top">
@@ -29,65 +32,59 @@
 </div>
 <main class="platforms">
   <h1>Nền tảng số</h1>
-  <p class="lead">Nơi tập hợp nội dung của đài trên các nền tảng số: cổng thông tin, ứng dụng và mạng xã hội. Nội dung soạn trong CMS sẽ được phân phối tới từng nền tảng và liệt kê tại đây cùng trạng thái từng nơi.</p>
-  <div class="platform-grid">
-    <section class="platform-card">
-      <h2>App &amp; cổng thông tin</h2>
-      <p>Nội dung đăng trên cổng này (tin bài, báo in, truyền hình, phát thanh) chính là nguồn cấp cho ứng dụng của đài qua cùng hệ API.</p>
-      <p class="status">Đang hoạt động</p>
-    </section>
-    <section class="platform-card">
-      <h2>Facebook</h2>
-      <p>Bài đăng lên Fanpage của đài, soạn và duyệt trong CMS trước khi xuất bản.</p>
-      <p class="status">Đang kết nối tài khoản</p>
-    </section>
-    <section class="platform-card">
-      <h2>TikTok</h2>
-      <p>Video ngắn của đài, soạn và duyệt trong CMS trước khi xuất bản.</p>
-      <p class="status">Đang chuẩn bị kết nối</p>
-    </section>
-  </div>
+  <p class="lead">Video ngắn của đài: nội dung của chính cổng này hiển thị trước, sau đó là các video đã đưa lên Facebook, TikTok. Kết nối thật với Facebook/TikTok làm sau; trước mắt mỗi thẻ ghi rõ video đang ở nền tảng nào.</p>
+  <div id="sv-grid" class="sv-grid"></div>
+  <p id="sv-empty" class="sv-empty" style="display:none">Chưa có video ngắn nào được phân phối.</p>
   <p class="note">Lịch phát sóng vẫn xem tại <a href="/lich-phat-song">trang Lịch phát sóng</a> và trên trang <a href="/truyen-hinh">Truyền hình</a>.</p>
-  <section id="dist-list" style="display:none;margin-top:1.5rem">
-    <h2 style="font-size:1.15rem">Nội dung đã phân phối</h2>
-    <div id="dist-items" class="platform-grid"></div>
-  </section>
 </main>
 <script>
 (function () {
-  var labels = { app: 'App', facebook: 'Facebook', tiktok: 'TikTok' };
+  var labels = { tiktok: 'TikTok', facebook: 'Facebook' };
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  fetch('/api/v2/distribution?limit=20').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+  function postedExternal(it) {
+    var ts = it.targets || [];
+    for (var i = 0; i < ts.length; i++) {
+      var t = ts[i];
+      if (t.status === 'posted' && t.url && t.url !== '/nen-tang-so' && (t.platform === 'tiktok' || t.platform === 'facebook')) return t;
+    }
+    return null;
+  }
+  function appPosted(it) {
+    return (it.targets || []).some(function (t) { return t.platform === 'app' && t.status === 'posted'; });
+  }
+  fetch('/api/v2/distribution?limit=50').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
     var items = (d && d.items) || [];
-    if (!items.length) return;
-    var wrap = document.getElementById('dist-list');
-    var box = document.getElementById('dist-items');
-    box.innerHTML = items.map(function (it) {
-      var media = '';
+    var grid = document.getElementById('sv-grid');
+    if (!items.length) {
+      document.getElementById('sv-empty').style.display = 'block';
+      return;
+    }
+    items.sort(function (a, b) {
+      var ap = appPosted(a) ? 0 : 1, bp = appPosted(b) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return String(b.publishedAt || '').localeCompare(String(a.publishedAt || ''));
+    });
+    grid.innerHTML = items.map(function (it) {
+      var ext = postedExternal(it);
+      var link = ext ? ext.url : (it.media || '#');
+      var badge = ext ? (labels[ext.platform] || ext.platform) : 'TSHT';
+      var blank = ext ? ' target="_blank" rel="noopener"' : '';
+      var thumb = '';
       if (it.media) {
-        media = it.mediaType === 'video'
-          ? '<p><a href="' + esc(it.media) + '" target="_blank" rel="noopener">Xem video</a></p>'
-          : '<img src="' + esc(it.media) + '" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px">';
+        thumb = it.mediaType === 'video'
+          ? '<video src="' + esc(it.media) + '" muted playsinline preload="metadata"></video><span class="sv-play">▶</span>'
+          : '<img src="' + esc(it.media) + '" alt="">';
       }
-      var badges = (it.targets || []).map(function (t) {
-        var name = labels[t.platform] || t.platform;
-        if (t.status === 'posted' && t.url && t.url !== '/nen-tang-so') {
-          return '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(name) + ' ↗</a>';
-        }
-        if (t.status === 'posted') return esc(name) + ' ✓';
-        if (t.status === 'ready') return esc(name) + ' (sắp lên)';
-        return esc(name);
-      }).join(' · ');
-      return '<article class="platform-card">' + media + '<h2>' + esc(it.title) + '</h2>' +
-        (it.caption ? '<p>' + esc(it.caption) + '</p>' : '') +
-        '<p class="status">' + badges + '</p></article>';
+      return '<a class="sv-card" href="' + esc(link) + '"' + blank + '><span class="sv-thumb">' + thumb +
+        '<span class="sv-badge">' + esc(badge) + '</span></span><h3>' + esc(it.title) + '</h3></a>';
     }).join('');
-    wrap.style.display = 'block';
-  }).catch(function () { /* hub van hien 3 the nen tang khi API loi */ });
+  }).catch(function () {
+    document.getElementById('sv-empty').style.display = 'block';
+  });
 })();
 </script>
 </body></html>
