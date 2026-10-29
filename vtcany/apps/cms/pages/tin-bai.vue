@@ -88,12 +88,60 @@
             placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label class="field-label">Định dạng nội dung (Dot 1a: mọi loại dùng chung một form; form riêng theo loại để Dot 2)</label>
+          <div><label class="field-label">Định dạng nội dung (mỗi loại có trường nhập riêng bên dưới, 1B)</label>
             <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
           </div>
           <div><label class="field-label">Nhãn tin địa phương (chọn một cách duy nhất: trường này)</label>
             <InputText v-model="form.localNews" class="w-full" placeholder="VD: Tuyên Quang" />
           </div>
+        </div>
+        <!-- Truong rieng theo dinh dang (Goi 1B). Media luu vao formatData
+             (JSONB), khong nhung base64; trang cong khai chi dung media cua
+             loai hien tai. Video trong thu vien la HLS can ky nen 1B chua
+             chon truc tiep duoc — video dung URL file truc tiep. -->
+        <div v-if="form.contentType === 'video'" class="rounded-lg border border-neutral-800 p-3 flex flex-col gap-2">
+          <p class="text-sm font-medium">Video chính (định dạng Video)</p>
+          <label class="field-label">URL file video trực tiếp (MP4)</label>
+          <InputText v-model="formatForm.videoUrl" class="w-full" placeholder="VD: /videos/... hoặc https://..." />
+          <p class="text-xs text-neutral-500">Video này hiển thị bằng trình phát ngoài trang công khai; nội dung bên dưới vẫn dùng làm mô tả. Ảnh bìa dùng làm poster.</p>
+        </div>
+        <div v-if="form.contentType === 'audio'" class="rounded-lg border border-neutral-800 p-3 flex flex-col gap-2">
+          <p class="text-sm font-medium">Audio chính (định dạng Audio / Podcast)</p>
+          <div class="flex flex-wrap gap-2">
+            <Button label="Chọn audio từ thư viện" icon="pi pi-volume-up" size="small" severity="secondary" @click="openLibFor('audio')" />
+            <InputText v-model="formatForm.audioUrl" class="flex-1 min-w-52" placeholder="hoặc dán URL file audio..." />
+          </div>
+          <p class="text-xs text-neutral-500">Audio trong thư viện có URL file dùng được ngay. Audio này hiển thị bằng trình phát ngoài trang công khai.</p>
+        </div>
+        <div v-if="form.contentType === 'gallery'" class="rounded-lg border border-neutral-800 p-3 flex flex-col gap-2">
+          <p class="text-sm font-medium">Chùm ảnh (định dạng Chùm ảnh)</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button label="Thêm ảnh từ thư viện" icon="pi pi-images" size="small" severity="secondary" @click="openLibFor('gallery')" />
+            <span class="text-xs text-neutral-500">Ảnh hiển thị dạng lưới ngoài trang công khai. Ảnh chèn trong nội dung vẫn giữ nguyên, không thay thế danh sách này.</span>
+          </div>
+          <div v-if="formatForm.images.length" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div v-for="(im, i) in formatForm.images" :key="im + '-' + i" class="rounded-lg overflow-hidden bg-neutral-800">
+              <img :src="resolveMedia(im)" class="w-full aspect-square object-cover" :alt="`Ảnh ${i + 1}`" loading="lazy" />
+              <div class="flex gap-1 p-1">
+                <Button icon="pi pi-chevron-up" size="small" text :disabled="i === 0" @click="moveGallery(i, -1)" />
+                <Button icon="pi pi-chevron-down" size="small" text :disabled="i === formatForm.images.length - 1" @click="moveGallery(i, 1)" />
+                <Button icon="pi pi-times" size="small" text severity="danger" @click="removeGallery(i)" />
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-xs text-neutral-400">Chưa có ảnh nào trong chùm ảnh.</p>
+        </div>
+        <div v-if="form.contentType === 'infographic'" class="rounded-lg border border-neutral-800 p-3 flex flex-col gap-2">
+          <p class="text-sm font-medium">Ảnh infographic (định dạng Infographic)</p>
+          <div class="flex flex-wrap gap-2">
+            <Button label="Chọn ảnh từ thư viện" icon="pi pi-images" size="small" severity="secondary" @click="openLibFor('image')" />
+            <InputText v-model="formatForm.imageUrl" class="flex-1 min-w-52" placeholder="hoặc dán URL ảnh..." />
+          </div>
+          <img v-if="formatForm.imageUrl" :src="resolveMedia(formatForm.imageUrl)" class="w-full max-h-96 object-contain rounded-lg bg-neutral-900" alt="Infographic" />
+          <p class="text-xs text-neutral-500">Ảnh này hiển thị khổ lớn ngoài trang công khai; ảnh bìa vẫn dùng làm thumbnail.</p>
+        </div>
+        <div v-if="form.contentType === 'emagazine'" class="rounded-lg border border-neutral-800 p-3">
+          <p class="text-xs text-neutral-500">Emagazine / Longform dùng ảnh bìa làm hero và nội dung dài trong editor; trang công khai hiển thị kiểu longform. Không cần trường riêng.</p>
         </div>
         <div class="flex flex-wrap gap-4 pb-1">
           <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
@@ -130,14 +178,14 @@
       </template>
     </Dialog>
 
-    <!-- Chon anh tu thu vien media (Dot 1a) -->
-    <Dialog v-model:visible="libDlg" modal header="Chọn ảnh từ thư viện" class="w-full max-w-3xl">
+    <!-- Chon anh tu thu vien media (Dot 1a; Goi 1B dung chung cho media dinh dang) -->
+    <Dialog v-model:visible="libDlg" modal :header="libPickTitle" class="w-full max-w-3xl">
       <div class="flex gap-2 mb-3">
         <InputText v-model="libQ" placeholder="Tìm tên file..." class="flex-1" @keyup.enter="loadLib(1)" />
         <Button label="Tìm" size="small" @click="loadLib(1)" />
       </div>
       <div v-if="libLoading" class="text-sm text-neutral-400">Đang tải...</div>
-      <div v-else-if="!libItems.length" class="text-sm text-neutral-400">Chưa có ảnh nào trong thư viện.</div>
+      <div v-else-if="!libItems.length" class="text-sm text-neutral-400">Chưa có mục nào trong thư viện.</div>
       <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60dvh] overflow-y-auto pr-1">
         <button v-for="im in libItems" :key="im.id" type="button" class="text-left group" @click="pickLib(im)">
           <span class="block aspect-square rounded-lg overflow-hidden bg-neutral-800">
@@ -147,13 +195,14 @@
         </button>
       </div>
       <div class="flex items-center justify-between mt-3">
-        <span class="text-xs text-neutral-400">Trang {{ libMeta.page }} — tổng {{ libMeta.total }} ảnh</span>
+        <span class="text-xs text-neutral-400">Trang {{ libMeta.page }} — tổng {{ libMeta.total }} mục<span v-if="libPickMode === 'gallery'"> · Đã chọn {{ formatForm.images.length }} ảnh cho chùm ảnh</span></span>
         <span class="flex gap-2">
           <Button label="Trước" size="small" text :disabled="libMeta.page <= 1" @click="loadLib(libMeta.page - 1)" />
           <Button label="Sau" size="small" text :disabled="libMeta.page * libMeta.limit >= libMeta.total" @click="loadLib(libMeta.page + 1)" />
         </span>
       </div>
       <template #footer>
+        <Button v-if="libPickMode === 'gallery'" label="Xong" @click="libDlg = false" />
         <Button label="Đóng" text @click="libDlg = false" />
       </template>
     </Dialog>
@@ -266,6 +315,13 @@
           <h2 class="text-xl font-semibold leading-snug">{{ reviewItem.title }}</h2>
           <p v-if="reviewItem.sapo" class="text-sm text-neutral-300 leading-relaxed">{{ reviewItem.sapo }}</p>
           <img v-if="reviewItem.coverPath" :src="resolveMedia(reviewItem.coverPath)" :alt="reviewItem.title" class="w-full max-h-96 object-cover rounded-lg" />
+          <!-- Xem truoc media dinh dang (Goi 1B) -->
+          <video v-if="reviewItem.contentType === 'video' && reviewItem.formatData?.videoUrl" :src="resolveMedia(reviewItem.formatData.videoUrl)" controls preload="metadata" class="w-full rounded-lg" />
+          <audio v-if="reviewItem.contentType === 'audio' && reviewItem.formatData?.audioUrl" :src="resolveMedia(reviewItem.formatData.audioUrl)" controls class="w-full" />
+          <div v-if="reviewItem.contentType === 'gallery' && reviewItem.formatData?.images?.length" class="grid grid-cols-3 gap-2">
+            <img v-for="(im, i) in reviewItem.formatData.images" :key="i" :src="resolveMedia(im)" class="w-full aspect-square object-cover rounded-lg" :alt="`Ảnh ${i + 1}`" loading="lazy" />
+          </div>
+          <img v-if="reviewItem.contentType === 'infographic' && reviewItem.formatData?.imageUrl" :src="resolveMedia(reviewItem.formatData.imageUrl)" :alt="reviewItem.title" class="w-full rounded-lg" />
           <p class="text-xs text-neutral-400">
             {{ (reviewItem.authors || []).join(', ') || '—' }}
             <span v-if="reviewItem.publishAt"> · {{ fmtTime(reviewItem.publishAt) }}</span>
@@ -415,6 +471,47 @@ const authorsText = ref('');
 const tagsText = ref('');
 const publishAtText = ref('');
 
+// --- Media rieng theo dinh dang (Goi 1B) ---
+// Luu vao NewsArticle.formatData (JSONB, nullable) qua API. URL luu dang
+// tho tu thu vien (tuong doi /... hoac tuyet doi theo API tra), luc hien
+// thi resolve nhu anh bia. Khong nhung base64. Khi doi dinh dang, media
+// cua loai cu van giu trong state (khong xoa) — luc Luu gui cac key co
+// gia tri; trang cong khai chi dung media cua loai hien tai.
+const formatForm = ref<{ videoUrl: string; audioUrl: string; imageUrl: string; images: string[] }>({
+  videoUrl: '', audioUrl: '', imageUrl: '', images: [],
+});
+function resetFormatForm() {
+  formatForm.value = { videoUrl: '', audioUrl: '', imageUrl: '', images: [] };
+}
+function loadFormatForm(fd: any) {
+  const f = fd && typeof fd === 'object' ? fd : {};
+  formatForm.value = {
+    videoUrl: typeof f.videoUrl === 'string' ? f.videoUrl : '',
+    audioUrl: typeof f.audioUrl === 'string' ? f.audioUrl : '',
+    imageUrl: typeof f.imageUrl === 'string' ? f.imageUrl : '',
+    images: Array.isArray(f.images) ? f.images.filter((x: any) => typeof x === 'string' && x) : [],
+  };
+}
+function buildFormatData(): any {
+  const out: any = {};
+  if (formatForm.value.videoUrl.trim()) out.videoUrl = formatForm.value.videoUrl.trim();
+  if (formatForm.value.audioUrl.trim()) out.audioUrl = formatForm.value.audioUrl.trim();
+  if (formatForm.value.imageUrl.trim()) out.imageUrl = formatForm.value.imageUrl.trim();
+  const imgs = formatForm.value.images.filter(Boolean);
+  if (imgs.length) out.images = imgs;
+  return Object.keys(out).length ? out : null;
+}
+function moveGallery(i: number, d: number) {
+  const imgs = [...formatForm.value.images];
+  const j = i + d;
+  if (j < 0 || j >= imgs.length) return;
+  [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+  formatForm.value.images = imgs;
+}
+function removeGallery(i: number) {
+  formatForm.value.images = formatForm.value.images.filter((_, x) => x !== i);
+}
+
 /** ISO -> gia tri datetime-local theo gio Viet Nam (Asia/Ho_Chi_Minh). */
 function isoToLocalInput(iso: string | null | undefined) {
   if (!iso) return '';
@@ -445,6 +542,7 @@ function openAdd() {
   authorsText.value = '';
   tagsText.value = '';
   publishAtText.value = '';
+  resetFormatForm();
   dlg.value = true;
 }
 function openEdit(it: any) {
@@ -458,6 +556,7 @@ function openEdit(it: any) {
   authorsText.value = (it.authors || []).join(', ');
   tagsText.value = (it.tags || []).join(', ');
   publishAtText.value = isoToLocalInput(it.publishAt);
+  loadFormatForm(it.formatData);
   dlg.value = true;
 }
 // --- Chen anh tu thu vien media (Dot 1a) ---
@@ -482,6 +581,17 @@ const libItems = ref<any[]>([]);
 const libMeta = ref({ total: 0, page: 1, limit: 20 });
 const libLoading = ref(false);
 const libQ = ref('');
+// Goi 1B: hop thu vien dung chung cho 4 muc dich — chen anh vao body
+// ('body', mac dinh cu) hoac nap media dinh dang ('audio' | 'image' |
+// 'gallery'). O che do gallery, hop giu mo de chon nhieu anh lien tiep.
+const libPickMode = ref<'body' | 'audio' | 'image' | 'gallery'>('body');
+const libKind = ref('image');
+const libPickTitle = computed(() => {
+  if (libPickMode.value === 'audio') return 'Chọn audio từ thư viện';
+  if (libPickMode.value === 'image') return 'Chọn ảnh infographic từ thư viện';
+  if (libPickMode.value === 'gallery') return 'Chọn ảnh cho chùm ảnh';
+  return 'Chọn ảnh từ thư viện';
+});
 function onEditorLoad(e: any) {
   const quill = e?.instance;
   if (!quill) return;
@@ -505,7 +615,7 @@ function onEditorLoad(e: any) {
 async function loadLib(page = 1) {
   libLoading.value = true;
   try {
-    const r = await api.get<any>('/admin/media', { kind: 'image', q: libQ.value || undefined, page, limit: libMeta.value.limit });
+    const r = await api.get<any>('/admin/media', { kind: libKind.value, q: libQ.value || undefined, page, limit: libMeta.value.limit });
     libItems.value = r.data || [];
     libMeta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
   } catch (e: any) {
@@ -513,10 +623,41 @@ async function loadLib(page = 1) {
   } finally { libLoading.value = false; }
 }
 function openLib() {
+  libPickMode.value = 'body';
+  libKind.value = 'image';
+  libDlg.value = true;
+  loadLib(1);
+}
+function openLibFor(mode: 'audio' | 'image' | 'gallery') {
+  libPickMode.value = mode;
+  libKind.value = mode === 'audio' ? 'audio' : 'image';
   libDlg.value = true;
   loadLib(1);
 }
 function pickLib(item: any) {
+  // Goi 1B: che do chon media dinh dang — luu URL tho tu API (khong
+  // resolve), luc hien thi resolve nhu anh bia. Rieng che do body giu
+  // nguyen hanh vi cu (chen URL da resolve vao editor).
+  if (libPickMode.value === 'audio' || libPickMode.value === 'image') {
+    const rawUrl = item?.url || '';
+    if (!rawUrl) {
+      toast.add({ severity: 'warn', summary: 'File này chưa có URL dùng được', life: 3000 });
+      return;
+    }
+    if (libPickMode.value === 'audio') formatForm.value.audioUrl = rawUrl;
+    else formatForm.value.imageUrl = rawUrl;
+    libDlg.value = false;
+    return;
+  }
+  if (libPickMode.value === 'gallery') {
+    const rawUrl = item?.url || '';
+    if (!rawUrl) {
+      toast.add({ severity: 'warn', summary: 'Ảnh này chưa có URL dùng được', life: 3000 });
+      return;
+    }
+    if (!formatForm.value.images.includes(rawUrl)) formatForm.value.images.push(rawUrl);
+    return; // giu hop mo de chon tiep nhieu anh
+  }
   // Chen URL DA RESOLVE (tuyet doi, origin backend) chu khong chen url
   // tho tu API: url tho la tuong doi (/images/...) khi backend khong set
   // VOD_PUBLIC_BASE_URL; chen tho vao bai thi trinh duyet hieu thanh
@@ -615,6 +756,7 @@ async function save() {
       publishAt: localInputToIso(publishAtText.value),
       isFeatured: form.value.isFeatured,
       contentType: form.value.contentType,
+      formatData: buildFormatData(),
       isSpotlight: form.value.isSpotlight,
       isPhoto: form.value.isPhoto,
       isInfographic: form.value.isInfographic,

@@ -514,8 +514,18 @@ const server = http.createServer(async (req, res) => {
         cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
         category: it.category || null, authors: it.authors || [], tags: it.tags || [],
         publishAt: it.publishAt, isFeatured: !!it.isFeatured,
+        contentType: it.contentType || "text",
         url: `/tin/${it.slug}`,
       };
+    }
+    // Goi 1B: formatData chi chua URL media; URL tuong doi duoc ghep origin
+    // backend nhu anh bia, URL tuyet doi giu nguyen, key la bi loc bo.
+    function resolveFormatData(fd) {
+      if (!fd || typeof fd !== "object") return null;
+      const out = {};
+      for (const k of ["videoUrl", "audioUrl", "imageUrl"]) if (fd[k]) out[k] = resolveVtcanyImageUrl(fd[k]);
+      if (Array.isArray(fd.images)) out.images = fd.images.filter(Boolean).map(resolveVtcanyImageUrl);
+      return Object.keys(out).length ? out : null;
     }
     if (req.method === "GET" && u.pathname === "/api/v2/news") {
       const bq = new URLSearchParams();
@@ -535,7 +545,7 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/news/${newsSlugMatch[1]}`);
       if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay bai viet");
       const it = ext.data;
-      return json(res, 200, { ...newsListItem(it), body: it.body || "", related: (it.related || []).map(newsListItem) });
+      return json(res, 200, { ...newsListItem(it), formatData: resolveFormatData(it.formatData), body: it.body || "", related: (it.related || []).map(newsListItem) });
     }
     if (req.method === "GET" && u.pathname === "/api/v2/news-categories") {
       const ext = await fetchVtcanyEpaperJson(`/news-categories`);

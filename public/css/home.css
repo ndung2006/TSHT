@@ -53,5 +53,11 @@ a { color: #0b4fa6; }
 .article-sapo { font-weight: 700; }
 .article-cover { width: 100%; height: auto; }
 .article-body img { max-width: 100%; height: auto; }
+/* Goi 1B: hien thi theo dinh dang */
+.article-media { width: 100%; height: auto; display: block; margin: 0 0 1rem; }
+.article-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin: 0 0 1rem; }
+.article-gallery img { width: 100%; height: auto; display: block; }
+.article-infographic { width: 100%; height: auto; display: block; margin: 0 0 1rem; }
+.article-body--emagazine { font-size: 1.05rem; line-height: 1.85; }
 .cat-children { margin: 0.5rem 0 1rem; }
 .pager { margin-top: 1rem; }

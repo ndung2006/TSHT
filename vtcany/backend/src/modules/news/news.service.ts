@@ -5,6 +5,7 @@ import {
   NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
 } from './news-workflow';
 import { normalizeContentType } from './news-content';
+import { normalizeFormatData } from './news-format-data';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -37,6 +38,9 @@ export interface ArticleInput {
   isFeatured?: boolean;
   // Dot 1a: dinh dang + co hien thi + nhan tin dia phuong (xem news-content.ts).
   contentType?: string;
+  // Goi 1B: media dinh dang { videoUrl?, audioUrl?, imageUrl?, images? }
+  // (xem news-format-data.ts). Khong co -> null, hien thi roi ve body.
+  formatData?: unknown;
   isSpotlight?: boolean;
   isPhoto?: boolean;
   isInfographic?: boolean;
@@ -94,6 +98,7 @@ export class NewsService {
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       isFeatured: row.isFeatured,
       contentType: row.contentType ?? 'text',
+      formatData: row.formatData ?? null,
       isSpotlight: row.isSpotlight ?? false,
       isPhoto: row.isPhoto ?? false,
       isInfographic: row.isInfographic ?? false,
@@ -179,6 +184,9 @@ export class NewsService {
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       isFeatured: row.isFeatured,
       contentType: row.contentType ?? 'text',
+      // Goi 1B: formatData chi chua URL media (da loc key la luc ghi),
+      // khong lo truong noi bo; bai cu -> null.
+      formatData: row.formatData ?? null,
       isSpotlight: row.isSpotlight ?? false,
       isPhoto: row.isPhoto ?? false,
       isInfographic: row.isInfographic ?? false,
@@ -197,6 +205,15 @@ export class NewsService {
       normalizeContentType(input.contentType);
     } catch (e: any) {
       throw new BadRequestException(e?.message || 'content_type khong hop le');
+    }
+    // Goi 1B: format_data sai dang -> 400 (chi kiem tra dang, khong bat
+    // buoc bai phai co media — nhap chua co media van luu duoc).
+    if (input.formatData !== undefined) {
+      try {
+        normalizeFormatData(input.formatData);
+      } catch (e: any) {
+        throw new BadRequestException(e?.message || 'format_data khong hop le');
+      }
     }
   }
 
@@ -268,6 +285,7 @@ export class NewsService {
         publishAt: input.publishAt ? new Date(input.publishAt) : null,
         isFeatured: !!input.isFeatured,
         contentType: normalizeContentType(input.contentType),
+        formatData: normalizeFormatData(input.formatData) ?? undefined,
         isSpotlight: !!input.isSpotlight,
         isPhoto: !!input.isPhoto,
         isInfographic: !!input.isInfographic,
@@ -285,7 +303,7 @@ export class NewsService {
   async patch(publicId: string, input: Partial<ArticleInput>, actor: Actor) {
     const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay bai viet');
-    this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo, contentType: input.contentType });
+    this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo, contentType: input.contentType, formatData: input.formatData });
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = input.title.trim();
     if (input.slug !== undefined || input.title !== undefined) {
@@ -303,6 +321,7 @@ export class NewsService {
     if (input.publishAt !== undefined) data.publishAt = input.publishAt ? new Date(input.publishAt) : null;
     if (input.isFeatured !== undefined) data.isFeatured = !!input.isFeatured;
     if (input.contentType !== undefined) data.contentType = normalizeContentType(input.contentType);
+    if (input.formatData !== undefined) data.formatData = normalizeFormatData(input.formatData);
     if (input.isSpotlight !== undefined) data.isSpotlight = !!input.isSpotlight;
     if (input.isPhoto !== undefined) data.isPhoto = !!input.isPhoto;
     if (input.isInfographic !== undefined) data.isInfographic = !!input.isInfographic;

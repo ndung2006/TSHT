@@ -576,6 +576,9 @@ model NewsArticle {
   // ton tai truoc Dot 1a; cac loai khac dung chung form o Dot 1a, form
   // rieng theo loai de Dot 2. Xem news-content.ts (validate).
   contentType  String       @default("text") @map("content_type")
+  // Media dinh dang (Goi 1B): { videoUrl?, audioUrl?, imageUrl?, images? }.
+  // Chi URL da host, khong base64; xem news-format-data.ts (normalize).
+  formatData   Json?        @map("format_data")
   isSpotlight  Boolean      @default(false) @map("is_spotlight") // tick len cot Tieu diem
   isPhoto      Boolean      @default(false) @map("is_photo") // co Tin anh
   isInfographic Boolean     @default(false) @map("is_infographic") // co Infographic
