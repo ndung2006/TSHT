@@ -1,9 +1,8 @@
 -- Zone/Widget Manager — Goi 1A. Vung hien thi trang chu + bai ghim.
--- CHUA APPLY: migration nay xep hang SAU dot 1 cua Nguoi 2 (2A
--- events/liveblog, dang cho dieu phoi vien chot) theo luat 4.2.
--- Chi chay bang prisma migrate deploy sau khi dot 1 cua 2A len main
--- va rebase nhanh p1-zone-widget (ten migration co the phai doi neu
--- dot 1 cua 2A lay timestamp gan hon).
+-- FIX 2026-10-29: seed bo sung updated_at (ban dau thieu nen migration
+-- loi 23502 va rollback o deploy e4899d8). Migration nay chua tung
+-- apply thanh cong o DB nao nen sua truc tiep la an toan.
+-- Thu tu: 1A len main truoc, dot 1 cua 2A (20261029170000) chay sau.
 -- PostgreSQL: chi dung TIMESTAMP, khong DATETIME (bai hoc dot Phan phoi).
 CREATE TABLE "zones" (
     "id" TEXT NOT NULL,
@@ -43,6 +42,6 @@ ALTER TABLE "zone_items" ADD CONSTRAINT "zone_items_article_id_fkey" FOREIGN KEY
 -- Tin moi nhat = 8). Khong seed bai ghim: khi vung rong, khoi cong khai
 -- tu lap day tu nguon tu nhien (noi bat / moi nhat) nen hanh vi cu
 -- duoc giu nguyen ngay sau deploy.
-INSERT INTO "zones" ("id", "key", "name", "description", "slot_limit", "sort_order") VALUES
-    ('3fa85f64-5717-4562-b3fc-2c963f66afa6', 'tieu-diem', 'Tiêu điểm', 'Khối Tin nổi bật trên trang chủ', 4, 1),
-    ('7c9e6679-7425-40de-944b-e07fc1f90ae7', 'tin-moi-nhat', 'Tin mới nhất', 'Khối Tin mới nhất trên trang chủ (dòng sự kiện)', 8, 2);
+INSERT INTO "zones" ("id", "key", "name", "description", "slot_limit", "sort_order", "updated_at") VALUES
+    ('3fa85f64-5717-4562-b3fc-2c963f66afa6', 'tieu-diem', 'Tiêu điểm', 'Khối Tin nổi bật trên trang chủ', 4, 1, CURRENT_TIMESTAMP),
+    ('7c9e6679-7425-40de-944b-e07fc1f90ae7', 'tin-moi-nhat', 'Tin mới nhất', 'Khối Tin mới nhất trên trang chủ (dòng sự kiện)', 8, 2, CURRENT_TIMESTAMP);
