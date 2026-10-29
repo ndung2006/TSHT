@@ -25,7 +25,7 @@ const VENDOR = {
   "/vendor/pdfjs.mjs": "node_modules/pdfjs-dist/build/pdf.mjs",
   "/vendor/pdf.worker.mjs": "node_modules/pdfjs-dist/build/pdf.worker.mjs",
 };
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".pdf": "application/pdf", ".json": "application/json" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json", ".pdf": "application/pdf", ".json": "application/json" };
 
 
 function send(res, code, body, type = "text/plain", extra = {}) {

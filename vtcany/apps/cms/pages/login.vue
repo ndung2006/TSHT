@@ -4,7 +4,7 @@
       <Button :icon="dark ? 'pi pi-sun' : 'pi pi-moon'" text rounded @click="toggleDark" aria-label="Đổi giao diện" />
     </div>
     <div class="surface-card w-full max-w-sm p-7 text-center">
-      <img src="/logo.svg" alt="VTC ANY" width="150" height="64" class="mx-auto" />
+      <img src="/icons/vtc-tsht/logo-vtc-tsht-lockup.svg" alt="VTC TSHT - Tòa soạn hội tụ" width="150" height="72" class="mx-auto" />
       <h1 class="mt-3 text-lg font-bold">Đăng nhập quản trị</h1>
       <p class="mt-1 text-sm text-neutral-400">VTC ANY CMS</p>
 

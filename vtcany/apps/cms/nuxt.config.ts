@@ -32,9 +32,15 @@ export default defineNuxtConfig({
       title: 'VTC ANY CMS',
       meta: [
         { name: 'robots', content: 'noindex, nofollow' },
-        { name: 'theme-color', content: '#0B1B33' },
+        { name: 'theme-color', content: '#091728' },
       ],
-      link: [{ rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
+      link: [
+        { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
+        { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+        { rel: 'icon', href: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' },
+      ],
     },
   },
   compatibilityDate: '2024-11-01',

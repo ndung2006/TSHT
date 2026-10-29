@@ -2,7 +2,7 @@
   <div class="flex min-h-screen">
     <aside class="w-60 shrink-0 bg-admin p-4 text-neutral-200">
       <NuxtLink to="/" class="flex items-center gap-2 px-2 py-3">
-        <img src="/logo.svg" alt="VTC ANY" width="120" height="50" />
+        <img src="/icons/vtc-tsht/logo-vtc-tsht-transparent.svg" alt="VTC TSHT" width="130" height="50" />
       </NuxtLink>
       <nav class="mt-2 flex flex-col text-sm">
         <template v-for="g in groups" :key="g.label">
