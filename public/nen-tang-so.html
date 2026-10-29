@@ -32,14 +32,14 @@
 </div>
 <main class="platforms">
   <h1>Nền tảng số</h1>
-  <p class="lead">Video ngắn của đài: nội dung của chính cổng này hiển thị trước, sau đó là các video đã đưa lên Facebook, TikTok. Kết nối thật với Facebook/TikTok làm sau; trước mắt mỗi thẻ ghi rõ video đang ở nền tảng nào.</p>
+  <p class="lead">Video ngắn của đài: nội dung của chính cổng này hiển thị trước, sau đó là các video đã đưa lên Facebook, TikTok, YouTube. Kết nối thật với Facebook/TikTok làm sau; trước mắt mỗi thẻ ghi rõ video đang ở nền tảng nào.</p>
   <div id="sv-grid" class="sv-grid"></div>
   <p id="sv-empty" class="sv-empty" style="display:none">Chưa có video ngắn nào được phân phối.</p>
   <p class="note">Lịch phát sóng vẫn xem tại <a href="/lich-phat-song">trang Lịch phát sóng</a> và trên trang <a href="/truyen-hinh">Truyền hình</a>.</p>
 </main>
 <script>
 (function () {
-  var labels = { tiktok: 'TikTok', facebook: 'Facebook' };
+  var labels = { tiktok: 'TikTok', facebook: 'Facebook', youtube: 'YouTube' };
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -49,7 +49,7 @@
     var ts = it.targets || [];
     for (var i = 0; i < ts.length; i++) {
       var t = ts[i];
-      if (t.status === 'posted' && t.url && t.url !== '/nen-tang-so' && (t.platform === 'tiktok' || t.platform === 'facebook')) return t;
+      if (t.status === 'posted' && t.url && t.url !== '/nen-tang-so' && (t.platform === 'tiktok' || t.platform === 'facebook' || t.platform === 'youtube')) return t;
     }
     return null;
   }
@@ -71,7 +71,7 @@
     grid.innerHTML = items.map(function (it) {
       var ext = postedExternal(it);
       var link = ext ? ext.url : (it.media || '#');
-      var badge = ext ? (labels[ext.platform] || ext.platform) : 'TSHT';
+      var badge = ext ? (labels[ext.platform] || ext.platform) : 'Web';
       var blank = ext ? ' target="_blank" rel="noopener"' : '';
       var thumb = '';
       if (it.media) {

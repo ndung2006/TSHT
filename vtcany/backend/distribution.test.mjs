@@ -12,6 +12,7 @@ import { PERMISSION_MODULES } from './src/modules/auth/permissions.catalog.ts';
 
 test('cleanPlatforms: loc platform la, khu trung, khong phai mang thi rong', () => {
   assert.deepEqual(cleanPlatforms(['app', 'tiktok', 'app', 'nope']), ['app', 'tiktok']);
+  assert.deepEqual(cleanPlatforms(['youtube', 'facebook']), ['youtube', 'facebook']);
   assert.deepEqual(cleanPlatforms('app'), []);
   assert.deepEqual(cleanPlatforms(undefined), []);
 });
@@ -24,12 +25,14 @@ test('isHttpUrl: chi chap nhan http/https', () => {
   assert.equal(isHttpUrl(''), false);
 });
 
-test('publish: app luon posted kem url portal; facebook/tiktok draft -> ready; da posted/failed giu nguyen', () => {
+test('publish: app luon posted kem url portal; facebook/tiktok/youtube draft -> ready; da posted/failed giu nguyen', () => {
   assert.deepEqual(publishTargetUpdate({ platform: 'app', status: 'draft' }), { status: 'posted', url: '/nen-tang-so' });
   assert.deepEqual(publishTargetUpdate({ platform: 'app', status: 'posted' }), { status: 'posted', url: '/nen-tang-so' });
   assert.deepEqual(publishTargetUpdate({ platform: 'facebook', status: 'draft' }), { status: 'ready', url: null });
   assert.deepEqual(publishTargetUpdate({ platform: 'tiktok', status: 'draft' }), { status: 'ready', url: null });
+  assert.deepEqual(publishTargetUpdate({ platform: 'youtube', status: 'draft' }), { status: 'ready', url: null });
   assert.equal(publishTargetUpdate({ platform: 'tiktok', status: 'posted' }), null);
+  assert.equal(publishTargetUpdate({ platform: 'youtube', status: 'posted' }), null);
   assert.equal(publishTargetUpdate({ platform: 'facebook', status: 'failed' }), null);
 });
 

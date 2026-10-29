@@ -19,7 +19,7 @@
               <span v-for="t in data.targets" :key="t.platform" class="inline-flex items-center gap-1 text-xs">
                 <Tag :value="platformLabel(t.platform) + ': ' + targetLabel(t.status)" :severity="t.status === 'posted' ? 'success' : t.status === 'ready' ? 'info' : t.status === 'failed' ? 'danger' : 'secondary'" />
                 <a v-if="t.status === 'posted' && t.url && t.url !== '/nen-tang-so'" :href="t.url" target="_blank" rel="noopener" class="underline">Mở link</a>
-                <Button v-if="(t.platform === 'facebook' || t.platform === 'tiktok') && can('distribution:update')" label="Đã đăng" size="small" text @click="openMark(data, t)" />
+                <Button v-if="(t.platform === 'facebook' || t.platform === 'tiktok' || t.platform === 'youtube') && can('distribution:update')" label="Đã đăng" size="small" text @click="openMark(data, t)" />
               </span>
               <span v-if="!data.targets?.length" class="text-xs text-neutral-400">Chưa chọn đích</span>
             </div>
@@ -28,13 +28,13 @@
         <Column header="Thao tác" style="min-width:13rem">
           <template #body="{ data }">
             <Button v-if="data.status === 'draft' && can('distribution:update')" label="Sửa" size="small" text @click="openEdit(data)" />
-            <Button v-if="data.status === 'draft' && can('distribution:publish')" label="Xuất bản" size="small" text @click="doPublish(data)" />
+            <Button v-if="data.status === 'draft' && can('distribution:publish')" label="Xuất bản" size="small" text @click="openPublish(data)" />
             <Button v-if="data.status === 'published' && can('distribution:publish')" label="Gỡ xuống" size="small" text severity="warn" @click="doUnpublish(data)" />
             <Button v-if="data.status === 'draft' && can('distribution:delete')" label="Xóa" size="small" text severity="danger" @click="removeItem(data)" />
           </template>
         </Column>
       </DataTable>
-      <p class="mt-2 text-xs text-neutral-500">Phân phối đa nền tảng (giai đoạn 2): App tự động khi xuất bản; Facebook giai đoạn này chỉ chuẩn bị (chưa đăng tự động vì chưa kết nối tài khoản); TikTok đăng tay qua TikTok Studio rồi dán link về đánh dấu đã đăng.</p>
+      <p class="mt-2 text-xs text-neutral-500">Phân phối đa nền tảng: tick riêng từng nền tảng khi xuất bản — Web tự động lên cổng; TikTok/YouTube đăng tay qua Studio rồi dán link về đánh dấu đã đăng; Facebook giai đoạn này chỉ chuẩn bị (chưa đăng tự động vì chưa kết nối tài khoản).</p>
     </div>
 
     <div v-if="can('distribution:create') || can('distribution:update')" class="surface-card p-4 flex flex-col gap-2">
@@ -54,9 +54,10 @@
         <p v-if="previewBroken" class="text-xs text-red-600">Ảnh xem trước không tải được — kiểm tra lại URL.</p>
       </div>
       <div class="flex gap-4 flex-wrap text-sm">
-        <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="app" /> App &amp; cổng (tự động khi xuất bản)</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="app" /> Web (tự động khi xuất bản)</label>
         <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="facebook" /> Facebook (chuẩn bị, chưa auto)</label>
         <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="tiktok" /> TikTok (đăng tay qua Studio)</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="youtube" /> YouTube (đăng tay qua Studio)</label>
       </div>
       <div class="flex gap-2">
         <Button :label="editing ? 'Lưu' : 'Thêm'" size="small" @click="save" :disabled="!form.title.trim()" />
@@ -80,11 +81,26 @@
 
     <Dialog v-model:visible="markDlg" header="Đánh dấu đã đăng tay" modal class="w-[90vw] max-w-lg">
       <p class="text-sm mb-2">Bài: <b>{{ markPost?.title }}</b> — đích: <b>{{ markTarget ? platformLabel(markTarget.platform) : '' }}</b></p>
-      <p class="text-xs text-neutral-500 mb-2">Dán link bài đã đăng tay (TikTok Studio / Facebook) để ghi nhận. Không có link thật thì không đánh dấu đã đăng.</p>
+      <p class="text-xs text-neutral-500 mb-2">Dán link bài đã đăng tay (TikTok Studio / YouTube Studio / Facebook) để ghi nhận. Không có link thật thì không đánh dấu đã đăng.</p>
       <InputText v-model="markUrl" placeholder="https://..." class="w-full" />
       <div class="flex gap-2 mt-3">
         <Button label="Xác nhận đã đăng" size="small" @click="doMark" :disabled="!markUrl.trim()" />
         <Button label="Đóng" size="small" text @click="markDlg = false" />
+      </div>
+    </Dialog>
+
+    <Dialog v-model:visible="pubDlg" header="Xuất bản lên nền tảng" modal class="w-[90vw] max-w-lg">
+      <p class="text-sm mb-2">Bài: <b>{{ pubPost?.title }}</b></p>
+      <p class="text-xs text-neutral-500 mb-3">Tick riêng từng nền tảng muốn xuất bản. Đích không được tick mà đang Nháp sẽ giữ nguyên Nháp.</p>
+      <div class="flex flex-col gap-2 text-sm">
+        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="app" /> Web — đăng ngay lên cổng</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="tiktok" /> TikTok — chuyển sang Sẵn sàng để đăng tay qua Studio</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="youtube" /> YouTube — chuyển sang Sẵn sàng để đăng tay qua Studio</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="facebook" /> Facebook — chuyển sang Sẵn sàng (chưa auto, chờ kết nối)</label>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <Button label="Xuất bản" size="small" @click="doPublish" :disabled="!pubPlatforms.length" />
+        <Button label="Đóng" size="small" text @click="pubDlg = false" />
       </div>
     </Dialog>
   </div>
@@ -114,6 +130,10 @@ const markPost = ref<any>(null);
 const markTarget = ref<any>(null);
 const markUrl = ref('');
 
+const pubDlg = ref(false);
+const pubPost = ref<any>(null);
+const pubPlatforms = ref<string[]>([]);
+
 // URL thu vien tra ve la tuong doi (/images/...) thuoc ve backend, khong
 // phai origin CMS: chi dung resolveMedia khi HIEN THI. Gia tri luu trong
 // DB giu nguyen duong dan tuong doi; proxy cong khai se ghep origin
@@ -127,7 +147,7 @@ function resolveMedia(u: string) {
 }
 
 function platformLabel(p: string) {
-  return ({ app: 'App', facebook: 'Facebook', tiktok: 'TikTok' } as Record<string, string>)[p] || p;
+  return ({ app: 'Web', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube' } as Record<string, string>)[p] || p;
 }
 function targetLabel(s: string) {
   return ({ draft: 'Nháp', ready: 'Sẵn sàng', posted: 'Đã đăng', failed: 'Lỗi' } as Record<string, string>)[s] || s;
@@ -171,8 +191,20 @@ async function save() {
   }
 }
 
-async function doPublish(d: any) {
-  try { await api.post(`/admin/distribution/${d.publicId}/publish`); await load(); }
+function openPublish(d: any) {
+  pubPost.value = d;
+  const existing = (d.targets || []).map((t: any) => t.platform);
+  pubPlatforms.value = existing.length ? existing : ['app'];
+  pubDlg.value = true;
+}
+
+async function doPublish() {
+  if (!pubPost.value) return;
+  try {
+    await api.post(`/admin/distribution/${pubPost.value.publicId}/publish`, { platforms: pubPlatforms.value });
+    pubDlg.value = false;
+    await load();
+  }
   catch (e: any) { toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không xuất bản được', life: 3000 }); }
 }
 

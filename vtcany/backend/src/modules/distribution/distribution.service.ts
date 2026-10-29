@@ -117,26 +117,58 @@ export class DistributionService {
     return { ok: true };
   }
 
-  async publish(publicId: string) {
+  // Xuat ban bai Nhap. platforms (tich o dialog Xuat ban) quyet dinh dich
+  // nao duoc KICH HOAT trong lan xuat ban nay:
+  // - platforms undefined (client cu): kich hoat moi dich hien co.
+  // - platforms co tick: chi dich duoc tick moi duoc kich hoat theo quy tac
+  //   publishTargetUpdate (Web -> posted, dich tay draft -> ready); dich
+  //   chua co dong se duoc tao moi o trang thai kich hoat tuong ung.
+  // - dich KHONG duoc tick nhung dang Nhap thi giu nguyen Nhap.
+  // - dich da posted/ready tu truoc giu nguyen (link that ngoai nen tang
+  //   van con hieu luc) — tick chi kich hoat them, khong go dich cu.
+  async publish(publicId: string, platforms?: string[]) {
     const row = await this.prisma.distributionPost.findUnique({
       where: { publicId },
       include: { targets: true },
     });
     if (!row) throw new NotFoundException('khong tim thay bai phan phoi');
     if (row.status !== 'draft') throw new BadRequestException('chi xuat ban duoc bai o trang thai nhap');
+    let ticked: string[] | null = null;
+    if (platforms !== undefined) {
+      ticked = cleanPlatforms(platforms);
+      if (!ticked.length) throw new BadRequestException('chon it nhat mot nen tang de xuat ban');
+    }
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.distributionPost.update({
         where: { id: row.id },
         data: { status: 'published', publishedAt: now },
       });
+      const have = new Set(row.targets.map((t: any) => t.platform));
       for (const t of row.targets) {
+        if (ticked !== null && !ticked.includes(t.platform)) continue;
         const next = publishTargetUpdate(t);
         if (!next) continue;
         await tx.distributionTarget.update({
           where: { id: t.id },
           data: { status: next.status, url: next.url, postedAt: next.status === 'posted' ? now : t.postedAt },
         });
+      }
+      if (ticked !== null) {
+        for (const platform of ticked) {
+          if (have.has(platform)) continue;
+          const next = publishTargetUpdate({ platform, status: 'draft' });
+          if (!next) continue;
+          await tx.distributionTarget.create({
+            data: {
+              postId: row.id,
+              platform,
+              status: next.status,
+              url: next.url,
+              postedAt: next.status === 'posted' ? now : null,
+            },
+          });
+        }
       }
       return tx.distributionPost.findUnique({
         where: { id: row.id },
@@ -174,8 +206,8 @@ export class DistributionService {
     return this.rowToAdmin(updated);
   }
 
-  // Ghi nhan trang thai dich thu cong (facebook/tiktok). Dich app la tu
-  // dong theo bai, khong cho danh dau tay — tranh trang thai gia.
+  // Ghi nhan trang thai dich thu cong (facebook/tiktok/youtube). Dich app
+  // (Web) la tu dong theo bai, khong cho danh dau tay — tranh trang thai gia.
   async markTarget(publicId: string, platform: string, body: { status?: string; url?: string | null; note?: string | null }) {
     if (!(DISTRIBUTION_PLATFORMS as readonly string[]).includes(platform)) {
       throw new BadRequestException('platform khong hop le');

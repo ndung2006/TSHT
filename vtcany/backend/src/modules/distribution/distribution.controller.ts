@@ -42,6 +42,13 @@ class MarkTargetDto {
   note?: string | null;
 }
 
+class PublishDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  platforms?: string[];
+}
+
 @UseGuards(PermissionsGuard)
 @Controller('admin/distribution')
 export class DistributionAdminController {
@@ -77,8 +84,8 @@ export class DistributionAdminController {
 
   @Post(':publicId/publish')
   @RequirePerms('distribution:publish')
-  async publish(@Param('publicId') publicId: string) {
-    return this.dist.publish(publicId);
+  async publish(@Param('publicId') publicId: string, @Body() body: PublishDto) {
+    return this.dist.publish(publicId, body?.platforms);
   }
 
   @Post(':publicId/unpublish')

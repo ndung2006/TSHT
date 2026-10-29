@@ -1,7 +1,7 @@
 // Quy tac thuan cua module Phan phoi (khong decorator, khong import Nest
 // hay Prisma) de test truc tiep bang node --test. Service chi goi cac ham
 // nay roi moi cham Prisma — logic trang thai khong nam rac trong service.
-export const DISTRIBUTION_PLATFORMS = ['app', 'facebook', 'tiktok'] as const;
+export const DISTRIBUTION_PLATFORMS = ['app', 'facebook', 'tiktok', 'youtube'] as const;
 export type DistributionPlatform = (typeof DISTRIBUTION_PLATFORMS)[number];
 
 export const DISTRIBUTION_MEDIA_TYPES = ['image', 'video'] as const;
@@ -27,9 +27,11 @@ export function isHttpUrl(u: string): boolean {
 }
 
 // Trang thai dich khi bai duoc XUAT BAN. Tra null = giu nguyen.
-// - app: luon posted (hien tren /nen-tang-so), kem url portal.
-// - facebook/tiktok: chi draft -> ready (chuan bi); dich da posted/failed
-//   thi giu nguyen de khong xoa link da ghi nhan.
+// - app (Web): luon posted (hien tren /nen-tang-so), kem url portal.
+// - facebook/tiktok/youtube: chi draft -> ready (chuan bi); dich da
+//   posted/failed thi giu nguyen de khong xoa link da ghi nhan.
+//   Youtube la dich thu cong nhu TikTok (dang tay qua YouTube Studio
+//   roi dan link ve), khong co connector tu dong trong giai doan nay.
 export function publishTargetUpdate(t: { platform: string; status: string }): { status: string; url: string | null } | null {
   if (t.platform === 'app') return { status: 'posted', url: '/nen-tang-so' };
   if (t.status === 'draft') return { status: 'ready', url: null };
