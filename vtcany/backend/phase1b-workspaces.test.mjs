@@ -20,10 +20,12 @@ test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong g
   assert.deepEqual(routes(groups), ['/bao-in', '/thong-ke']);
 });
 
-test('chi co quyen articles thi thay Tin bai o workspace Bao dien tu, khong thay Danh muc/Banner/Giao dien', () => {
+test('chi co quyen articles thi thay Tin bai o workspace Bao dien tu, khong thay Danh muc/Banner/Giao dien, va khong thay Bai viet catalog o workspace Truyen hinh', () => {
   const groups = visibleMenu(['articles:view']);
   const online = groups.find((g) => g.label === 'Xuất bản Báo điện tử');
   assert.deepEqual(routes([online]), ['/tin-bai']);
+  const tv = groups.find((g) => g.label === 'Sản xuất Truyền hình/Phát thanh');
+  assert.ok(!tv || !tv.items.some((i) => i.to === '/bai-viet'));
 });
 
 test('quyen catalog thi thay Tap tin + Thu vien trong workspace Truyen hinh/Phat thanh', () => {
@@ -31,6 +33,7 @@ test('quyen catalog thi thay Tap tin + Thu vien trong workspace Truyen hinh/Phat
   const tv = groups.find((g) => g.label === 'Sản xuất Truyền hình/Phát thanh');
   assert.ok(tv.items.some((i) => i.to === '/tap-tin'));
   assert.ok(tv.items.some((i) => i.to === '/thu-vien'));
+  assert.ok(tv.items.some((i) => i.to === '/bai-viet'));
   assert.ok(!tv.items.some((i) => i.to === '/truyen-hinh'));
 });
 

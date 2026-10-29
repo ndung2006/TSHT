@@ -46,7 +46,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/the-loai', label: 'Thể loại', icon: 'pi-tags', workspace: 'tv', module: 'genres' },
   { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user', workspace: 'tv', module: 'actors' },
   { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list', workspace: 'tv', module: 'playlists' },
-  { to: '/bai-viet', label: 'Bài viết', icon: 'pi-file-edit', workspace: 'tv', module: 'articles' },
+  { to: '/bai-viet', label: 'Bài viết', icon: 'pi-file-edit', workspace: 'tv', module: 'catalog' },
   { to: '/su-kien', label: 'Sự kiện', icon: 'pi-calendar', workspace: 'tv', module: 'events' },
   // (2) Xuat ban Bao in
   { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
