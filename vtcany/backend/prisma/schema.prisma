@@ -544,6 +544,7 @@ model NewsCategory {
   updatedAt DateTime       @updatedAt @map("updated_at")
   articles  NewsArticle[]
   newsroomEvents NewsroomEvent[]
+  categorySlugRedirects CategorySlugRedirect[] // Goi 1D-2 fix: opposite relation field cho CategorySlugRedirect.category (thieu field nay Prisma P1012 fail o generate; sao khuon NewsArticle.slugRedirects)
 
   @@index([parentId, sortOrder])
   @@map("news_categories")
