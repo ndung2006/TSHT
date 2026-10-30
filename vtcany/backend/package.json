@@ -9,7 +9,7 @@
     "seed": "ts-node src/seed/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "test": "npm run build && node --test public-catalog.test.mjs epg-import.test.mjs aio-client.test.mjs telemetry.test.mjs hardening.test.mjs uploads.test.mjs standardize.test.mjs layout.test.mjs movies.test.mjs tv-search.test.mjs vod.test.mjs tv-overrides.test.mjs image-upload.test.mjs auth-password.test.mjs season-trailer.test.mjs category-prisma.test.mjs rails.test.mjs aio-source.test.mjs banner.test.mjs users.test.mjs playback-fallback.test.mjs roles-permissions.test.mjs timeshift.test.mjs epg-cache.test.mjs epaper-workflow.test.mjs news-workflow.test.mjs events-workflow.test.mjs liveblog-workflow.test.mjs"
+    "test": "npm run build && node --test public-catalog.test.mjs epg-import.test.mjs aio-client.test.mjs telemetry.test.mjs hardening.test.mjs uploads.test.mjs standardize.test.mjs layout.test.mjs movies.test.mjs tv-search.test.mjs vod.test.mjs tv-overrides.test.mjs image-upload.test.mjs auth-password.test.mjs season-trailer.test.mjs category-prisma.test.mjs rails.test.mjs aio-source.test.mjs banner.test.mjs users.test.mjs playback-fallback.test.mjs roles-permissions.test.mjs timeshift.test.mjs epg-cache.test.mjs epaper-workflow.test.mjs news-workflow.test.mjs events-workflow.test.mjs liveblog-workflow.test.mjs ads-workflow.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

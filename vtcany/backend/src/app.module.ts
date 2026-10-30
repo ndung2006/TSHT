@@ -20,6 +20,7 @@ import { ZoneModule } from './modules/zones/zone.module';
 import { CrossmediaModule } from './modules/crossmedia/crossmedia.module';
 import { EventsModule } from './modules/events/events.module';
 import { LiveblogModule } from './modules/liveblog/liveblog.module';
+import { AdsModule } from './modules/ads/ads.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -45,6 +46,7 @@ import { HealthController } from './health.controller';
     CrossmediaModule,
     EventsModule,
     LiveblogModule,
+    AdsModule,
   ],
   controllers: [HealthController],
 })
