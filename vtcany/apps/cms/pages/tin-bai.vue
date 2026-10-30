@@ -116,6 +116,7 @@
           <div class="flex flex-wrap items-center gap-2 mt-2">
             <Button label="Chèn ảnh từ thư viện" icon="pi pi-images" size="small" severity="secondary" @click="openLib" />
             <span class="text-xs text-neutral-500">Ảnh chèn từ thư viện là URL đã host (không nhúng base64). Nút ảnh trên thanh công cụ vẫn tải file như cũ; ảnh base64 sẽ được chuyển thành URL khi lưu.</span>
+            <span class="ml-auto text-xs text-neutral-400 whitespace-nowrap">Ký tự: {{ bodyCount.chars }} · Số từ: {{ bodyCount.words }}</span>
           </div>
         </div>
         <!-- Truong rieng theo dinh dang (Goi 1B). Media luu vao formatData
@@ -186,8 +187,9 @@
             <div><label class="field-label">Định dạng nội dung (mỗi loại có trường nhập riêng bên dưới, 1B)</label>
               <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
             </div>
-            <div><label class="field-label">Nhãn tin địa phương (chọn một cách duy nhất: trường này)</label>
-              <InputText v-model="form.localNews" class="w-full" placeholder="VD: Tuyên Quang" />
+            <div><label class="field-label">Tin địa phương (chọn từ danh sách địa phương)</label>
+              <Dropdown v-model="form.localNews" :options="localNewsOptions" option-label="label" option-value="value"
+                placeholder="Chọn địa phương..." class="w-full" show-clear editable />
             </div>
             <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="form.coverPath" ratio="16/9" /></div>
             <div><label class="field-label">Hẹn giờ xuất bản (giờ Việt Nam, để trống = ngay khi bấm Xuất bản)</label>
@@ -526,6 +528,25 @@ function clearMyScope() { myScope.value = ''; load(1); }
 const catParentOptions = computed(() => cats.value
   .filter((c) => !c.parentId)
   .map((c) => ({ label: c.name, value: c.publicId })));
+// Dem ky tu / so tu cua noi dung (bo the HTML), hien duoi editor kieu
+// thanh trang thai cua editor mau. Chi dem phan text nhin thay, khong dem
+// the HTML hay URL anh.
+const bodyCount = computed(() => {
+  const text = (form.value.body || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  return { chars: text.length, words: text ? text.split(' ').length : 0 };
+});
+// Dropdown Tin dia phuong: lay tu cac muc con cua chuyen muc "Tin dia
+// phuong" trong cay chuyen muc (muc cha dang An, chi dung lam nguon cho
+// dropdown). Gia tri cu da go tu do (khong co trong danh sach) van giu
+// lai dau danh sach de khong mat khi mo sua.
+const localNewsOptions = computed(() => {
+  const parent = cats.value.find((c) => c.slug === 'tin-dia-phuong' || c.name === 'Tin địa phương');
+  const kids = parent ? cats.value.filter((c) => c.parentId === parent.id || c.parentId === parent.publicId) : [];
+  const opts = kids.map((c) => ({ label: c.name, value: c.name }));
+  const cur = (form.value.localNews || '').trim();
+  if (cur && !opts.some((o) => o.value === cur)) opts.unshift({ label: cur, value: cur });
+  return opts;
+});
 
 async function loadCats() {
   try { cats.value = await api.get<any[]>('/admin/news-categories') || []; }
@@ -971,7 +992,7 @@ async function save() {
       isPhoto: form.value.isPhoto,
       isInfographic: form.value.isInfographic,
       allowComments: form.value.allowComments,
-      localNews: form.value.localNews.trim() || null,
+      localNews: (form.value.localNews || '').trim() || null,
     };
     if (editing.value) await api.patch(`/admin/news/${editing.value.publicId}`, payload);
     else await api.post('/admin/news', payload);
