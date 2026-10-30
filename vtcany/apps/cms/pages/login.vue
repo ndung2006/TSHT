@@ -10,7 +10,7 @@
 
       <Message v-if="error" severity="error" class="mt-4 justify-start">{{ error }}</Message>
 
-      <form class="mt-5 flex flex-col gap-4 text-left" @submit.prevent="doLogin">
+      <form v-if="!challenge" class="mt-5 flex flex-col gap-4 text-left" @submit.prevent="doLogin">
         <div>
           <label class="field-label" for="email">Email</label>
           <InputText id="email" v-model="email" type="email" class="w-full" placeholder="admin@vtcany.vn" required autocomplete="username" />
@@ -30,6 +30,19 @@
         <Button type="submit" label="Đăng nhập" :loading="loading"
           class="w-full !border-0 !bg-danger !text-white" />
       </form>
+
+      <!-- Buoc 2 khi tai khoan da bat 2FA (Goi 2D-2) -->
+      <form v-else class="mt-5 flex flex-col gap-4 text-left" @submit.prevent="doTwoFactor">
+        <p class="text-sm text-neutral-400">Tài khoản đã bật xác thực 2 lớp. Nhập mã 6 số từ ứng dụng Authenticator của bạn (mã hiệu lực 5 phút).</p>
+        <div>
+          <label class="field-label" for="otp">Mã xác thực</label>
+          <InputText id="otp" v-model="otp" class="w-full" placeholder="123456" inputmode="numeric"
+            autocomplete="one-time-code" maxlength="6" required />
+        </div>
+        <Button type="submit" label="Xác thực" :loading="loading"
+          class="w-full !border-0 !bg-danger !text-white" />
+        <Button type="button" label="Quay lại" text @click="challenge = ''; otp = ''" />
+      </form>
     </div>
   </div>
 </template>
@@ -38,20 +51,35 @@
 definePageMeta({ layout: false });
 useHead({ title: 'Đăng nhập - VTC ANY CMS' });
 
-const { login, dark, toggleDark } = useCmsAuth();
+const { login, loginTwoFactor, dark, toggleDark } = useCmsAuth();
 const email = ref('');
 const password = ref('');
 const remember = ref(true);
 const loading = ref(false);
 const error = ref('');
+const challenge = ref('');
+const otp = ref('');
 
 async function doLogin() {
   error.value = '';
   loading.value = true;
   try {
-    await login(email.value.trim(), password.value, remember.value);
+    const res = await login(email.value.trim(), password.value, remember.value);
+    if (res?.requiresTwoFactor) challenge.value = res.challengeToken || '';
   } catch (e: any) {
     error.value = e?.response?.status === 401 ? 'Sai thông tin đăng nhập' : 'Đăng nhập thất bại, thử lại sau.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function doTwoFactor() {
+  error.value = '';
+  loading.value = true;
+  try {
+    await loginTwoFactor(challenge.value, otp.value.trim(), email.value.trim(), remember.value);
+  } catch (e: any) {
+    error.value = e?.response?.status === 401 ? 'Mã xác thực sai hoặc đã hết hạn — đăng nhập lại để lấy mã mới.' : 'Xác thực thất bại, thử lại sau.';
   } finally {
     loading.value = false;
   }

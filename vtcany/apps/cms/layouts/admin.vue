@@ -24,6 +24,7 @@
           <span class="text-sm text-neutral-400">{{ displayName }}</span>
           <Tag :value="role || 'admin'" severity="info" />
           <Button label="Đổi mật khẩu" icon="pi pi-key" size="small" severity="secondary" outlined @click="openPw" />
+          <Button label="Bảo mật 2FA" icon="pi pi-shield" size="small" severity="secondary" outlined @click="open2fa" />
           <Button label="Đăng xuất" icon="pi pi-sign-out" size="small" severity="danger" outlined @click="logout" />
         </div>
       </header>
@@ -54,6 +55,40 @@
       <template #footer>
         <Button label="Huỷ" severity="secondary" outlined @click="pwDlg = false" />
         <Button label="Đổi mật khẩu" icon="pi pi-check" :loading="pwBusy" @click="submitPw" />
+      </template>
+    </Dialog>
+
+    <!-- Bao mat 2FA (Goi 2D-2): tu phuc vu, opt-in tung tai khoan -->
+    <Dialog v-model:visible="faDlg" modal header="Xác thực 2 lớp (2FA)" class="w-full max-w-md">
+      <div class="flex flex-col gap-3">
+        <p class="text-sm">Trạng thái: <Tag :value="faEnabled ? 'Đã bật' : 'Chưa bật'" :severity="faEnabled ? 'success' : 'secondary'" /></p>
+        <template v-if="!faEnabled">
+          <p class="text-sm text-neutral-400">Dùng ứng dụng Authenticator (Google/Microsoft Authenticator, 1Password...) quét hoặc nhập khóa dưới đây, rồi nhập mã 6 số để bật. Chưa xác nhận thì 2FA chưa có hiệu lực.</p>
+          <Button v-if="!faSetup" label="Tạo khóa 2FA" icon="pi pi-qrcode" :loading="faBusy" @click="start2fa" />
+          <template v-if="faSetup">
+            <div>
+              <label class="field-label">Khóa bí mật (nhập vào app)</label>
+              <InputText :model-value="faSetup.secret" class="w-full" readonly @focus="($event.target as HTMLInputElement).select()" />
+            </div>
+            <p class="text-xs text-neutral-500 break-all">{{ faSetup.otpauthUrl }}</p>
+            <div>
+              <label class="field-label">Mã 6 số từ app</label>
+              <InputText v-model="faCode" class="w-full" placeholder="123456" inputmode="numeric" maxlength="6" @keyup.enter="enable2fa" />
+            </div>
+          </template>
+        </template>
+        <template v-else>
+          <p class="text-sm text-neutral-400">Để tắt 2FA, nhập mã 6 số hiện tại từ ứng dụng Authenticator.</p>
+          <div>
+            <label class="field-label">Mã 6 số từ app</label>
+            <InputText v-model="faCode" class="w-full" placeholder="123456" inputmode="numeric" maxlength="6" @keyup.enter="disable2fa" />
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <Button label="Đóng" severity="secondary" outlined @click="faDlg = false" />
+        <Button v-if="!faEnabled && faSetup" label="Bật 2FA" icon="pi pi-check" :loading="faBusy" @click="enable2fa" />
+        <Button v-if="faEnabled" label="Tắt 2FA" icon="pi pi-times" severity="danger" :loading="faBusy" @click="disable2fa" />
       </template>
     </Dialog>
   </div>
@@ -107,6 +142,63 @@ async function submitPw() {
   } finally {
     pwBusy.value = false;
   }
+}
+
+// 2FA tu phuc vu (Goi 2D-2): trang thai doc tu server moi lan mo hop thoai.
+const faDlg = ref(false);
+const faBusy = ref(false);
+const faEnabled = ref(false);
+const faSetup = ref<{ secret: string; otpauthUrl: string } | null>(null);
+const faCode = ref('');
+async function open2fa() {
+  faSetup.value = null;
+  faCode.value = '';
+  faDlg.value = true;
+  try {
+    const r = await api.get<any>('/auth/admin/2fa');
+    faEnabled.value = !!r.enabled;
+  } catch {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không đọc được trạng thái 2FA', life: 3000 });
+  }
+}
+async function start2fa() {
+  faBusy.value = true;
+  try {
+    faSetup.value = await api.post<any>('/auth/admin/2fa/setup', {});
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Tạo khóa 2FA thất bại', life: 3000 });
+  } finally { faBusy.value = false; }
+}
+async function enable2fa() {
+  if (!/^\d{6}$/.test(faCode.value.trim())) {
+    toast.add({ severity: 'warn', summary: 'Mã chưa đúng định dạng', detail: 'Nhập đúng 6 chữ số từ ứng dụng Authenticator', life: 3000 });
+    return;
+  }
+  faBusy.value = true;
+  try {
+    await api.post('/auth/admin/2fa/enable', { code: faCode.value.trim() });
+    faEnabled.value = true;
+    faSetup.value = null;
+    faCode.value = '';
+    toast.add({ severity: 'success', summary: 'Xong', detail: 'Đã bật 2FA. Lần đăng nhập sau sẽ hỏi mã.', life: 4000 });
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Mã không đúng hoặc đã hết hạn — kiểm tra lại giờ trên điện thoại', life: 3000 });
+  } finally { faBusy.value = false; }
+}
+async function disable2fa() {
+  if (!/^\d{6}$/.test(faCode.value.trim())) {
+    toast.add({ severity: 'warn', summary: 'Mã chưa đúng định dạng', detail: 'Nhập đúng 6 chữ số từ ứng dụng Authenticator', life: 3000 });
+    return;
+  }
+  faBusy.value = true;
+  try {
+    await api.post('/auth/admin/2fa/disable', { code: faCode.value.trim() });
+    faEnabled.value = false;
+    faCode.value = '';
+    toast.add({ severity: 'success', summary: 'Xong', detail: 'Đã tắt 2FA cho tài khoản này.', life: 4000 });
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Mã không đúng — chưa tắt 2FA', life: 3000 });
+  } finally { faBusy.value = false; }
 }
 
 const groups = computed(() => visibleMenu(permissions.value));

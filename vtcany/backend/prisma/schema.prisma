@@ -265,6 +265,13 @@ model AdminUser {
   departmentId String?    @map("department_id")
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   status       String     @default("active") // active|disabled
+  // 2FA TOTP (Goi 2D-2): opt-in tung tai khoan. totpEnabled=false (mac
+  // dinh) -> dang nhap chay nhu cu, khong ai bi khoa ngoai. Secret chi
+  // chuyen sang totpSecret SAU KHI chu tai khoan xac nhan ma dau tien;
+  // truoc do nam o totpPendingSecret.
+  totpSecret        String? @map("totp_secret")
+  totpPendingSecret String? @map("totp_pending_secret")
+  totpEnabled       Boolean @default(false) @map("totp_enabled")
   lastLogin    DateTime?  @map("last_login")
   createdAt    DateTime   @default(now()) @map("created_at")
   auditLogs    AuditLog[]

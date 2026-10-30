@@ -23,12 +23,7 @@ export function useCmsAuth() {
   const loggedIn = computed(() => !!token.value);
   const can = (perm: string) => permissions.value.includes('*') || permissions.value.includes(perm);
 
-  async function login(email: string, password: string, remember: boolean) {
-    const res = await $fetch<any>('/auth/admin/login', {
-      baseURL: config.public.apiBase as string,
-      method: 'POST',
-      body: { email, password },
-    });
+  function applySession(res: any, email: string, remember: boolean) {
     const store = remember ? localStorage : sessionStorage;
     (remember ? sessionStorage : localStorage).removeItem(TOKEN_KEY);
     store.setItem(TOKEN_KEY, res.access_token);
@@ -39,6 +34,32 @@ export function useCmsAuth() {
     user.value = { email };
     role.value = res.role || '';
     permissions.value = res.permissions || [];
+  }
+
+  // Dang nhap buoc 1 (mat khau). Neu tai khoan da bat 2FA (Goi 2D-2),
+  // server tra { requiresTwoFactor, challengeToken } thay vi token:
+  // ham nay tra ve nguyen phan hoi do de trang login chuyen sang buoc
+  // nhap ma; nguoc lai ap phien + vao trang chu nhu cu (tra ve null).
+  async function login(email: string, password: string, remember: boolean) {
+    const res = await $fetch<any>('/auth/admin/login', {
+      baseURL: config.public.apiBase as string,
+      method: 'POST',
+      body: { email, password },
+    });
+    if (res?.requiresTwoFactor) return res;
+    applySession(res, email, remember);
+    await navigateTo('/');
+    return null;
+  }
+
+  // Dang nhap buoc 2: gui ma TOTP kem challengeToken cua buoc 1.
+  async function loginTwoFactor(challengeToken: string, code: string, email: string, remember: boolean) {
+    const res = await $fetch<any>('/auth/admin/login/2fa', {
+      baseURL: config.public.apiBase as string,
+      method: 'POST',
+      body: { challengeToken, code },
+    });
+    applySession(res, email, remember);
     await navigateTo('/');
   }
 
@@ -60,5 +81,5 @@ export function useCmsAuth() {
     document.body.classList.toggle('light-mode', !dark.value);
   }
 
-  return { token, user, role, permissions, loggedIn, can, login, logout, dark, toggleDark };
+  return { token, user, role, permissions, loggedIn, can, login, loginTwoFactor, logout, dark, toggleDark };
 }
