@@ -57,6 +57,10 @@
 <p id="cat-note" class="cat-note" role="status">Chuyên mục tin tức sẽ có bài viết sau — module bài viết/chuyên mục là bước tiếp theo, chưa xây ở trang này.</p>
 
 <main class="wrap">
+  <!-- Quang cao web_home_under_menu 1200x146 — Ngang duoi thanh menu
+       (danh muc Dien Bien). Trang chu khong co khoi rieng duoi menu nen
+       day la vi tri gan nhat: dau main, truoc slot home_top cu. -->
+  <div class="ad-slot" data-ad-placement="web_home_under_menu" hidden></div>
   <!-- Quang cao home_top: dau trang chu -->
   <div class="ad-slot" data-ad-placement="home_top" hidden></div>
   <section class="live-strip" aria-label="Đang phát">
@@ -65,6 +69,11 @@
     <p id="live-radio" class="live-line">Đang tải chương trình phát thanh…</p>
     <p class="weather-note">Thời tiết: sẽ cập nhật sau.</p>
   </section>
+  <!-- Quang cao web_home_weather_right 301x180 — Ben phai khoi chuyen muc
+       co muc thoi tiet (danh muc Dien Bien). Trang chu khong co khoi thoi
+       tiet rieng; khoi gan nhat la live-strip tren (chua ghi chu thoi tiet)
+       nen slot dat ngay sau live-strip, can phai 301px. -->
+  <div class="ad-slot" data-ad-placement="web_home_weather_right" hidden></div>
 
   <section aria-label="Nổi bật">
     <h2 class="section-title">Nổi bật</h2>
@@ -77,11 +86,21 @@
         <p>Đang tải số báo mới nhất…</p>
       </article>
       <aside class="feat-side">
+        <!-- Quang cao web_home_focus_right 263x210 — Ben phai trang tai khoi
+             "Tam diem", tren link page Facebook (danh muc Dien Bien). Trang
+             chu khong co link page Facebook; khoi gan nhat la cot phai
+             feat-side trong khoi Noi bat (= khoi tam diem), nen slot dat
+             dau aside, tren noi dung "BAN DOC QUAN TAM". -->
+        <div class="ad-slot" data-ad-placement="web_home_focus_right" hidden></div>
         <h3>BẠN ĐỌC QUAN TÂM</h3>
         <div id="feat-side">Đang tải…</div>
       </aside>
     </div>
   </section>
+  <!-- Quang cao web_home_under_focus 1200x146 — Ben duoi khoi "Tam diem"
+       (danh muc Dien Bien). Khoi gan nhat la khoi Noi bat tren nen slot
+       dat ngay sau khoi Noi bat, ngang toan bo. -->
+  <div class="ad-slot" data-ad-placement="web_home_under_focus" hidden></div>
 
   <section aria-label="Tin tức">
     <h2 class="section-title">Tin nổi bật</h2>
@@ -89,6 +108,15 @@
     <h2 class="section-title">Tin mới nhất</h2>
     <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
   </section>
+  <!-- Quang cao web_home_below_weather_1 301x228 — #1 ben phai khoi chuyen
+       muc duoi thoi tiet (danh muc Dien Bien). Trang chu khong co khoi
+       thoi tiet rieng; 2 slot duoi thoi tiet dat ngay sau khoi Tin tuc,
+       theo thu tu #1 roi #2, can phai 301px. -->
+  <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
+  <!-- Quang cao web_home_below_weather_2 301x300 — #2 ben phai khoi chuyen
+       muc duoi thoi tiet (danh muc Dien Bien). Vi tri nhu slot #1, ngay
+       sau slot #1, can phai 301px. -->
+  <div class="ad-slot" data-ad-placement="web_home_below_weather_2" hidden></div>
 
   <section class="bottom-blocks" aria-label="Truyền hình, phát thanh và video">
     <div class="card">
@@ -107,6 +135,16 @@
       <p class="note">TSHT hiện chưa có video nào, nên khối này chưa liệt kê video — không dùng tiêu đề hay ảnh video bịa sẵn.</p>
     </div>
   </section>
+  <!-- Quang cao web_home_media_right 301x238 — Ben phai muc "Da Phuong
+       Tien" (danh muc Dien Bien). Trang chu khong co muc "Da Phuong Tien"
+       rieng; khoi gan nhat la bottom-blocks tren (Truyen hinh / Phat thanh
+       / Video moi = khoi da phuong tien), nen slot dat ngay sau
+       bottom-blocks, can phai 301px. -->
+  <div class="ad-slot" data-ad-placement="web_home_media_right" hidden></div>
+  <!-- Quang cao web_home_under_media 1200x430 — Ngang duoi muc "Da Phuong
+       Tien" (danh muc Dien Bien). Dat ngay sau slot media_right, ngang
+       toan bo. -->
+  <div class="ad-slot" data-ad-placement="web_home_under_media" hidden></div>
 
   <section aria-label="Báo in">
     <h2 class="section-title">Báo in mới nhất</h2>
@@ -129,6 +167,6 @@
   </nav>
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
-<script src="/js/ads.js?v=20261030-1"></script>
+<script src="/js/ads.js?v=20261030-2"></script>
 <script src="/js/home.js?v=20261027-5"></script>
 </body></html>
