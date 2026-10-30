@@ -26,6 +26,31 @@
     });
     return tpl.innerHTML;
   }
+  // Khong dua anh bia vao trong bai doc: neu than bai (body) co chen
+  // chinh file anh bia (cung URL sau khi chuan hoa ve pathname, ke ca
+  // dang tuong doi /images/... hay tuyet doi qua origin backend) thi
+  // bo anh do khoi body, chi giu anh bia hien o hero tren cung. Chi
+  // khop dung file anh bia, khong xoa anh khac trong bai.
+  function stripCoverFromBody(html, coverUrl) {
+    if (!coverUrl) return html || "";
+    var coverPath = "";
+    try { coverPath = new URL(coverUrl, location.origin).pathname; } catch (e) { coverPath = String(coverUrl); }
+    if (!coverPath) return html || "";
+    var tpl = document.createElement("template");
+    tpl.innerHTML = html || "";
+    tpl.content.querySelectorAll("img").forEach(function (img) {
+      var src = img.getAttribute("src") || "";
+      if (!src) return;
+      var p = "";
+      try { p = new URL(src, location.origin).pathname; } catch (e) { p = src; }
+      if (p === coverPath) {
+        var parent = img.parentNode;
+        img.remove();
+        if (parent && (parent.nodeName === "P" || parent.nodeName === "FIGURE") && !parent.textContent.trim() && !parent.querySelector("img")) parent.remove();
+      }
+    });
+    return tpl.innerHTML;
+  }
   function card(it) {
     return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
@@ -73,7 +98,7 @@
         (it.sapo ? "<p class=\"article-sapo\">" + esc(it.sapo) + "</p>" : "") +
         (it.cover ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
         mediaHtml(it) +
-        "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + sanitize(it.body) + "</div>" + tags;
+        "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + stripCoverFromBody(sanitize(it.body), it.cover) + "</div>" + tags;
       // Quang cao trong bai (article_inbody): chen slot giua than bai
       // (sau doan van giua), roi nho TSHTAds render; neu TSHTAds chua
       // nap thi slot cu hidden, khong anh huong bai viet.
