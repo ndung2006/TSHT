@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
+import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
   NEWS_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
 } from './news-workflow';
@@ -241,6 +245,82 @@ export class NewsService {
     return cat.id;
   }
 
+  // ---------------- Chong trung anh bia luc luu (xem cover-dedupe.ts) ----------------
+
+  /**
+   * Tai bytes cua 1 anh de so byte voi bia. Nguon ho tro: data: (giai
+   * base64), file local /images/... (doc truc tiep tu storage, khong qua
+   * HTTP), URL http(s) (timeout 8s, toi da 25MB). Moi loi -> null de
+   * dedupe fail-open (luu bai khong bao gio hong vi buoc nay).
+   */
+  private async fetchMediaBytes(url: string): Promise<Buffer | null> {
+    const MAX_BYTES = 25 * 1024 * 1024;
+    try {
+      if (url.startsWith('data:')) {
+        const m = /^data:[^;]+;base64,(.+)$/.exec(url);
+        if (!m) return null;
+        const buf = Buffer.from(m[1], 'base64');
+        return buf.length <= MAX_BYTES ? buf : null;
+      }
+      const local = this.resolveLocalImage(url);
+      if (local) {
+        const buf = await readFile(local);
+        return buf.length <= MAX_BYTES ? buf : null;
+      }
+      if (!/^https?:\/\//.test(url)) return null;
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'user-agent': 'VTCANY-CMS/1.0' },
+      });
+      if (!res.ok) return null;
+      const len = Number(res.headers.get('content-length') || 0);
+      if (len > MAX_BYTES) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      return buf.length <= MAX_BYTES ? buf : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Duong dan file local cua anh /images/<file> (tuong doi hoac URL tuyet
+   *  doi tro ve backend), hoac null. Chan duong dan thoat kho images. */
+  private resolveLocalImage(url: string): string | null {
+    let pathname: string | null = null;
+    if (url.startsWith('/images/')) pathname = url;
+    else {
+      try {
+        const u = new URL(url);
+        if (u.pathname.startsWith('/images/')) pathname = u.pathname;
+      } catch {
+        return null;
+      }
+    }
+    const name = decodeURIComponent(pathname.slice('/images/'.length));
+    if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) return null;
+    // Cung quy tac storageRoot nhu main.ts: STORAGE_DIR, neu khong thi
+    // <backend>/storage (dung ca khi chay tu src lan dist).
+    const roots = [
+      process.env.STORAGE_DIR || '',
+      join(process.cwd(), 'storage'),
+      join(__dirname, '..', '..', '..', 'storage'),
+    ].filter((r) => !!r);
+    for (const root of roots) {
+      const p = join(root, 'images', name);
+      if (existsSync(p)) return p;
+    }
+    return null;
+  }
+
+  /** Chay dedupe + bia mac dinh; loi -> tra nguyen body/bia (fail-open). */
+  private async applyCoverDedupe(body: string, coverPath: string | null) {
+    try {
+      const out = await resolveCoverAndDedupe(body || '', coverPath, (u) => this.fetchMediaBytes(u));
+      return { body: out.body, coverPath: out.coverPath };
+    } catch {
+      return { body, coverPath };
+    }
+  }
+
   // ---------------- Admin: bai viet ----------------
 
   async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number }) {
@@ -348,15 +428,17 @@ export class NewsService {
     this.validateInput(input);
     const categoryId = await this.checkCategory(input.categoryId);
     const slug = await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title);
+    // Bia mac dinh + bo anh trung byte khoi body ngay luc tao.
+    const deduped = await this.applyCoverDedupe(input.body || '', input.coverPath || null);
     const row = await this.prisma.newsArticle.create({
       data: {
         publicId: this.newPublicId(),
         title: input.title.trim(),
         slug,
         sapo: input.sapo || '',
-        body: input.body || '',
+        body: deduped.body,
         categoryId,
-        coverPath: input.coverPath || null,
+        coverPath: deduped.coverPath,
         authors: input.authors || [],
         tags: input.tags || [],
         status: 'draft',
@@ -419,6 +501,17 @@ export class NewsService {
     if (input.isInfographic !== undefined) data.isInfographic = !!input.isInfographic;
     if (input.allowComments !== undefined) data.allowComments = !!input.allowComments;
     if (input.localNews !== undefined) data.localNews = input.localNews?.trim() ? input.localNews.trim() : null;
+    // Bia mac dinh + bo anh trung byte khoi body ngay luc luu. Chay ca khi
+    // chi doi bia (bia moi co the trung anh cu trong body) va ca khi bai
+    // cu chua co bia (luu lai se tu co bia mac dinh tu anh dau body).
+    // Chi ghi de khi dedupe that su doi body/bia, khong cham cac truong khac.
+    const effCover = input.coverPath !== undefined ? (input.coverPath || null) : row.coverPath;
+    const effBody = input.body !== undefined ? input.body : (row.body || '');
+    if (effBody && (effCover || effBody)) {
+      const deduped = await this.applyCoverDedupe(effBody, effCover);
+      if (deduped.body !== effBody) data.body = deduped.body;
+      if ((deduped.coverPath || null) !== (effCover || null)) data.coverPath = deduped.coverPath;
+    }
     const out = await this.prisma.newsArticle.update({
       where: { id: row.id },
       data,
