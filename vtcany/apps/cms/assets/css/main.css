@@ -2,11 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Chế độ sáng cho CMS (mặc định tối) */
+/* Giao diện CMS: mặc định SÁNG, bấm nút mặt trời/mặt trăng để sang tối.
+   Lớp .p-dark do toggle gắn lên <html>; body.light-mode do toggle gắn khi sáng. */
 :root {
+  color-scheme: light;
+}
+html.p-dark {
   color-scheme: dark;
 }
 body {
+  @apply bg-neutral-100 text-neutral-900;
+}
+html.p-dark body {
   @apply bg-neutral-950 text-neutral-100;
 }
 body.light-mode {
@@ -17,10 +24,16 @@ body.light-mode .surface-card {
   @apply bg-white text-neutral-900 border-neutral-200;
 }
 .surface-card {
-  @apply rounded-xl border border-neutral-800 bg-neutral-900;
+  @apply rounded-xl border border-neutral-200 bg-white;
+}
+html.p-dark .surface-card {
+  @apply border-neutral-800 bg-neutral-900;
 }
 .field-label {
-  @apply mb-1 block text-xs font-medium text-neutral-400;
+  @apply mb-1 block text-xs font-medium text-neutral-600;
+}
+html.p-dark .field-label {
+  @apply text-neutral-400;
 }
 body.light-mode .field-label {
   @apply text-neutral-600;

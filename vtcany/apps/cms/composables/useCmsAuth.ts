@@ -7,7 +7,7 @@ export function useCmsAuth() {
   const user = useState<any>('cms-user', () => null);
   const role = useState<string>('cms-role', () => '');
   const permissions = useState<string[]>('cms-perms', () => []);
-  const dark = useState<boolean>('cms-dark', () => true);
+  const dark = useState<boolean>('cms-dark', () => false);
 
   if (process.client && token.value === null) {
     token.value = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
