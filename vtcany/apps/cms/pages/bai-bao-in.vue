@@ -10,6 +10,7 @@
       <Dropdown v-model="statusFilter" :options="statusOptions" option-label="label" option-value="value"
         placeholder="Tất cả trạng thái" class="w-44" @change="load(1)" />
       <Button label="Tải lại" icon="pi pi-refresh" size="small" outlined @click="load(meta.page)" />
+      <Button v-if="can('print_articles:create')" label="Thêm bài báo in" icon="pi pi-plus" size="small" @click="openAdd" />
     </div>
 
     <div class="surface-card p-4">
@@ -32,6 +33,7 @@
         <Column header="Thao tác" style="min-width:16rem">
           <template #body="{ data }">
             <Button v-if="can('print_articles:view')" label="Xem" size="small" text @click="openView(data)" />
+            <Button v-if="can('print_articles:update') && data.status === 'draft'" label="Sửa" size="small" text @click="openEdit(data)" />
             <Button v-if="can('print_articles:update') && data.status === 'draft'" label="Gửi duyệt" size="small" text
               severity="info" @click="submitItem(data)" />
             <Button v-if="can('print_articles:publish') && data.status === 'pending_review'" label="Duyệt" size="small" text
@@ -49,7 +51,9 @@
         KTV → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) →
         TBT (Tổng Biên tập, duyệt bước cuối = đã duyệt, chờ dàn trang). Trả lại phải ghi lý do.
         Bài báo in KHÔNG xuất bản công khai lên web — TBT duyệt xong là nguyên liệu cho tổ dàn trang
-        ghép vào số báo. Chỉ bài nháp mới xóa được.</p>
+        ghép vào số báo. Chỉ bài nháp mới xóa được, chỉ bài nháp mới sửa được.
+        Ngoài chuyển đổi từ bài báo điện tử, có thể tạo bài báo in bằng tay bằng nút
+        “Thêm bài báo in” (không cần bài gốc); bài tạo tay cũng duyệt theo đúng quy trình trên.</p>
     </div>
 
     <!-- Xem bai bao in -->
@@ -66,6 +70,7 @@
       </div>
       <template #footer>
         <Button label="Đóng" text @click="viewDlg = false" />
+        <Button label="Preview" severity="secondary" @click="openPreviewFromView" />
         <Button v-if="viewItem && can('print_articles:update') && viewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="viewSubmit" />
         <Button v-if="viewItem && can('print_articles:publish') && viewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="viewApprove" />
         <Button v-if="viewItem && can('print_articles:publish') && viewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="viewReturn" />
@@ -115,6 +120,48 @@
         <Button label="Đóng" text @click="histDlg = false" />
       </template>
     </Dialog>
+
+    <!-- Sua / them bai bao in (khuon dialog Sua bai cua tin-bai.vue, nhung
+         chi co truong bai bao in: khong khoi dinh dang, khong nhuan but,
+         khong panel media, khong chon so bao — so bao la PDF tai len,
+         bai da duyet la nguyen lieu cho to dan trang). -->
+    <Dialog v-model:visible="editDlg" modal :header="editItem ? 'Sửa bài báo in' : 'Thêm bài báo in'"
+      class="w-[96vw] max-w-[96vw]">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div class="xl:col-span-2 flex flex-col gap-3">
+          <div><label class="field-label">Tiêu đề *</label><InputText v-model="editForm.title" class="w-full text-lg font-semibold" /></div>
+          <div><label class="field-label">Slug (để trống = tự sinh từ tiêu đề)</label><InputText v-model="editForm.slug" class="w-full" /></div>
+          <div>
+            <label class="field-label">Sapo (tóm tắt, tối đa 500 ký tự) — {{ editForm.sapo.length }}/500</label>
+            <Textarea v-model="editForm.sapo" rows="3" class="w-full" maxlength="500" />
+          </div>
+          <div><label class="field-label">Nội dung</label>
+            <Editor v-model="editForm.body" editor-style="height: 480px" />
+            <span class="text-xs text-neutral-500">Ảnh trong nội dung giữ nguyên URL đã có; ảnh bìa chọn riêng bằng khung bên phải.</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-3">
+          <div><label class="field-label">Chuyên mục</label>
+            <Dropdown v-model="editForm.categoryId" :options="catOptions" option-label="label" option-value="value"
+              placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+          </div>
+          <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="editForm.coverPath" ratio="16/9" /></div>
+          <div><label class="field-label">Tác giả (nhiều người cách nhau bằng dấu phẩy)</label><InputText v-model="editAuthorsText" class="w-full" /></div>
+          <div><label class="field-label">Từ khóa (cách nhau bằng dấu phẩy)</label><InputText v-model="editTagsText" class="w-full" /></div>
+          <p v-if="editItem" class="text-xs text-neutral-500">Bài gốc: {{ editItem.sourceNewsSlug || '— (tạo tay)' }} · Trạng thái: {{ statusText(editItem) }}</p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="editDlg = false" />
+        <Button label="Preview" severity="secondary" @click="openPreviewFromEdit" />
+        <Button :label="editItem ? 'Lưu' : 'Tạo'" :loading="editSaving" @click="saveEdit"
+          :disabled="!editForm.title.trim() || editForm.sapo.length > 500" />
+      </template>
+    </Dialog>
+
+    <!-- Preview bai (component dung chung ArticlePreviewDialog) -->
+    <ArticlePreviewDialog v-model:visible="previewDlg" :title="previewData.title" :sapo="previewData.sapo"
+      :cover-path="previewData.coverPath" :body="previewData.body" :category-name="previewData.categoryName" />
   </div>
 </template>
 
@@ -187,7 +234,105 @@ async function load(page = 1) {
 function onPage(e: any) {
   load(e.page + 1);
 }
-onMounted(() => load(1));
+
+// --- Sua / them bai bao in (khuon tin-bai.vue) ---
+const cats = ref<any[]>([]);
+const catOptions = computed(() => {
+  const byId = new Map(cats.value.map((c) => [c.id, c]));
+  return cats.value.map((c) => {
+    const parent = c.parentId ? byId.get(c.parentId) : null;
+    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
+  });
+});
+async function loadCats() {
+  try { cats.value = await api.get<any[]>('/admin/news-categories') || []; }
+  catch { cats.value = []; }
+}
+onMounted(() => { load(1); loadCats(); });
+
+const editDlg = ref(false);
+const editItem = ref<any>(null);
+const editSaving = ref(false);
+const editForm = ref({ title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '' });
+const editAuthorsText = ref('');
+const editTagsText = ref('');
+function splitList(s: string) {
+  return s.split(',').map((x) => x.trim()).filter(Boolean);
+}
+function openAdd() {
+  editItem.value = null;
+  editForm.value = { title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '' };
+  editAuthorsText.value = '';
+  editTagsText.value = '';
+  editDlg.value = true;
+}
+function openEdit(it: any) {
+  editItem.value = it;
+  editForm.value = {
+    title: it.title || '', slug: it.slug || '', sapo: it.sapo || '', body: it.body || '',
+    categoryId: it.category?.publicId || '', coverPath: it.coverPath || '',
+  };
+  editAuthorsText.value = (it.authors || []).join(', ');
+  editTagsText.value = (it.tags || []).join(', ');
+  editDlg.value = true;
+}
+async function saveEdit() {
+  editSaving.value = true;
+  try {
+    const payload: any = {
+      title: editForm.value.title.trim(),
+      slug: editForm.value.slug.trim() || undefined,
+      sapo: editForm.value.sapo,
+      body: editForm.value.body,
+      categoryId: editForm.value.categoryId || null,
+      coverPath: editForm.value.coverPath || null,
+      authors: splitList(editAuthorsText.value),
+      tags: splitList(editTagsText.value),
+    };
+    if (editItem.value) {
+      await api.patch(`/admin/print-articles/${editItem.value.publicId}`, payload);
+      toast.add({ severity: 'success', summary: 'Đã lưu bài báo in', life: 2500 });
+    } else {
+      await api.post('/admin/print-articles', payload);
+      toast.add({ severity: 'success', summary: 'Đã tạo bài báo in (nháp)', life: 2500 });
+    }
+    editDlg.value = false;
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Lưu thất bại', life: 3000 });
+  } finally {
+    editSaving.value = false;
+  }
+}
+
+// --- Preview bai (component dung chung, goi sau Tin bai cung dung) ---
+// Khong can gate quyen rieng: nut Preview nam trong dialog Xem (da gate
+// view) va dialog Sua/Tao (da gate create/update). Preview o dialog Sua
+// doc theo noi dung DANG NHAP, ke ca khi chua luu.
+const previewDlg = ref(false);
+const previewData = ref({ title: '', sapo: '', coverPath: '', body: '', categoryName: '' });
+function openPreviewFromView() {
+  if (!viewItem.value) return;
+  previewData.value = {
+    title: viewItem.value.title || '',
+    sapo: viewItem.value.sapo || '',
+    coverPath: viewItem.value.coverPath || '',
+    body: viewItem.value.body || '',
+    categoryName: viewItem.value.category?.name || '',
+  };
+  previewDlg.value = true;
+}
+function openPreviewFromEdit() {
+  const catLabel = catOptions.value.find((o) => o.value === editForm.value.categoryId)?.label || '';
+  previewData.value = {
+    title: editForm.value.title,
+    sapo: editForm.value.sapo,
+    coverPath: editForm.value.coverPath,
+    body: editForm.value.body,
+    categoryName: catLabel,
+  };
+  previewDlg.value = true;
+}
 
 // --- Quy trinh duyet (khuon tin-bai.vue / bao-in.vue) ---
 async function submitItem(it: any) {

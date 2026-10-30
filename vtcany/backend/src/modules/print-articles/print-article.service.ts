@@ -21,14 +21,38 @@ export class PrintArticleService {
     return randomBytes(12).toString('hex');
   }
 
-  private async uniqueSlug(base: string): Promise<string> {
+  private async uniqueSlug(base: string, excludeId?: string): Promise<string> {
     let slug = slugify(base) || 'bai-bao-in';
     let n = 2;
     while (true) {
       const row = await this.prisma.printArticle.findUnique({ where: { slug } });
-      if (!row) return slug;
+      if (!row || row.id === excludeId) return slug;
       slug = `${slugify(base) || 'bai-bao-in'}-${n++}`;
     }
+  }
+
+  /** Kiem tra chuyen muc (nhan ca id noi bo lan publicId, khuon news):
+   *  undefined/null -> null; khong ton tai -> 400. */
+  private async checkCategory(categoryId: string | null | undefined) {
+    if (categoryId === undefined || categoryId === null || categoryId === '') return null;
+    const cat = await this.prisma.newsCategory.findFirst({
+      where: { OR: [{ id: categoryId }, { publicId: categoryId }] },
+    });
+    if (!cat) throw new BadRequestException('chuyen muc khong ton tai');
+    return cat.id;
+  }
+
+  /** Chuan hoa authors/tags: nhan mang (tu CMS) hoac chuoi phan tach
+   *  bang dau phay; loai khoang trang/thua. */
+  private toStringArray(v: unknown): string[] {
+    if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+    if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
+    return [];
+  }
+
+  private validateManualInput(title: string | undefined, sapo: string | undefined) {
+    if (title !== undefined && !title.trim()) throw new BadRequestException('tieu de bat buoc');
+    if (sapo !== undefined && sapo.length > 500) throw new BadRequestException('sapo toi da 500 ky tu');
   }
 
   private async resolveActorNames(actorIds: (string | null)[]) {
@@ -169,6 +193,77 @@ export class PrintArticleService {
     });
     const cats = await this.resolveCategories([row.categoryId]);
     return this.toItem(row, cats);
+  }
+
+  // ---------------- Tao tay + sua (khong qua chuyen doi) ----------------
+
+  /** Tao bai bao in bang tay (khong co bai goc). Ban moi luon o 'draft'.
+   *  Luu y schema: sourceNewsPublicId la String @unique KHONG nullable
+   *  (khong duoc doi schema trong goi nay) nen bai tao tay dung gia tri
+   *  danh dau duy nhat `manual:<publicId>` — khong bao gio trung voi
+   *  publicId 24-hex cua bai that, chan trung chuyen doi van giu nguyen;
+   *  sourceNewsSlug rong de CMS hien '—'. */
+  async createManual(input: any, actor: Actor) {
+    if (!input.title || !String(input.title).trim()) throw new BadRequestException('tieu de bat buoc');
+    this.validateManualInput(input.title, input.sapo);
+    const categoryId = await this.checkCategory(input.categoryId);
+    const publicId = this.newPublicId();
+    const row = await this.prisma.printArticle.create({
+      data: {
+        publicId,
+        title: String(input.title).trim(),
+        slug: await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title),
+        sapo: input.sapo || '',
+        body: input.body || '',
+        categoryId,
+        coverPath: input.coverPath?.trim() ? input.coverPath : null,
+        authors: this.toStringArray(input.authors),
+        tags: this.toStringArray(input.tags),
+        sourceNewsPublicId: `manual:${publicId}`,
+        sourceNewsSlug: '',
+        status: 'draft',
+        workflowStep: 0,
+        createdBy: actor.id,
+        updatedBy: actor.username,
+        updatedByRole: actor.roleName,
+      },
+    });
+    const cats = await this.resolveCategories([row.categoryId]);
+    return this.toItem(row, cats);
+  }
+
+  /** Sua bai bao in. LUAT KHA DUNG (chat hon news): CHI bai nhap moi
+   *  sua duoc. News patch khong chan trang thai nao (sua duoc ca khi
+   *  dang cho duyet/da xuat ban), nhung voi bao in thi sua giua chung
+   *  duyet se lam mat hieu luc cac buoc da duyet, sua sau khi duyet xong
+   *  se lam sai nguyen lieu dan trang — nen pending_review va approved
+   *  deu bi chan 409, muon sua phai tra lai ve nhap truoc. */
+  async patchArticle(publicId: string, input: any, actor: Actor) {
+    const row = await this.workflowRow(publicId);
+    if (row.status === 'pending_review') {
+      throw new ConflictException('bai dang cho duyet, hay tra lai ve nhap truoc khi sua');
+    }
+    if (row.status === 'approved') {
+      throw new ConflictException('bai da duyet, cho dan trang, khong sua duoc');
+    }
+    this.validateManualInput(input.title, input.sapo);
+    const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
+    if (input.title !== undefined) data.title = String(input.title).trim();
+    if (input.slug !== undefined || input.title !== undefined) {
+      const next = await this.uniqueSlug(
+        input.slug?.trim() ? input.slug : input.title ?? row.title, row.id,
+      );
+      if (next !== row.slug) data.slug = next;
+    }
+    if (input.sapo !== undefined) data.sapo = input.sapo;
+    if (input.body !== undefined) data.body = input.body;
+    if (input.categoryId !== undefined) data.categoryId = await this.checkCategory(input.categoryId);
+    if (input.coverPath !== undefined) data.coverPath = input.coverPath?.trim() ? input.coverPath : null;
+    if (input.authors !== undefined) data.authors = this.toStringArray(input.authors);
+    if (input.tags !== undefined) data.tags = this.toStringArray(input.tags);
+    const updated = await this.prisma.printArticle.update({ where: { id: row.id }, data });
+    const cats = await this.resolveCategories([updated.categoryId]);
+    return this.toItem(updated, cats);
   }
 
   // ---------------- Admin: danh sach / chi tiet ----------------
