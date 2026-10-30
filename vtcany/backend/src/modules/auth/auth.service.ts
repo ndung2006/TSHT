@@ -7,6 +7,7 @@ import { flattenPermissions } from './permissions.catalog';
 import { RolesService } from './roles.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from './users.service';
+import { generateTotpSecret, otpauthUrl, verifyTotp } from './totp';
 
 const REFRESH_TTL_MS = 7 * 24 * 3600 * 1000;
 const ACCESS_TTL_S = 3600;
@@ -81,6 +82,8 @@ export class AuthService implements OnModuleInit {
       passwordHash: row.passwordHash,
       fullName: row.fullName ?? undefined,
       role: (row.roleName as Role) || 'admin',
+      totpSecret: row.totpSecret ?? null,
+      totpEnabled: row.totpEnabled === true,
     };
   }
 
@@ -131,8 +134,7 @@ export class AuthService implements OnModuleInit {
     if (!found) throw new Error('invalid credentials');
     const ok = await bcrypt.compare(password, found.user.passwordHash);
     if (!ok) throw new Error('invalid credentials');
-    await this.touchLastLogin(found);
-    return this.issueCmsPair(found.user.id, found.user.username, found.user.role, found.source);
+    return this.afterCmsPassword(found);
   }
 
   // ---- Bước 2: POST /auth/admin/login {email, password} ----
@@ -141,8 +143,117 @@ export class AuthService implements OnModuleInit {
     if (!found) throw new Error('invalid credentials');
     const ok = await bcrypt.compare(password, found.user.passwordHash);
     if (!ok) throw new Error('invalid credentials');
+    return this.afterCmsPassword(found);
+  }
+
+  // Sau khi mat khau dung: tai khoan da bat 2FA thi tra ve "thach thuc"
+  // thay vi cap token ngay; chua bat thi dang nhap nhu cu (2FA la opt-in
+  // tung tai khoan nen admin cu khong bi khoa ngoai — Goi 2D-2).
+  private async afterCmsPassword(found: { user: CmsUser; source: 'db' | 'memory' }) {
+    if (found.user.totpEnabled && found.user.totpSecret) {
+      return this.issueTwoFactorChallenge(found);
+    }
     await this.touchLastLogin(found);
     return this.issueCmsPair(found.user.id, found.user.username, found.user.role, found.source);
+  }
+
+  // ---- 2FA TOTP (Goi 2D-2) -------------------------------------------------
+  // Challenge token ky bang secret PHAT SINH (JWT_SECRET + hau to) nen
+  // JwtAuthGuard (ky bang JWT_SECRET goc) tu choi no: khong the dung
+  // challenge lam access token. Han 5 phut, dung mot muc dich.
+  private challengeKey(): string {
+    return `${process.env.JWT_SECRET || 'change-me-dev'}:2fa-challenge`;
+  }
+
+  private async issueTwoFactorChallenge(found: { user: CmsUser; source: 'db' | 'memory' }) {
+    const challengeToken = await this.jwt.signAsync(
+      { sub: found.user.id, username: found.user.username, kind: 'cms', purpose: '2fa-challenge' },
+      { secret: this.challengeKey(), expiresIn: 300 },
+    );
+    return { requiresTwoFactor: true, challengeToken, token_type: 'Bearer' };
+  }
+
+  /** Bước 2 của đăng nhập: POST /auth/admin/login/2fa {challengeToken, code}. */
+  async verifyTwoFactor(challengeToken: string, code: string) {
+    let payload: any;
+    try {
+      payload = await this.jwt.verifyAsync(challengeToken, { secret: this.challengeKey() });
+    } catch {
+      throw new Error('invalid or expired challenge');
+    }
+    if (!payload || payload.purpose !== '2fa-challenge' || !payload.sub) {
+      throw new Error('invalid or expired challenge');
+    }
+    const found = await this.findCmsUser({ id: String(payload.sub) });
+    if (!found || !found.user.totpEnabled || !found.user.totpSecret) {
+      throw new Error('invalid or expired challenge');
+    }
+    if (!verifyTotp(found.user.totpSecret, code, Date.now())) {
+      throw new Error('invalid two-factor code');
+    }
+    await this.touchLastLogin(found);
+    return this.issueCmsPair(found.user.id, found.user.username, found.user.role, found.source);
+  }
+
+  // Cac thao tac 2FA tu phuc vu can ghi xuong DB; dang fallback in-memory
+  // (DB loi) thi tu choi nhu doi mat khau — ghi RAM se mat khi restart.
+  private async requireDbAdmin(userId: string) {
+    const found = await this.findCmsUser({ id: userId });
+    if (!found) throw new Error('account not found');
+    if (this.prisma && found.source !== 'db') {
+      throw new Error('database unavailable: cannot manage 2FA while in fallback mode');
+    }
+    if (!this.prisma || found.source !== 'db') {
+      throw new Error('database unavailable: 2FA requires the admin database');
+    }
+    return found;
+  }
+
+  async twoFactorStatus(userId: string) {
+    const found = await this.findCmsUser({ id: userId });
+    if (!found) throw new Error('account not found');
+    return { enabled: !!(found.user.totpEnabled && found.user.totpSecret) };
+  }
+
+  /** Sinh secret moi vao o "cho xac nhan" + tra otpauth URL. Chua bat 2FA. */
+  async twoFactorSetup(userId: string) {
+    const found = await this.requireDbAdmin(userId);
+    const secret = generateTotpSecret();
+    await this.prisma!.adminUser.update({
+      where: { id: found.user.id },
+      data: { totpPendingSecret: secret },
+    });
+    const account = found.user.email || found.user.username;
+    return { secret, otpauthUrl: otpauthUrl(secret, account) };
+  }
+
+  /** Xac nhan ma dau tien -> bat 2FA (secret cho -> secret chinh thuc). */
+  async twoFactorEnable(userId: string, code: string) {
+    const found = await this.requireDbAdmin(userId);
+    const row = await this.prisma!.adminUser.findUnique({ where: { id: found.user.id } });
+    const pending = (row as any)?.totpPendingSecret as string | null;
+    if (!pending) throw new Error('no pending 2FA setup');
+    if (!verifyTotp(pending, code, Date.now())) throw new Error('invalid two-factor code');
+    await this.prisma!.adminUser.update({
+      where: { id: found.user.id },
+      data: { totpSecret: pending, totpPendingSecret: null, totpEnabled: true },
+    });
+    this.logger.log(`Admin ${found.user.username} da BAT 2FA.`);
+    return { ok: true, enabled: true };
+  }
+
+  /** Tat 2FA: bat buoc nhap ma dang dung de tranh bi tat trom tu phien bi chiem. */
+  async twoFactorDisable(userId: string, code: string) {
+    const found = await this.requireDbAdmin(userId);
+    if (!found.user.totpSecret || !verifyTotp(found.user.totpSecret, code, Date.now())) {
+      throw new Error('invalid two-factor code');
+    }
+    await this.prisma!.adminUser.update({
+      where: { id: found.user.id },
+      data: { totpSecret: null, totpPendingSecret: null, totpEnabled: false },
+    });
+    this.logger.log(`Admin ${found.user.username} da TAT 2FA.`);
+    return { ok: true, enabled: false };
   }
 
   private async touchLastLogin(found: { user: CmsUser; source: 'db' | 'memory' }): Promise<void> {

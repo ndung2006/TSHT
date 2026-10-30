@@ -134,11 +134,34 @@ model MediaAsset {
   sizeBytes   BigInt?  @map("size_bytes")
   contentType String?  @map("content_type")
   videoId     String?  @map("video_id")
+  // Thu muc LOGIC cua Thu vien media (Goi 2D-1): chi la truong phan loai
+  // trong DB, KHONG di chuyen file vat ly (URL da nhung trong bai da xuat
+  // ban phai nguyen ven). Null = chua phan loai.
+  folderId    String?  @map("folder_id")
+  folder      MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([status, createdAt])
+  @@index([folderId])
   @@map("media_assets")
+}
+
+// Thu muc logic cho Thu vien media (Goi 2D-1): cay thu muc bang parentId,
+// xoa thu muc thi file ve chua phan loai + thu muc con len thu muc cha
+// (xu ly trong service, khong cascade xoa file).
+model MediaFolder {
+  id        String        @id @default(uuid())
+  name      String
+  parentId  String?       @map("parent_id")
+  parent    MediaFolder?  @relation("MediaFolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  MediaFolder[] @relation("MediaFolderTree")
+  assets    MediaAsset[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@index([parentId])
+  @@map("media_folders")
 }
 
 // Kenh truyen hinh lay tu VTC AIO (khong co bang kenh rieng). Bang nay chi luu
@@ -242,6 +265,13 @@ model AdminUser {
   departmentId String?    @map("department_id")
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   status       String     @default("active") // active|disabled
+  // 2FA TOTP (Goi 2D-2): opt-in tung tai khoan. totpEnabled=false (mac
+  // dinh) -> dang nhap chay nhu cu, khong ai bi khoa ngoai. Secret chi
+  // chuyen sang totpSecret SAU KHI chu tai khoan xac nhan ma dau tien;
+  // truoc do nam o totpPendingSecret.
+  totpSecret        String? @map("totp_secret")
+  totpPendingSecret String? @map("totp_pending_secret")
+  totpEnabled       Boolean @default(false) @map("totp_enabled")
   lastLogin    DateTime?  @map("last_login")
   createdAt    DateTime   @default(now()) @map("created_at")
   auditLogs    AuditLog[]
@@ -723,6 +753,23 @@ model DistributionTarget {
 
   @@unique([postId, platform])
   @@map("distribution_targets")
+}
+
+// Ket noi mang xa hoi (Goi 2D-3, hien chi dung cho Facebook): 1 dong cho
+// moi nen tang. accessToken la Page token dai han — CHI luu trong DB,
+// khong bao gio tra ra API (status chi tra pageId/pageName/co token hay
+// khong). Bam nut Dang Facebook that moi ghi trang thai posted.
+model SocialConnection {
+  id          String   @id @default(uuid())
+  platform    String   @unique // facebook
+  pageId      String   @map("page_id")
+  pageName    String?  @map("page_name")
+  accessToken String   @map("access_token")
+  connectedBy String?  @map("connected_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("social_connections")
 }
 
 // Vung hien thi trang chu — Goi 1A Zone/Widget Manager. Zone la vi tri

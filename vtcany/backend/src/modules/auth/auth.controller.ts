@@ -35,6 +35,18 @@ class ChangePasswordDto {
   newPassword!: string;
 }
 
+class TwoFactorVerifyDto {
+  @IsString()
+  challengeToken!: string;
+  @IsString()
+  code!: string;
+}
+
+class TwoFactorCodeDto {
+  @IsString()
+  code!: string;
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private auth: AuthService) {}
@@ -84,6 +96,75 @@ export class AuthController {
       const msg = e?.message || 'oauth failed';
       const status = msg.includes('unsupported provider') ? HttpStatus.BAD_REQUEST : HttpStatus.UNAUTHORIZED;
       throw new HttpException(msg, status);
+    }
+  }
+
+  // Bước 2 của đăng nhập khi tài khoản đã bật 2FA (Gói 2D-2):
+  // POST /api/v1/auth/admin/login/2fa {challengeToken, code} -> cap token.
+  @UseGuards(RateLimitGuard)
+  @Post('admin/login/2fa')
+  async adminLoginTwoFactor(@Body() dto: TwoFactorVerifyDto) {
+    try {
+      return await this.auth.verifyTwoFactor(dto.challengeToken, dto.code);
+    } catch {
+      throw new HttpException('invalid two-factor code', HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+  // 2FA tự phục vụ (đã đăng nhập) — Gói 2D-2.
+  private assertCms(req: any) {
+    const payload = req.user;
+    if (!payload || !(payload.kind === 'cms' || payload.role)) {
+      throw new HttpException('forbidden', HttpStatus.FORBIDDEN);
+    }
+    return payload;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/2fa')
+  async twoFactorStatus(@Req() req: any) {
+    const payload = this.assertCms(req);
+    try {
+      return await this.auth.twoFactorStatus(payload.sub);
+    } catch (e: any) {
+      throw new HttpException(e?.message || '2fa status failed', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('admin/2fa/setup')
+  async twoFactorSetup(@Req() req: any) {
+    const payload = this.assertCms(req);
+    try {
+      return await this.auth.twoFactorSetup(payload.sub);
+    } catch (e: any) {
+      throw new HttpException(e?.message || '2fa setup failed', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('admin/2fa/enable')
+  async twoFactorEnable(@Req() req: any, @Body() dto: TwoFactorCodeDto) {
+    const payload = this.assertCms(req);
+    try {
+      return await this.auth.twoFactorEnable(payload.sub, dto.code);
+    } catch (e: any) {
+      const msg = e?.message || '2fa enable failed';
+      if (msg === 'invalid two-factor code') throw new HttpException(msg, HttpStatus.UNAUTHORIZED);
+      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('admin/2fa/disable')
+  async twoFactorDisable(@Req() req: any, @Body() dto: TwoFactorCodeDto) {
+    const payload = this.assertCms(req);
+    try {
+      return await this.auth.twoFactorDisable(payload.sub, dto.code);
+    } catch (e: any) {
+      const msg = e?.message || '2fa disable failed';
+      if (msg === 'invalid two-factor code') throw new HttpException(msg, HttpStatus.UNAUTHORIZED);
+      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
     }
   }
 

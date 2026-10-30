@@ -1,5 +1,24 @@
 <template>
   <div class="flex flex-col gap-4">
+    <!-- Ket noi Facebook that (Goi 2D-3): chi hien voi quyen distribution:publish -->
+    <div v-if="can('distribution:publish')" class="surface-card p-4 flex flex-wrap items-center gap-3">
+      <span class="text-sm font-medium">Facebook</span>
+      <template v-if="!fb.configured">
+        <Tag value="Chưa cấu hình" severity="warn" />
+        <span class="text-xs text-neutral-400">Backend chưa có FB_APP_ID / FB_APP_SECRET / FB_REDIRECT_URI — nhờ điều phối viên cấu hình ứng dụng Meta trước.</span>
+      </template>
+      <template v-else-if="!fb.connected">
+        <Tag value="Chưa kết nối" severity="secondary" />
+        <Button label="Kết nối Page" icon="pi pi-facebook" size="small" :loading="fbBusy" @click="connectFb" />
+        <span class="text-xs text-neutral-400">Mở trang Meta để chọn Page của tòa soạn và cấp quyền đăng bài.</span>
+      </template>
+      <template v-else>
+        <Tag :value="`Đã kết nối: ${fb.pageName || fb.pageId}`" severity="success" />
+        <Button label="Ngắt kết nối" size="small" text severity="danger" :loading="fbBusy" @click="disconnectFb" />
+        <span class="text-xs text-neutral-400">Bấm "Đăng Facebook" ở từng bài đã xuất bản (đích đang Sẵn sàng) để đăng thật lên Page.</span>
+      </template>
+    </div>
+
     <div class="surface-card p-4">
       <DataTable :value="items" :loading="loading" size="small">
         <Column field="title" header="Tiêu đề" />
@@ -19,6 +38,8 @@
               <span v-for="t in data.targets" :key="t.platform" class="inline-flex items-center gap-1 text-xs">
                 <Tag :value="platformLabel(t.platform) + ': ' + targetLabel(t.status)" :severity="t.status === 'posted' ? 'success' : t.status === 'ready' ? 'info' : t.status === 'failed' ? 'danger' : 'secondary'" />
                 <a v-if="t.status === 'posted' && t.url && t.url !== '/nen-tang-so'" :href="t.url" target="_blank" rel="noopener" class="underline">Mở link</a>
+                <Button v-if="t.platform === 'facebook' && (t.status === 'ready' || t.status === 'failed') && fb.connected && can('distribution:publish')" label="Đăng Facebook" size="small" text @click="postFacebook(data)" />
+                <span v-if="t.platform === 'facebook' && t.status === 'failed' && t.note" class="text-red-400 max-w-52 truncate" :title="t.note">{{ t.note }}</span>
                 <Button v-if="(t.platform === 'facebook' || t.platform === 'tiktok' || t.platform === 'youtube') && can('distribution:update')" label="Đã đăng" size="small" text @click="openMark(data, t)" />
               </span>
               <span v-if="!data.targets?.length" class="text-xs text-neutral-400">Chưa chọn đích</span>
@@ -34,7 +55,7 @@
           </template>
         </Column>
       </DataTable>
-      <p class="mt-2 text-xs text-neutral-500">Phân phối đa nền tảng: tick riêng từng nền tảng khi xuất bản — Web tự động lên cổng; TikTok/YouTube đăng tay qua Studio rồi dán link về đánh dấu đã đăng; Facebook giai đoạn này chỉ chuẩn bị (chưa đăng tự động vì chưa kết nối tài khoản).</p>
+      <p class="mt-2 text-xs text-neutral-500">Phân phối đa nền tảng: tick riêng từng nền tảng khi xuất bản — Web tự động lên cổng; TikTok/YouTube đăng tay qua Studio rồi dán link về đánh dấu đã đăng; Facebook đăng thật lên Page đã kết nối (thẻ Facebook phía trên) bằng nút "Đăng Facebook", hoặc vẫn đánh dấu đăng tay như trước.</p>
     </div>
 
     <div v-if="can('distribution:create') || can('distribution:update')" class="surface-card p-4 flex flex-col gap-2">
@@ -55,7 +76,7 @@
       </div>
       <div class="flex gap-4 flex-wrap text-sm">
         <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="app" /> Web (tự động khi xuất bản)</label>
-        <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="facebook" /> Facebook (chuẩn bị, chưa auto)</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="facebook" /> Facebook (đăng thật khi đã kết nối Page)</label>
         <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="tiktok" /> TikTok (đăng tay qua Studio)</label>
         <label class="flex items-center gap-2"><Checkbox v-model="form.platforms" value="youtube" /> YouTube (đăng tay qua Studio)</label>
       </div>
@@ -96,7 +117,7 @@
         <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="app" /> Web — đăng ngay lên cổng</label>
         <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="tiktok" /> TikTok — chuyển sang Sẵn sàng để đăng tay qua Studio</label>
         <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="youtube" /> YouTube — chuyển sang Sẵn sàng để đăng tay qua Studio</label>
-        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="facebook" /> Facebook — chuyển sang Sẵn sàng (chưa auto, chờ kết nối)</label>
+        <label class="flex items-center gap-2"><Checkbox v-model="pubPlatforms" value="facebook" /> Facebook — chuyển sang Sẵn sàng, bấm "Đăng Facebook" để đăng thật lên Page đã kết nối</label>
       </div>
       <div class="flex gap-2 mt-3">
         <Button label="Xuất bản" size="small" @click="doPublish" :disabled="!pubPlatforms.length" />
@@ -262,5 +283,46 @@ async function doMark() {
   }
 }
 
-onMounted(load);
+// ---- Facebook that (Goi 2D-3) ----
+const fb = ref<{ configured: boolean; connected: boolean; pageId: string | null; pageName: string | null }>({ configured: false, connected: false, pageId: null, pageName: null });
+const fbBusy = ref(false);
+async function loadFb() {
+  if (!can('distribution:publish')) return;
+  try { fb.value = await api.get<any>('/admin/distribution/facebook/status'); } catch { /* the ket noi an di khi loi */ }
+}
+async function connectFb() {
+  fbBusy.value = true;
+  try {
+    const r = await api.post<any>('/admin/distribution/facebook/connect-url', {});
+    if (r?.url) {
+      window.open(r.url, '_blank', 'noopener');
+      toast.add({ severity: 'info', summary: 'Đã mở trang Meta', detail: 'Chọn Page và cấp quyền xong thì quay lại đây, bấm tải lại trang để thấy trạng thái đã kết nối.', life: 5000 });
+    }
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tạo được link kết nối', life: 3000 });
+  } finally { fbBusy.value = false; }
+}
+async function disconnectFb() {
+  if (!window.confirm('Ngắt kết nối Facebook Page hiện tại?')) return;
+  fbBusy.value = true;
+  try {
+    await api.post('/admin/distribution/facebook/disconnect', {});
+    toast.add({ severity: 'success', summary: 'Đã ngắt kết nối Facebook', life: 3000 });
+    await loadFb();
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không ngắt được kết nối', life: 3000 });
+  } finally { fbBusy.value = false; }
+}
+async function postFacebook(d: any) {
+  try {
+    const r = await api.post<any>(`/admin/distribution/facebook/post/${d.publicId}`, {});
+    toast.add({ severity: 'success', summary: 'Đã đăng Facebook', detail: r?.url || '', life: 4000 });
+    await load();
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Đăng Facebook thất bại', detail: e?.response?.data?.message || e?.message || 'Graph API lỗi', life: 4000 });
+    await load();
+  }
+}
+
+onMounted(() => { load(); loadFb(); });
 </script>

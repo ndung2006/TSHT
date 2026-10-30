@@ -10,6 +10,9 @@ export interface CmsUser {
   passwordHash: string;
   fullName?: string;
   role: Role;
+  /** 2FA TOTP (Goi 2D-2) — chi doc noi bo trong auth service, khong tra ra client. */
+  totpSecret?: string | null;
+  totpEnabled?: boolean;
 }
 
 export interface EndUser {
