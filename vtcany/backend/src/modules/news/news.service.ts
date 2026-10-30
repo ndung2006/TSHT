@@ -271,6 +271,21 @@ export class NewsService {
     return this.toItem(row);
   }
 
+  // Goi 1C dot 2: tim bai da chuyen doi tu cung nguon — khop chinh xac
+  // type + id trong sourceRef (JSONB), khong khop tieu de. Bai da xoa thi
+  // khong con row nen moi row tim thay deu tinh la trung.
+  async findBySourceRef(type: string, id: string) {
+    return this.prisma.newsArticle.findFirst({
+      where: {
+        AND: [
+          { sourceRef: { path: ['type'], equals: type } },
+          { sourceRef: { path: ['id'], equals: id } },
+        ],
+      },
+      select: { publicId: true, slug: true, title: true },
+    });
+  }
+
   async create(input: ArticleInput, actor: Actor) {
     this.validateInput(input);
     const categoryId = await this.checkCategory(input.categoryId);

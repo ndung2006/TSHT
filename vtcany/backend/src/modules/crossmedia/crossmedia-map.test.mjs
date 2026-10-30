@@ -8,6 +8,7 @@ import {
   issueTypeLabel,
   mapEpaperToDraft,
   mapTvToDraft,
+  normalizeAuthors,
   relativeCover,
   truncateSapo,
 } from './crossmedia-map.ts';
@@ -110,4 +111,31 @@ test('So bao chua xuat ban / thieu tieu de -> throw (fail-closed)', () => {
   assert.throws(() => mapEpaperToDraft({ ...base, status: 'draft' }), /chua xuat ban/);
   assert.throws(() => mapEpaperToDraft({ ...base, status: 'pending_review' }), /chua xuat ban/);
   assert.throws(() => mapEpaperToDraft({ ...base, status: 'published', title: '' }), /tieu de/);
+});
+
+test('Goi 1C dot 2: normalizeAuthors trim/bo rong/dedupe/gioi han 10, thieu -> []', () => {
+  assert.deepEqual(normalizeAuthors(undefined), []);
+  assert.deepEqual(normalizeAuthors(null), []);
+  assert.deepEqual(normalizeAuthors([]), []);
+  assert.deepEqual(normalizeAuthors(['  Nguyen A  ', '', '   ', 'Nguyen A', 'Tran B']), ['Nguyen A', 'Tran B']);
+  assert.equal(normalizeAuthors(Array.from({ length: 15 }, (_, i) => `TG${i}`)).length, 10);
+});
+
+test('Goi 1C dot 2: normalizeAuthors sai dang -> throw (service doi thanh 400)', () => {
+  assert.throws(() => normalizeAuthors('Nguyen A'), /tac gia/);
+  assert.throws(() => normalizeAuthors(['Nguyen A', 42]), /tac gia/);
+  assert.throws(() => normalizeAuthors(123), /tac gia/);
+});
+
+test('Goi 1C dot 2: mapTvToDraft giu videoFileId vao sourceRef, thieu/rong thi khong co key', () => {
+  const d = mapTvToDraft(
+    { id: 'vi-9', title: 'V', description: '', thumbnail: null, isVisible: true, videoFileId: '  up-123 ' },
+    'tv-video',
+  );
+  assert.equal(d.sourceRef.videoFileId, 'up-123');
+  assert.equal(d.contentType, 'text');
+  const d2 = mapTvToDraft({ id: 'vi-10', title: 'V', isVisible: true }, 'tv-video');
+  assert.equal('videoFileId' in d2.sourceRef, false);
+  const d3 = mapTvToDraft({ id: 'vi-11', title: 'V', isVisible: true, videoFileId: '   ' }, 'tv-video');
+  assert.equal('videoFileId' in d3.sourceRef, false);
 });

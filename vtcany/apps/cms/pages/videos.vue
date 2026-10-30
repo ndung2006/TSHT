@@ -31,7 +31,7 @@
           <template #body="{ data }">
             <Button size="small" text label="Link phát" @click="showPlay(data)" />
             <Button v-if="can('catalog:write')" :label="data.isVisible ? 'Ẩn' : 'Xuất bản'" size="small" text :severity="data.isVisible ? 'warn' : 'success'" @click="togglePublish(data)" />
-            <Button v-if="can('articles:create') && data.isVisible" label="Tạo bản nháp Báo điện tử" size="small" text severity="info" @click="convertToDraft('videos', data)" />
+            <Button v-if="can('articles:create') && data.isVisible" label="Tạo bản nháp Báo điện tử" size="small" text severity="info" @click="openConvertDialog('videos', data)" />
             <Button v-if="can('catalog:write')" label="Sửa" size="small" text @click="openEdit(data)" />
             <Button v-if="can('catalog:write')" label="Xóa" size="small" text severity="danger" @click="confirmDelete(confirm, data.id, data.title)" />
           </template>
@@ -141,6 +141,19 @@
       </div>
       <Message v-else-if="playError" severity="warn">{{ playError }}</Message>
     </Dialog>
+    <Dialog v-model:visible="convertDlg" modal header="Tạo bản nháp Báo điện tử" class="w-full max-w-lg">
+      <div class="flex flex-col gap-3">
+        <div><label class="field-label">Tác giả (mặc định là tài khoản đang đăng nhập, sửa hoặc xóa nếu cần)</label>
+          <InputText v-model="convertAuthor" class="w-full" placeholder="Tên tác giả" /></div>
+        <div><label class="field-label">Chuyên mục (để trống thì biên tập gán sau)</label>
+          <Dropdown v-model="convertCategoryId" :options="convertCatOptions" option-label="label" option-value="value"
+            placeholder="Chưa chọn chuyên mục" class="w-full" show-clear filter /></div>
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="convertDlg = false" />
+        <Button label="Tạo bản nháp" @click="confirmConvert" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -148,7 +161,7 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Video - VTC ANY CMS' });
 
-const { can } = useCmsAuth();
+const { can, user } = useCmsAuth();
 const confirm = useConfirm();
 const api = useApi();
 const toast = useToast();
@@ -239,13 +252,55 @@ async function togglePublish(row: any) {
 // (nhap o trang thai Nhap, di quy trinh tin bai binh thuong). Nut chi hien
 // khi video dang hien thi (isVisible) va tai khoan co articles:create;
 // server chan lai neu nguon chua xuat ban (fail-closed).
-async function convertToDraft(entity: string, row: any) {
+// Goi 1C dot 2: chuyen doi cheo qua dialog xac nhan — bien tap chon/ghi
+// tac gia (mac dinh email tai khoan dang dang nhap, sua/xoa duoc) va chon
+// chuyen muc truoc khi tao nhap; server chan trung nguon (409) va validate
+// chuyen muc (sai -> 400). Nut chi hien khi video dang hien thi va tai
+// khoan co articles:create; server chan lai neu nguon chua xuat ban.
+const convertDlg = ref(false);
+const convertPending = ref<any>(null);
+const convertEntity = ref('');
+const convertAuthor = ref('');
+const convertCategoryId = ref('');
+const convertCats = ref<any[]>([]);
+const convertCatOptions = computed(() => {
+  const byId = new Map(convertCats.value.map((c: any) => [c.id, c]));
+  return convertCats.value.map((c: any) => {
+    const parent = c.parentId ? byId.get(c.parentId) : null;
+    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
+  });
+});
+async function openConvertDialog(entity: string, row: any) {
+  convertPending.value = row;
+  convertEntity.value = entity;
+  convertAuthor.value = user.value?.email || '';
+  convertCategoryId.value = '';
+  if (!convertCats.value.length) {
+    try { convertCats.value = await api.get<any[]>('/admin/news-categories') || []; }
+    catch { convertCats.value = []; }
+  }
+  convertDlg.value = true;
+}
+async function confirmConvert() {
+  const row = convertPending.value;
+  if (!row) return;
+  convertDlg.value = false;
   try {
-    const r = await api.post<any>('/admin/crossmedia/from-tv', { entity, id: row.id });
+    const r = await api.post<any>('/admin/crossmedia/from-tv', {
+      entity: convertEntity.value, id: row.id,
+      authors: convertAuthor.value.trim() ? [convertAuthor.value.trim()] : [],
+      categoryId: convertCategoryId.value || null,
+    });
     toast.add({ severity: 'success', summary: 'Đã tạo bản nháp', detail: `“${r?.title || row.title}” đã tạo trong Tin bài, trạng thái Nháp.`, life: 4000 });
     navigateTo('/tin-bai');
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
+    const d = e?.data || e?.response?.data;
+    if (d?.slug || d?.publicId) {
+      toast.add({ severity: 'warn', summary: 'Đã có bản nháp', detail: 'Nguồn này đã được chuyển đổi trước đó — mở Tin bài để xem bản nháp.', life: 5000 });
+      navigateTo('/tin-bai');
+    } else {
+      toast.add({ severity: 'error', summary: 'Lỗi', detail: d?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
+    }
   }
 }
 // Xem truoc video ngay trong form (chi voi muc da luu - can id de goi API play).

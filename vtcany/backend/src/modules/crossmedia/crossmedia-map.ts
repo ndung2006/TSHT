@@ -14,10 +14,20 @@
 //   nen ban nhap TV de contentType 'text', media that doi ban DAM Proxy MP4
 //   (muc mo ben duoi). Anh bia chi ke thua khi la duong dan tuong doi '/'.
 // - Nguon khong co ten tac gia (catalog khong co truong author; so bao chi
-//   co createdBy la id) nen authors = [] — lien thong nhuan but theo tac gia
-//   la viec tiep theo, khong gan bua nguoi chuyen doi lam tac gia.
-// - Khong co anh xa chuyen muc catalog -> chuyen muc tin bai nen
-//   categoryId = null, bien tap gan chuyen muc khi duyet nhap.
+//   co createdBy la id) nen server KHONG bao gio tu gan tac gia: bien tap
+//   chon/ghi tac gia luc chuyen doi (o CMS, mac dinh la email tai khoan
+//   dang dang nhap, sua hoac xoa duoc); khong truyen / truyen rong thi
+//   authors = [] nhu cu. Lien thong nhuan but theo tac gia la viec sau.
+// - Khong co anh xa catalog -> chuyen muc tin bai nen bien tap chon chuyen
+//   muc luc chuyen doi (dropdown tu /admin/news-categories); khong chon
+//   thi categoryId = null nhu cu; server validate qua NewsService
+//   checkCategory (sai -> 400, khong am tham null).
+// - Chuyen doi trung bi chan o service: cung type + id trong sourceRef
+//   (JSONB) ma da co bai thi tra 409 kem slug/publicId bai cu de CMS
+//   dan toi. Bai da xoa thi khong con row nen moi row tim thay deu tinh.
+// - videoFileId (id upload cua video catalog) duoc giu trong sourceRef de
+//   buoc DAM Proxy sau nay co moi noi; rieng dot nay KHONG doi player,
+//   KHONG sinh URL proxy, ban nhap TV van contentType 'text'.
 // - Ban nhap tao qua NewsService.create nen luon o trang thai 'draft',
 //   workflowStep 0 — di quy trinh tin bai binh thuong (PV -> TP -> PBDT ->
 //   BBT -> XB) tu dau, khong tu xuat ban, khong bo buoc.
@@ -31,6 +41,10 @@ export interface SourceRef {
   title: string;
   issueNumber?: number;
   issueType?: string;
+  // Goi 1C dot 2, chi dat nen: id upload cua video catalog (form
+  // videos.vue/short.vue mang videoFileId). Khong phai URL phat, khong doi
+  // player — buoc DAM Proxy sau nay moi dung toi.
+  videoFileId?: string;
 }
 
 export interface TvSource {
@@ -40,6 +54,7 @@ export interface TvSource {
   thumbnail?: string | null;
   poster?: string | null;
   isVisible?: boolean;
+  videoFileId?: string | null;
 }
 
 export interface EpaperSource {
@@ -79,6 +94,26 @@ export function truncateSapo(input: string | null | undefined): string {
 }
 
 /**
+ * Chuan hoa tac gia do bien tap chon/ghi luc chuyen doi (Goi 1C dot 2).
+ * Khong truyen / null -> [] (nhu cu, server khong tu gan tac gia).
+ * Sai dang (khong phai mang, phan tu khong phai chuoi) -> throw, service
+ * doi thanh 400 (DTO o controller cung chan bang class-validator).
+ * Trim, bo rong, dedupe, toi da 10 ten.
+ */
+export function normalizeAuthors(input: unknown): string[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new Error('tac gia khong hop le');
+  const out: string[] = [];
+  for (const a of input) {
+    if (typeof a !== 'string') throw new Error('tac gia khong hop le');
+    const t = a.trim();
+    if (t && !out.includes(t)) out.push(t);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/**
  * Chi ke thua anh bia khi la duong dan tuong doi '/...' (quy uoc coverPath
  * cua tin bai). URL tuyet doi (http...) khong dua vao coverPath.
  */
@@ -107,6 +142,7 @@ export function mapTvToDraft(src: TvSource, kind: 'tv-video' | 'tv-short'): Draf
   const body = desc
     ? `<p>${escapeHtml(desc)}</p><p><em>Chuyển đổi từ ${kindLabel} Truyền hình “${escapeHtml(title)}”.</em></p>`
     : `<p><em>Chuyển đổi từ ${kindLabel} Truyền hình “${escapeHtml(title)}”.</em></p>`;
+  const videoFileId = typeof src.videoFileId === 'string' ? src.videoFileId.trim() : '';
   return {
     title,
     sapo: truncateSapo(desc),
@@ -115,7 +151,7 @@ export function mapTvToDraft(src: TvSource, kind: 'tv-video' | 'tv-short'): Draf
     authors: [],
     tags: [],
     contentType: 'text',
-    sourceRef: { type: kind, id: src.id, title },
+    sourceRef: { type: kind, id: src.id, title, ...(videoFileId ? { videoFileId } : {}) },
   };
 }
 

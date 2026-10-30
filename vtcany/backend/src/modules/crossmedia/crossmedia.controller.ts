@@ -3,7 +3,7 @@
 // them quyen moi. ValidationPipe whitelist:true o main.ts nen DTO phai khai
 // bao du truong (bai hoc tu loi 1B: formatData bi luoc vi thieu khai bao).
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
-import { IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { RolesService } from '../auth/roles.service';
@@ -15,11 +15,33 @@ class FromTvDto {
 
   @IsString()
   id!: string;
+
+  // Goi 1C dot 2: tac gia do bien tap chon/ghi (sai dang -> 400 qua
+  // ValidationPipe; khong gui -> [] nhu cu, server khong tu gan).
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  authors?: string[];
+
+  // Goi 1C dot 2: chuyen muc chon luc chuyen doi (id hoac publicId;
+  // sai -> 400 qua checkCategory; khong gui -> null nhu cu).
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 }
 
 class FromEpaperDto {
   @IsString()
   publicId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  authors?: string[];
+
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 }
 
 @UseGuards(PermissionsGuard)
@@ -38,12 +60,12 @@ export class CrossmediaController {
   @RequirePerms('articles:create')
   @Post('from-tv')
   async fromTv(@Body() dto: FromTvDto, @Req() req: any) {
-    return this.crossmedia.fromTv(dto?.entity, dto?.id, await this.actor(req));
+    return this.crossmedia.fromTv(dto?.entity, dto?.id, await this.actor(req), { authors: dto?.authors, categoryId: dto?.categoryId });
   }
 
   @RequirePerms('articles:create')
   @Post('from-epaper')
   async fromEpaper(@Body() dto: FromEpaperDto, @Req() req: any) {
-    return this.crossmedia.fromEpaper(dto?.publicId, await this.actor(req));
+    return this.crossmedia.fromEpaper(dto?.publicId, await this.actor(req), { authors: dto?.authors, categoryId: dto?.categoryId });
   }
 }

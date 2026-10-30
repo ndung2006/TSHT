@@ -49,7 +49,7 @@
             <Button v-if="can('epaper:publish') && data.status === 'published'" label="Gỡ xuống" size="small" text
               severity="warn" @click="setPublished(data, false)" />
             <Button v-if="can('articles:create') && data.status === 'published'" label="Tạo bản nháp Báo điện tử" size="small" text
-              severity="info" @click="convertIssueToDraft(data)" />
+              severity="info" @click="openConvertDialog(data)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Tải PDF" size="small" text
               @click="downloadPdf(data)" />
             <Button v-if="can('epaper:view') && data.pdfPath" label="Xem duyệt" size="small" text
@@ -168,6 +168,19 @@
         <Button label="Đóng" text @click="histDlg = false" />
       </template>
     </Dialog>
+    <Dialog v-model:visible="convertDlg" modal header="Tạo bản nháp Báo điện tử" class="w-full max-w-lg">
+      <div class="flex flex-col gap-3">
+        <div><label class="field-label">Tác giả (mặc định là tài khoản đang đăng nhập, sửa hoặc xóa nếu cần)</label>
+          <InputText v-model="convertAuthor" class="w-full" placeholder="Tên tác giả" /></div>
+        <div><label class="field-label">Chuyên mục (để trống thì biên tập gán sau)</label>
+          <Dropdown v-model="convertCategoryId" :options="convertCatOptions" option-label="label" option-value="value"
+            placeholder="Chưa chọn chuyên mục" class="w-full" show-clear filter /></div>
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="convertDlg = false" />
+        <Button label="Tạo bản nháp" @click="confirmConvert" />
+      </template>
+    </Dialog>
 
     <!-- Xem duyet: doc tung trang (anh server render san), zoom, duyet /
          tra lai ngay trong dialog — nguoi duyet khong phai tai PDF ve
@@ -217,7 +230,7 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Báo in - VTC ANY CMS' });
 
-const { can, permissions } = useCmsAuth();
+const { can, permissions, user } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
 
@@ -387,13 +400,54 @@ async function setPublished(it: any, publish: boolean) {
 // tat + link ve so bao goc + anh bia neu co). Nut chi hien khi so da xuat
 // ban va tai khoan co articles:create; server chan lai neu so chua xuat ban
 // (fail-closed). Khong doi trang thai hay quy trinh cua so bao goc.
-async function convertIssueToDraft(it: any) {
+// Goi 1C dot 2: chuyen doi cheo qua dialog xac nhan — bien tap chon/ghi
+// tac gia (mac dinh email tai khoan dang dang nhap, sua/xoa duoc) va chon
+// chuyen muc truoc khi tao nhap; server chan trung nguon (409) va validate
+// chuyen muc (sai -> 400). Nut chi hien khi so da xuat ban va tai khoan
+// co articles:create; server chan lai neu so chua xuat ban. Khong doi
+// trang thai hay quy trinh cua so bao goc.
+const convertDlg = ref(false);
+const convertPending = ref<any>(null);
+const convertAuthor = ref('');
+const convertCategoryId = ref('');
+const convertCats = ref<any[]>([]);
+const convertCatOptions = computed(() => {
+  const byId = new Map(convertCats.value.map((c: any) => [c.id, c]));
+  return convertCats.value.map((c: any) => {
+    const parent = c.parentId ? byId.get(c.parentId) : null;
+    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
+  });
+});
+async function openConvertDialog(it: any) {
+  convertPending.value = it;
+  convertAuthor.value = user.value?.email || '';
+  convertCategoryId.value = '';
+  if (!convertCats.value.length) {
+    try { convertCats.value = await api.get<any[]>('/admin/news-categories') || []; }
+    catch { convertCats.value = []; }
+  }
+  convertDlg.value = true;
+}
+async function confirmConvert() {
+  const it = convertPending.value;
+  if (!it) return;
+  convertDlg.value = false;
   try {
-    const r = await api.post<any>('/admin/crossmedia/from-epaper', { publicId: it.publicId });
+    const r = await api.post<any>('/admin/crossmedia/from-epaper', {
+      publicId: it.publicId,
+      authors: convertAuthor.value.trim() ? [convertAuthor.value.trim()] : [],
+      categoryId: convertCategoryId.value || null,
+    });
     toast.add({ severity: 'success', summary: 'Đã tạo bản nháp', detail: `“${r?.title || it.title}” đã tạo trong Tin bài, trạng thái Nháp.`, life: 4000 });
     navigateTo('/tin-bai');
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
+    const d = e?.data || e?.response?.data;
+    if (d?.slug || d?.publicId) {
+      toast.add({ severity: 'warn', summary: 'Đã có bản nháp', detail: 'Nguồn này đã được chuyển đổi trước đó — mở Tin bài để xem bản nháp.', life: 5000 });
+      navigateTo('/tin-bai');
+    } else {
+      toast.add({ severity: 'error', summary: 'Lỗi', detail: d?.message || e?.message || 'Không tạo được bản nháp', life: 4000 });
+    }
   }
 }
 
