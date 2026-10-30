@@ -755,6 +755,23 @@ model DistributionTarget {
   @@map("distribution_targets")
 }
 
+// Ket noi mang xa hoi (Goi 2D-3, hien chi dung cho Facebook): 1 dong cho
+// moi nen tang. accessToken la Page token dai han — CHI luu trong DB,
+// khong bao gio tra ra API (status chi tra pageId/pageName/co token hay
+// khong). Bam nut Dang Facebook that moi ghi trang thai posted.
+model SocialConnection {
+  id          String   @id @default(uuid())
+  platform    String   @unique // facebook
+  pageId      String   @map("page_id")
+  pageName    String?  @map("page_name")
+  accessToken String   @map("access_token")
+  connectedBy String?  @map("connected_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("social_connections")
+}
+
 // Vung hien thi trang chu — Goi 1A Zone/Widget Manager. Zone la vi tri
 // co dinh theo layout that trang chu (seed trong migration, khong tao
 // zone tu do o 1A); ZoneItem la bai ghim vao vung, toi da mot vung cho

@@ -50,13 +50,14 @@ export function normalizeMediaQuery(input: MediaQuery): NormalizedMediaQuery {
   }
   const page = Math.max(1, Number(input?.page) || 1);
   const limit = Math.min(50, Math.max(1, Number(input?.limit) || 20));
-  // folderId: khong truyen -> undefined (khong loc); 'root' -> null.
-  let folderId: string | null | undefined;
+  const out: NormalizedMediaQuery = { kind, q: typeof input?.q === 'string' ? input.q.trim() : '', page, limit };
+  // folderId: khong truyen -> KHONG co khoa (giu nguyen hop dong cu);
+  // 'root' -> null (chua phan loai); chuoi khac -> id thu muc.
   const rawFolder = (input as any)?.folderId;
   if (rawFolder !== undefined && rawFolder !== null && rawFolder !== '') {
-    folderId = String(rawFolder) === 'root' ? null : String(rawFolder);
+    out.folderId = String(rawFolder) === 'root' ? null : String(rawFolder);
   }
-  return { kind, q: typeof input?.q === 'string' ? input.q.trim() : '', page, limit, folderId };
+  return out;
 }
 
 /** Dong media_assets -> MediaItem. kind la -> null (bo qua: subtitle...). */
