@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tin bài — TSHT</title>
-<link rel="stylesheet" href="/css/home.css?v=20261029-1"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261030-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -27,14 +27,20 @@
 <main class="wrap">
   <!-- Quang cao article_top: tren bai viet -->
   <div class="ad-slot" data-ad-placement="article_top" hidden></div>
-  <article id="article"><p>Đang tải bài viết…</p></article>
-  <section aria-label="Bài liên quan">
-    <h2 class="section-title">Bài liên quan</h2>
-    <div id="related" class="news-grid"><p>Đang tải…</p></div>
-  </section>
+  <!-- Bo cuc 2 cot kieu bao dien tu: bai viet trai, bai lien quan phai.
+       Bai viet khong tran sang cot phai (grid minmax(0, ...) + min-width: 0). -->
+  <div class="article-layout">
+    <article id="article"><p>Đang tải bài viết…</p></article>
+    <aside class="article-side" aria-label="Bài liên quan">
+      <section>
+        <h2 class="section-title">Bài liên quan</h2>
+        <div id="related" class="news-grid"><p>Đang tải…</p></div>
+      </section>
+    </aside>
+  </div>
   <p><a href="/">← Về trang chủ</a></p>
-  <!-- Quang cao article_sidebar (FALLBACK): trang bai khong co cot
-       sidebar, nen slot dat cuoi cot chinh thay vi doi bo cuc trang -->
+  <!-- Quang cao article_sidebar: giu cuoi trang (duoi luoi 2 cot) de
+       khong chen vao cot bai lien quan -->
   <div class="ad-slot" data-ad-placement="article_sidebar" hidden></div>
 </main>
 <footer class="footer">

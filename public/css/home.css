@@ -59,6 +59,18 @@ a { color: #0b4fa6; }
 .article-gallery img { width: 100%; height: auto; display: block; }
 .article-infographic { width: 100%; height: auto; display: block; margin: 0 0 1rem; }
 .article-body--emagazine { font-size: 1.05rem; line-height: 1.85; }
+/* Trang bai viet 2 cot (kieu bao dien tu): bai trai, bai lien quan phai.
+   Cot bai gioi han trong 2/3, khong tran sang cot phai; man hinh hep
+   thi xep chong 1 cot. The lien quan trong sidebar xep doc, an sapo
+   cho gon (chi giu anh + tieu de + meta). */
+.article-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 1.5rem; align-items: start; }
+.article-layout > article { min-width: 0; }
+.article-body { overflow-wrap: break-word; }
+.article-side #related { grid-template-columns: 1fr; }
+.article-side .news-card .news-sapo { display: none; }
+@media (max-width: 900px) {
+  .article-layout { grid-template-columns: 1fr; }
+}
 .cat-children { margin: 0.5rem 0 1rem; }
 .pager { margin-top: 1rem; }
 
