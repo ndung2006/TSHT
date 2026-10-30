@@ -3,8 +3,6 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-sm text-neutral-400">Tổng: {{ meta.total }} bài viết</p>
       <div class="flex gap-2">
-        <Button v-if="can('category:create') || can('category:update')" label="Chuyên mục" icon="pi pi-folder"
-          severity="secondary" @click="openCatDlg" />
         <Button v-if="can('articles:create')" label="Thêm bài viết" icon="pi pi-plus" @click="openAdd" />
       </div>
     </div>
@@ -223,43 +221,6 @@
     </Dialog>
 
     <!-- Quan ly chuyen muc -->
-    <Dialog v-model:visible="catDlg" modal header="Chuyên mục tin bài" class="w-full max-w-2xl">
-      <div class="flex flex-col gap-3">
-        <DataTable :value="cats" size="small">
-          <Column field="name" header="Tên" />
-          <Column header="Chuyên mục cha"><template #body="{ data }">{{ parentName(data.parentId) }}</template></Column>
-          <Column field="slug" header="Slug" class="text-xs" />
-          <Column header="Hiện" style="width:6rem">
-            <template #body="{ data }"><Tag :value="data.isVisible ? 'Hiện' : 'Ẩn'" :severity="data.isVisible ? 'success' : 'secondary'" /></template>
-          </Column>
-          <Column header="Thao tác" style="min-width:8rem">
-            <template #body="{ data }">
-              <Button v-if="can('category:update')" label="Sửa" size="small" text @click="openCatEdit(data)" />
-              <Button v-if="can('category:delete')" label="Xóa" size="small" text severity="danger" @click="removeCat(data)" />
-            </template>
-          </Column>
-        </DataTable>
-        <div class="border-t border-neutral-800 pt-3 flex flex-col gap-2">
-          <p class="text-sm font-medium">{{ catEditing ? 'Sửa chuyên mục' : 'Thêm chuyên mục' }}</p>
-          <InputText v-model="catForm.name" placeholder="Tên chuyên mục *" class="w-full" />
-          <InputText v-model="catForm.slug" placeholder="Slug (để trống = tự sinh)" class="w-full" />
-          <Dropdown v-model="catForm.parentId" :options="catParentOptions" option-label="label" option-value="value"
-            placeholder="Chuyên mục cha (để trống = cấp 1)" class="w-full" show-clear />
-          <div class="flex gap-2">
-            <InputText v-model.number="catForm.sortOrder" type="number" placeholder="Thứ tự" class="w-32" />
-            <div class="flex items-center gap-2"><Checkbox v-model="catForm.isVisible" binary input-id="catvis" />
-              <label for="catvis">Hiển thị công khai</label>
-            </div>
-            <Button :label="catEditing ? 'Lưu' : 'Thêm'" size="small" @click="saveCat" :disabled="!catForm.name.trim()" />
-            <Button v-if="catEditing" label="Hủy sửa" size="small" text @click="resetCatForm" />
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <Button label="Đóng" text @click="catDlg = false" />
-      </template>
-    </Dialog>
-
     <!-- Tra lai bai (bat buoc ly do) -->
     <Dialog v-model:visible="returnDlg" modal header="Trả lại bài viết" class="w-full max-w-lg">
       <div class="flex flex-col gap-2">
@@ -1099,58 +1060,6 @@ watch(excDlg, async (v) => {
 watch(returnDlg, async (v) => {
   if (!v && reviewDlg.value && reviewItem.value && returnTarget.value?.publicId === reviewItem.value.publicId) await refreshReview();
 });
-
-// --- Chuyen muc ---
-const catDlg = ref(false);
-const catEditing = ref<any>(null);
-const catForm = ref({ name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true });
-function resetCatForm() {
-  catEditing.value = null;
-  catForm.value = { name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true };
-}
-async function openCatDlg() {
-  await loadCats();
-  resetCatForm();
-  catDlg.value = true;
-}
-function openCatEdit(c: any) {
-  catEditing.value = c;
-  catForm.value = {
-    name: c.name || '', slug: c.slug || '',
-    parentId: cats.value.find((x) => x.id === c.parentId)?.publicId || '',
-    sortOrder: c.sortOrder || 0, isVisible: c.isVisible !== false,
-  };
-}
-async function saveCat() {
-  try {
-    const payload: any = {
-      name: catForm.value.name.trim(),
-      slug: catForm.value.slug.trim() || undefined,
-      parentId: catForm.value.parentId || null,
-      sortOrder: Number(catForm.value.sortOrder) || 0,
-      isVisible: catForm.value.isVisible,
-    };
-    if (catEditing.value) await api.patch(`/admin/news-categories/${catEditing.value.publicId}`, payload);
-    else await api.post('/admin/news-categories', payload);
-    toast.add({ severity: 'success', summary: 'Đã lưu chuyên mục', life: 2500 });
-    await loadCats();
-    resetCatForm();
-    load(meta.value.page);
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Lưu chuyên mục thất bại', life: 3000 });
-  }
-}
-async function removeCat(c: any) {
-  if (!window.confirm(`Xóa chuyên mục "${c.name}"?`)) return;
-  try {
-    await api.del(`/admin/news-categories/${c.publicId}`);
-    toast.add({ severity: 'success', summary: 'Đã xóa chuyên mục', life: 2500 });
-    await loadCats();
-    load(meta.value.page);
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Xóa thất bại', life: 3000 });
-  }
-}
 
 loadCats();
 loadAuthors();

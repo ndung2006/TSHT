@@ -2,13 +2,16 @@
   <div class="flex flex-col gap-4">
     <!-- Thanh cong cu: Them / Cong khai / An / Xoa hang loat (giong VTCPlay) -->
     <div class="surface-card flex flex-wrap items-center gap-2 p-3">
-      <Button v-if="can('category:create')" label="Thêm" icon="pi pi-plus" severity="secondary" @click="openAdd" />
-      <Button v-if="can('category:update')" label="Công khai" icon="pi pi-lock-open" severity="success"
-        :disabled="!selected.length" @click="bulkVisible(true)" />
-      <Button v-if="can('category:update')" label="Ẩn" icon="pi pi-lock" severity="warning"
-        :disabled="!selected.length" @click="bulkVisible(false)" />
-      <Button v-if="can('category:delete')" label="Xóa" icon="pi pi-trash" severity="danger"
-        :disabled="!selected.length" @click="bulkDelete" />
+      <template v-if="activeTab !== 'tin-bai'">
+        <Button v-if="can('category:create')" label="Thêm" icon="pi pi-plus" severity="secondary" @click="openAdd" />
+        <Button v-if="can('category:update')" label="Công khai" icon="pi pi-lock-open" severity="success"
+          :disabled="!selected.length" @click="bulkVisible(true)" />
+        <Button v-if="can('category:update')" label="Ẩn" icon="pi pi-lock" severity="warning"
+          :disabled="!selected.length" @click="bulkVisible(false)" />
+        <Button v-if="can('category:delete')" label="Xóa" icon="pi pi-trash" severity="danger"
+          :disabled="!selected.length" @click="bulkDelete" />
+      </template>
+      <Button v-else-if="can('category:create')" label="Thêm chuyên mục" icon="pi pi-plus" severity="secondary" @click="openNewsAdd" />
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -24,10 +27,10 @@
       <Button v-for="t in tabs" :key="t.key" :label="t.label" size="small"
         :severity="activeTab === t.key ? undefined : 'secondary'" :outlined="activeTab !== t.key"
         @click="activeTab = t.key" />
-      <span class="ml-auto self-center text-sm text-neutral-400">Tổng: {{ filtered.length }} danh mục</span>
+      <span class="ml-auto self-center text-sm text-neutral-400">Tổng: {{ activeTab === 'tin-bai' ? newsFiltered.length : filtered.length }} danh mục</span>
     </div>
 
-    <div class="surface-card p-4">
+    <div v-if="activeTab !== 'tin-bai'" class="surface-card p-4">
       <DataTable :value="filtered" v-model:selection="selected" :loading="loading" size="small"
         data-key="id" paginator :rows="20">
         <Column selection-mode="multiple" style="width:3rem" />
@@ -51,6 +54,48 @@
         </Column>
       </DataTable>
     </div>
+
+    <div v-else class="surface-card p-4">
+      <!-- Tab Tin bai: chuyen muc bao dien tu (chuyen tu dialog trang Tin bai
+        sang day, cung API /admin/news-categories, cung quyen category:*) -->
+      <DataTable :value="newsFiltered" :loading="newsLoading" size="small" data-key="publicId" paginator :rows="20">
+        <Column field="name" header="Tên" sortable />
+        <Column header="Chuyên mục cha"><template #body="{ data }">{{ newsParentName(data.parentId) }}</template></Column>
+        <Column field="slug" header="Slug" class="text-xs" />
+        <Column header="Hiện" style="width:6rem">
+          <template #body="{ data }"><Tag :value="data.isVisible ? 'Hiện' : 'Ẩn'" :severity="data.isVisible ? 'success' : 'secondary'" /></template>
+        </Column>
+        <Column header="Thao tác" style="width:8rem">
+          <template #body="{ data }">
+            <Button v-if="can('category:update')" icon="pi pi-pencil" size="small" text rounded severity="success"
+              aria-label="Sửa" @click="openNewsEdit(data)" />
+            <Button v-if="can('category:delete')" icon="pi pi-trash" size="small" text rounded severity="danger"
+              aria-label="Xóa" @click="removeNewsCat(data)" />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+
+    <Dialog v-model:visible="newsDlg" modal :header="newsEditing ? 'Sửa chuyên mục' : 'Thêm chuyên mục'" class="w-full max-w-xl">
+      <div class="flex flex-col gap-3">
+        <div><label class="field-label">Tên chuyên mục *</label><InputText v-model="newsForm.name" class="w-full" /></div>
+        <div><label class="field-label">Slug (để trống = tự sinh)</label><InputText v-model="newsForm.slug" class="w-full" /></div>
+        <div>
+          <label class="field-label">Chuyên mục cha (để trống = cấp 1)</label>
+          <Dropdown v-model="newsForm.parentId" :options="newsParentOptions" option-label="label" option-value="value"
+            class="w-full" show-clear />
+        </div>
+        <div><label class="field-label">Thứ tự</label><InputText v-model.number="newsForm.sortOrder" type="number" class="w-32" /></div>
+        <div class="flex items-center gap-2">
+          <Checkbox v-model="newsForm.isVisible" binary input-id="newsvis" />
+          <label for="newsvis">Hiển thị công khai</label>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="newsDlg = false" />
+        <Button label="Lưu" :loading="newsSaving" :disabled="!newsForm.name.trim()" @click="saveNewsCat" />
+      </template>
+    </Dialog>
 
     <Dialog v-model:visible="dlg" modal :header="editing ? 'Cập nhật danh mục' : 'Thêm danh mục'" class="w-full max-w-xl">
       <div class="flex flex-col gap-3">
@@ -112,6 +157,7 @@ const tabs = [
   { key: 'phim', label: 'Phim' },
   { key: 'video', label: 'Video' },
   { key: 'short', label: 'Short' },
+  { key: 'tin-bai', label: 'Tin bài' },
 ];
 const platformOpts = ['Android Mobile', 'IOS', 'Web'];
 const contentSortOpts = [
@@ -217,5 +263,76 @@ function bulkDelete() {
     },
   });
 }
-onMounted(load);
+// --- Tab Tin bai: chuyen muc bao dien tu (API /admin/news-categories) ---
+const newsCats = ref<any[]>([]);
+const newsLoading = ref(false);
+const newsDlg = ref(false);
+const newsEditing = ref<any>(null);
+const newsSaving = ref(false);
+const newsForm = ref({ name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true });
+const newsFiltered = computed(() => {
+  const needle = q.value.trim().toLowerCase();
+  return newsCats.value.filter((c) => !needle || (c.name || '').toLowerCase().includes(needle));
+});
+function newsParentName(parentId: string | null) {
+  if (!parentId) return '—';
+  return newsCats.value.find((c) => c.id === parentId || c.publicId === parentId)?.name || '—';
+}
+const newsParentOptions = computed(() => newsCats.value
+  .filter((c) => !c.parentId)
+  .map((c) => ({ label: c.name, value: c.publicId })));
+async function loadNewsCats() {
+  newsLoading.value = true;
+  try { newsCats.value = await api.get<any[]>('/admin/news-categories') || []; }
+  catch { newsCats.value = []; }
+  finally { newsLoading.value = false; }
+}
+function openNewsAdd() {
+  newsEditing.value = null;
+  newsForm.value = { name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true };
+  newsDlg.value = true;
+}
+function openNewsEdit(c: any) {
+  newsEditing.value = c;
+  newsForm.value = {
+    name: c.name || '', slug: c.slug || '',
+    parentId: newsCats.value.find((x) => x.id === c.parentId)?.publicId || '',
+    sortOrder: c.sortOrder || 0, isVisible: c.isVisible !== false,
+  };
+  newsDlg.value = true;
+}
+async function saveNewsCat() {
+  newsSaving.value = true;
+  const payload: any = {
+    name: newsForm.value.name.trim(),
+    slug: newsForm.value.slug.trim() || undefined,
+    parentId: newsForm.value.parentId || null,
+    sortOrder: Number(newsForm.value.sortOrder) || 0,
+    isVisible: newsForm.value.isVisible,
+  };
+  try {
+    if (newsEditing.value) await api.patch(`/admin/news-categories/${newsEditing.value.publicId}`, payload);
+    else await api.post('/admin/news-categories', payload);
+    toast.add({ severity: 'success', summary: 'Đã lưu chuyên mục', life: 2500 });
+    newsDlg.value = false;
+    loadNewsCats();
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || 'Lưu chuyên mục thất bại', life: 3000 });
+  } finally { newsSaving.value = false; }
+}
+function removeNewsCat(c: any) {
+  confirm.require({
+    message: `Xóa chuyên mục "${c.name}"?`, header: 'Xác nhận', icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Xóa', rejectLabel: 'Hủy', acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await api.del(`/admin/news-categories/${c.publicId}`);
+        toast.add({ severity: 'success', summary: 'Đã xóa chuyên mục', life: 2500 });
+        loadNewsCats();
+      } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Xóa thất bại', life: 3000 }); }
+    },
+  });
+}
+
+onMounted(() => { load(); loadNewsCats(); });
 </script>
