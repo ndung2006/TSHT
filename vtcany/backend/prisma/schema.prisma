@@ -597,6 +597,7 @@ model NewsArticle {
   approvals    NewsArticleApproval[]
   zoneItems    ZoneItem[]
   slugRedirects NewsSlugRedirect[]
+  royalty      ArticleRoyalty?
 
   @@index([status, publishAt])
   @@index([categoryId, publishAt])
@@ -945,4 +946,59 @@ model NewsroomAdApproval {
 
   @@index([adId, createdAt])
   @@map("newsroom_ad_approvals")
+}
+
+// Goi 2C (Nguoi 2) — Nhuan but: DIEM HE SO theo thanh phan, khong tien.
+// Mot ban cham cho mot bai viet (chi bai da xuat ban). Diem theo 5 thanh
+// phan cua bai (noi dung / anh / video / audio / khac), moi thanh phan
+// so nguyen 0..3 — theo dung file thong ke that cua toa soan
+// (Th_ng_K__Nhu_n_B_t_Market.xlsx, khoi diem hien hanh).
+// Chuoi: Truong phong (TP) de xuat -> BBT duyet = KHOA diem; sua sau
+// khoa chi qua mo khoa ngoai le cua BBT (ghi log). Xem
+// thiet-ke-2c-nhuan-but.md (chot 30/10/2026).
+model ArticleRoyalty {
+  id           String      @id @default(uuid())
+  articleId    String      @unique @map("article_id")
+  article      NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  contentScore Int         @default(0) @map("content_score") // diem Noi dung 0..3
+  imageScore   Int         @default(0) @map("image_score") // diem Anh 0..3
+  videoScore   Int         @default(0) @map("video_score") // diem Video 0..3
+  audioScore   Int         @default(0) @map("audio_score") // diem Audio 0..3
+  otherScore   Int         @default(0) @map("other_score") // diem Khac 0..3
+  // Ti le chia theo tac gia: [{ author: string, percent: int }] — tong
+  // percent = 100, moi tac gia cua bai xuat hien dung 1 lan. Diem tac
+  // gia = diem thanh phan x percent / 100 (tinh o service, khong luu).
+  shares       Json        @default("[]")
+  status       String      @default("draft") // draft | pending_review | approved (approved = da khoa)
+  workflowStep Int         @default(0) @map("workflow_step") // 0 = ngoai quy trinh; 1 = cho BBT duyet
+  createdBy    String?     @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy    String?     @map("updated_by")
+  updatedByRole String?    @map("updated_by_role")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  approvals    ArticleRoyaltyApproval[]
+
+  @@index([status])
+  @@map("article_royalties")
+}
+
+// Lich su duyet/mo khoa nhuan but — sao khuon NewsroomAdApproval.
+// action: submit | approve | return | publish (duyet xong = khoa) |
+// unlock (mo khoa ngoai le, isException = true + exceptionReason).
+model ArticleRoyaltyApproval {
+  id         String         @id @default(uuid())
+  royaltyId  String         @map("royalty_id")
+  royalty    ArticleRoyalty @relation(fields: [royaltyId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc ghi (0 = hanh dong ngoai buoc: khoa/mo khoa)
+  stepLabel  String?        @map("step_label")
+  actorId    String?        @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?        @map("actor_role") // ten Role luc xu ly
+  action     String // submit | approve | return | publish | unlock
+  comment    String? // ly do tra lai
+  isException Boolean       @default(false) @map("is_exception") // duyet ngoai le SoD hoac mo khoa sau khoa
+  exceptionReason String?   @map("exception_reason") // ly do ngoai le (bat buoc khi mo khoa)
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([royaltyId, createdAt])
+  @@map("article_royalty_approvals")
 }
