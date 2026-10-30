@@ -123,7 +123,21 @@ export class NewsController {
   @RequirePerms('articles:view')
   @Get()
   async list(@Query() q: any) {
-    return this.news.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, page: q?.page, limit: q?.limit });
+    return this.news.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo, page: q?.page, limit: q?.limit });
+  }
+
+  // PHAI dat truoc @Get(':publicId'): neu khong Nest se hieu 'counts' /
+  // 'authors' la publicId cua bai viet.
+  @RequirePerms('articles:view')
+  @Get('counts')
+  async counts(@Query() q: any) {
+    return this.news.countsAdmin({ q: q?.q, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo });
+  }
+
+  @RequirePerms('articles:view')
+  @Get('authors')
+  async authors() {
+    return this.news.authorsAdmin();
   }
 
   @RequirePerms('articles:view')

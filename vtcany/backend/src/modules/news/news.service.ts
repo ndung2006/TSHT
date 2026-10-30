@@ -25,6 +25,13 @@ export interface Actor {
   roleName: string | null;
 }
 
+/** Ngay dang YYYY-MM-DD (o input date cua CMS); sai dinh dang -> null. */
+export function parseDateOnly(v?: string | null): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+}
+
 export interface ArticleInput {
   title: string;
   slug?: string;
@@ -150,7 +157,10 @@ export class NewsService {
     });
     const firstByArticle = new Map<string, any>();
     for (const a of all) if (!firstByArticle.has(a.articleId)) firstByArticle.set(a.articleId, a);
-    return rows.map((r) => ({ ...r, lastApproval: firstByArticle.has(r.id) ? this.toApproval(firstByArticle.get(r.id)) : null }));
+    // Giai ten nguoi duyet (dung chung helper voi lich su duyet day du) de
+    // cot "Sua doi gan nhat" gop hien duoc "nguoi — vai tro — thoi gian".
+    const names = await this.resolveActorNames(all.map((a: any) => a.actorId));
+    return rows.map((r) => ({ ...r, lastApproval: firstByArticle.has(r.id) ? this.toApproval(firstByArticle.get(r.id), names) : null }));
   }
 
   private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'publish-direct' | 'unpublish') {
@@ -233,9 +243,33 @@ export class NewsService {
 
   // ---------------- Admin: bai viet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
+    const where = await this.buildListWhere(params);
+    const [total, rows] = await Promise.all([
+      this.prisma.newsArticle.count({ where }),
+      this.prisma.newsArticle.findMany({
+        where,
+        include: { category: true },
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    const withApprovals = await this.attachLastApprovals(rows);
+    return { data: withApprovals.map((r) => this.toItem(r)), total, page, limit };
+  }
+
+  /**
+   * Dieu kien loc dung chung cho list + counts de hai cho khong bao gio
+   * lech nhau. listAdmin hien khong loc theo role/phong ban — counts cung
+   * khong, co tinh (neu sau nay them scoping thi them o day, ca hai cung
+   * huong). Ngay loc tren createdAt (luon co, ke ca bai nhap chua co
+   * publishAt); ngay sai dinh dang thi bo qua (giong cach loc lenh lac
+   * hien co: status la cung tra 0 dong chu khong 400).
+   */
+  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string }) {
     const where: any = {};
     if (params.status) where.status = params.status;
     if (params.categoryId) {
@@ -251,18 +285,42 @@ export class NewsService {
         { sapo: { contains: params.q, mode: 'insensitive' } },
       ];
     }
-    const [total, rows] = await Promise.all([
+    // Tac gia: gia tri lay tu dropdown cac tac gia da co nen khop chinh xac
+    // 1 phan tu cua mang authors (Prisma `has`).
+    if (params.author) where.authors = { has: params.author };
+    if (params.contentType) where.contentType = params.contentType;
+    const from = parseDateOnly(params.dateFrom);
+    const to = parseDateOnly(params.dateTo);
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(`${from}T00:00:00`);
+      if (to) where.createdAt.lte = new Date(`${to}T23:59:59.999`);
+    }
+    return where;
+  }
+
+  /** So dem theo trang thai duoi cung bo loc (tru status) voi listAdmin. */
+  async countsAdmin(params: { q?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string }) {
+    const where = await this.buildListWhere(params);
+    const [total, groups] = await Promise.all([
       this.prisma.newsArticle.count({ where }),
-      this.prisma.newsArticle.findMany({
-        where,
-        include: { category: true },
-        orderBy: { updatedAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
+      this.prisma.newsArticle.groupBy({ by: ['status'], where, _count: { _all: true } }),
     ]);
-    const withApprovals = await this.attachLastApprovals(rows);
-    return { data: withApprovals.map((r) => this.toItem(r)), total, page, limit };
+    const out: any = { total, draft: 0, pending_review: 0, published: 0, unpublished: 0 };
+    for (const g of groups) if (g.status in out) out[g.status] = g._count._all;
+    return out;
+  }
+
+  /**
+   * Danh sach tac gia distinct cho dropdown loc. Query raw duy nhat trong
+   * codebase (chi doc, khong co tham so nguoi dung): Prisma khong unnest
+   * duoc mang authors, nen dung SQL truc tiep tren bang "news_articles".
+   */
+  async authorsAdmin() {
+    const rows: { name: string }[] = await this.prisma.$queryRaw<{ name: string }[]>`
+      SELECT DISTINCT a AS name FROM "news_articles", unnest(authors) AS a
+      WHERE a IS NOT NULL AND btrim(a) <> '' ORDER BY name`;
+    return rows.map((r) => r.name);
   }
 
   async getAdmin(publicId: string) {

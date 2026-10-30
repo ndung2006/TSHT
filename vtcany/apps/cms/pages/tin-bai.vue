@@ -9,12 +9,27 @@
       </div>
     </div>
 
+    <div class="surface-card p-4 flex flex-wrap items-center gap-2">
+      <span class="text-sm text-neutral-400">Lọc nhanh:</span>
+      <Button v-for="l in statusLinks" :key="l.key" :label="`${l.label} (${counts[l.key] ?? 0})`" size="small"
+        :severity="statusFilter === l.value ? undefined : 'secondary'" :text="statusFilter !== l.value"
+        @click="applyStatusLink(l.value)" />
+    </div>
+
     <div class="surface-card p-4 flex flex-wrap gap-2">
       <InputText v-model="q" placeholder="Tìm tiêu đề / sapo..." class="flex-1 min-w-52" @keyup.enter="load(1)" />
       <Dropdown v-model="catFilter" :options="catFilterOptions" option-label="label" option-value="value"
         placeholder="Tất cả chuyên mục" class="w-56" show-clear @change="load(1)" />
+      <Dropdown v-model="authorFilter" :options="authorFilterOptions" option-label="label" option-value="value"
+        placeholder="Tất cả tác giả" class="w-48" show-clear @change="load(1)" />
       <Dropdown v-model="statusFilter" :options="statusOptions" option-label="label" option-value="value"
         placeholder="Tất cả trạng thái" class="w-48" show-clear @change="load(1)" />
+      <Dropdown v-model="contentTypeFilter" :options="contentTypeFilterOptions" option-label="label" option-value="value"
+        placeholder="Tất cả loại bài" class="w-48" show-clear @change="load(1)" />
+      <span class="text-sm self-center">Từ ngày</span>
+      <input v-model="dateFrom" type="date" class="p-inputtext p-component w-40" @change="load(1)" />
+      <span class="text-sm self-center">Đến ngày</span>
+      <input v-model="dateTo" type="date" class="p-inputtext p-component w-40" @change="load(1)" />
       <Button label="Tìm" size="small" @click="load(1)" />
     </div>
 
@@ -24,6 +39,9 @@
         <Column field="title" header="Tiêu đề" />
         <Column header="Chuyên mục" style="min-width:9rem">
           <template #body="{ data }">{{ data.category?.name || '—' }}</template>
+        </Column>
+        <Column header="Tác giả" style="min-width:10rem">
+          <template #body="{ data }">{{ data.authors?.length ? data.authors.join(', ') : '—' }}</template>
         </Column>
         <Column header="Trạng thái" style="min-width:10rem">
           <template #body="{ data }">{{ statusText(data) }}</template>
@@ -35,10 +53,7 @@
           <template #body="{ data }">{{ contentTypeLabel(data.contentType) }}</template>
         </Column>
         <Column header="Sửa đổi gần nhất" style="min-width:13rem">
-          <template #body="{ data }">{{ lastEditText(data) }}</template>
-        </Column>
-        <Column header="Duyệt gần nhất" style="min-width:11rem">
-          <template #body="{ data }">{{ lastApprovalText(data) }}</template>
+          <template #body="{ data }">{{ lastActivityText(data) }}</template>
         </Column>
         <Column header="Thao tác" style="min-width:20rem">
           <template #body="{ data }">
@@ -376,7 +391,13 @@ const loading = ref(false);
 const q = ref('');
 const catFilter = ref('');
 const statusFilter = ref('');
+const authorFilter = ref('');
+const contentTypeFilter = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
 const cats = ref<any[]>([]);
+const authorsList = ref<string[]>([]);
+const counts = ref({ total: 0, draft: 0, pending_review: 0, published: 0, unpublished: 0 });
 
 const statusOptions = [
   { label: 'Nháp', value: 'draft' },
@@ -412,6 +433,22 @@ function lastEditText(it: any) {
   const role = it.updatedByRole ? ` · ${it.updatedByRole}` : '';
   return `${who}${role} · ${fmtTime(it.updatedAt)}`;
 }
+/**
+ * Cot "Sua doi gan nhat" gop (theo mau tham chieu): hoat dong gan nhat
+ * duoi dang "nguoi — vai tro — thoi gian". Hanh dong duyet (submit/duyet/
+ * tra lai) khong cap nhat updatedBy nen phai so sanh thoi gian: neu dong
+ * duyet moi nhat moi hon lan sua noi dung thi hien nguoi duyet, neu khong
+ * hien nguoi sua. Lich su duyet day du van xem o nut "Lich su duyet".
+ */
+function lastActivityText(it: any) {
+  const a = it.lastApproval;
+  if (a && a.createdAt && it.updatedAt && a.createdAt >= it.updatedAt) {
+    const who = a.actorName || a.actorRole || '?';
+    const role = a.actorRole && a.actorName !== a.actorRole ? ` · ${a.actorRole}` : '';
+    return `${who}${role} · ${fmtTime(a.createdAt)}`;
+  }
+  return lastEditText(it);
+}
 function parentName(parentId: string | null) {
   if (!parentId) return '—';
   return cats.value.find((c) => c.id === parentId || c.publicId === parentId)?.name || '—';
@@ -424,6 +461,15 @@ const catOptions = computed(() => {
   });
 });
 const catFilterOptions = computed(() => [{ label: 'Tất cả chuyên mục', value: '' }, ...catOptions.value]);
+const authorFilterOptions = computed(() => [{ label: 'Tất cả tác giả', value: '' }, ...authorsList.value.map((a) => ({ label: a, value: a }))]);
+const statusLinks = [
+  { label: 'Tất cả', value: '', key: 'total' },
+  { label: 'Bài nháp', value: 'draft', key: 'draft' },
+  { label: 'Chờ duyệt', value: 'pending_review', key: 'pending_review' },
+  { label: 'Đã xuất bản', value: 'published', key: 'published' },
+  { label: 'Hạ xuất bản', value: 'unpublished', key: 'unpublished' },
+];
+function applyStatusLink(v: string) { statusFilter.value = v; load(1); }
 const catParentOptions = computed(() => cats.value
   .filter((c) => !c.parentId)
   .map((c) => ({ label: c.name, value: c.publicId })));
@@ -432,18 +478,36 @@ async function loadCats() {
   try { cats.value = await api.get<any[]>('/admin/news-categories') || []; }
   catch { cats.value = []; }
 }
+async function loadAuthors() {
+  try { authorsList.value = await api.get<any[]>('/admin/news/authors') || []; }
+  catch { authorsList.value = []; }
+}
+async function loadCounts() {
+  try {
+    const r = await api.get<any>('/admin/news/counts', {
+      q: q.value || undefined, categoryId: catFilter.value || undefined,
+      author: authorFilter.value || undefined, contentType: contentTypeFilter.value || undefined,
+      dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined,
+    });
+    if (r) counts.value = { total: r.total || 0, draft: r.draft || 0, pending_review: r.pending_review || 0, published: r.published || 0, unpublished: r.unpublished || 0 };
+  } catch { /* giu so dem cu, khong chan danh sach */ }
+}
 async function load(page = 1) {
   loading.value = true;
   try {
     const r = await api.get<any>('/admin/news', {
       q: q.value || undefined, status: statusFilter.value || undefined,
-      categoryId: catFilter.value || undefined, page, limit: meta.value.limit,
+      categoryId: catFilter.value || undefined, author: authorFilter.value || undefined,
+      contentType: contentTypeFilter.value || undefined,
+      dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined,
+      page, limit: meta.value.limit,
     });
     items.value = r.data || [];
     meta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được danh sách', life: 3000 });
   } finally { loading.value = false; }
+  loadCounts();
 }
 function onPage(e: any) { load(Math.floor(e.first / e.rows) + 1); }
 
@@ -463,6 +527,7 @@ const contentTypeOptions = [
 function contentTypeLabel(v: string | null | undefined) {
   return contentTypeOptions.find((o) => o.value === (v || 'text'))?.label || 'Bài viết';
 }
+const contentTypeFilterOptions = computed(() => [{ label: 'Tất cả loại bài', value: '' }, ...contentTypeOptions]);
 const form = ref({
   title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
   contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
@@ -1029,5 +1094,6 @@ async function removeCat(c: any) {
 }
 
 loadCats();
+loadAuthors();
 load(1);
 </script>
