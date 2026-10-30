@@ -521,6 +521,21 @@ export class NewsService {
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.isVisible !== undefined) data.isVisible = !!input.isVisible;
     const out = await this.prisma.newsCategory.update({ where: { id: row.id }, data });
+    // Goi 1D-2: doi slug that cua chuyen muc -> ghi lich su de chuyen 301.
+    // Ghi SAU khi update thanh cong (khat 1D ghi trong luc xay data):
+    // neu update loi (vd cha khong ton tai) thi khong ghi lich su ao.
+    // Khac bai viet: chuyen muc khong co trang thai xuat ban/nhap nen
+    // ghi moi lan doi slug; muc an doi slug cung ghi vi route TSHT tra
+    // HTML cho moi slug (muc an van render nhu truoc). Upsert: slug cu
+    // duoc muc khac tai su dung roi doi tiep thi ban ghi moi nhat thang
+    // (slug song luon duoc cay hien uu tien truoc redirect).
+    if (out.slug !== row.slug) {
+      await this.prisma.categorySlugRedirect.upsert({
+        where: { oldSlug: row.slug },
+        update: { categoryId: row.id },
+        create: { oldSlug: row.slug, categoryId: row.id },
+      });
+    }
     return { publicId: out.publicId, name: out.name, slug: out.slug, parentId: out.parentId, sortOrder: out.sortOrder, isVisible: out.isVisible };
   }
 
@@ -602,6 +617,20 @@ export class NewsService {
     if (!row || row.status !== 'published' || !row.publishAt || row.publishAt > new Date()) {
       throw new NotFoundException('khong tim thay chuyen huong');
     }
+    return { slug: row.slug };
+  }
+
+  /** Goi 1D-2: giai slug cu -> slug hien tai cua chuyen muc (cho 301).
+   * Khac bai viet: khong kiem tra an/hien vi route /chuyen-muc/:slug
+   * cua TSHT tra HTML cho moi slug (muc an van render nhu khi truy cap
+   * truc tiep). Slug song luon duoc cay hien uu tien truoc nen ham nay
+   * khong bao gio chen ngang slug that. Xoa muc thi redirect cung mat
+   * theo (onDelete: Cascade) nen tra 404 chu khong treo slug ma. */
+  async resolveCategorySlugRedirect(oldSlug: string) {
+    const redir = await this.prisma.categorySlugRedirect.findUnique({ where: { oldSlug } });
+    if (!redir) throw new NotFoundException('khong tim thay chuyen huong');
+    const row = await this.prisma.newsCategory.findUnique({ where: { id: redir.categoryId } });
+    if (!row) throw new NotFoundException('khong tim thay chuyen huong');
     return { slug: row.slug };
   }
 

@@ -17,7 +17,7 @@ import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, v
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
-import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
+import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
@@ -671,6 +671,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/sitemap.xml") {
       const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
       const urls = [{ loc: origin + "/" }];
+      // Goi 1D-2: them 7 trang tinh co dinh (chi URL, khong lastmod).
+      // Khac quy uoc 1D/1E (khong dua trang danh sach cua bo suu tap
+      // vao sitemap): day la trang co dinh cua site, khong phai trang
+      // danh sach dong theo du lieu.
+      for (const p of ["/truyen-hinh", "/phat-thanh", "/lich-phat-song", "/nen-tang-so", "/su-kien", "/tuong-thuat", "/bao-in"]) urls.push({ loc: origin + p });
       let page = 1;
       for (;;) {
         const ext = await fetchVtcanyEpaperJson(`/news?page=${page}&limit=50`);
@@ -831,7 +836,42 @@ const server = http.createServer(async (req, res) => {
       }
       return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"));
     }
-    if (/^\/chuyen-muc\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "category.html"));
+    // Goi 1D-2: trang chuyen muc kem meta SEO phia server (giong
+    // /tin/:slug) + 301 slug cu -> slug hien tai. Slug song trong cay
+    // hien thi meta; slug cu tra slug-redirects -> 301; slug la hoac
+    // muc an thi van tra category.html tran (hanh vi cu). Redirect ap
+    // dung bat ke muc dich an/hien vi route nay tra HTML cho moi slug.
+    // Fail-open: backend loi thi tra HTML tran nhu cu.
+    if (/^\/chuyen-muc\/[a-z0-9-]+$/.test(u.pathname)) {
+      const slug = u.pathname.slice(12);
+      const cats = await fetchVtcanyEpaperJson(`/news-categories`);
+      let redirectSlug = null;
+      if (cats.ok) {
+        const decision = decideCategoryRoute({ tree: cats.data || [], slug, redirectSlug: null });
+        if (decision.kind === "meta") {
+          try {
+            const html = await fs.promises.readFile(path.join(PUBLIC, "category.html"), "utf8");
+            const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+            const canonicalUrl = `${origin}/chuyen-muc/${decision.node.slug}`;
+            const meta = buildCategoryMeta({ name: decision.node.name, canonicalUrl });
+            const out = html.replace(
+              "<title>Chuyên mục — TSHT</title>",
+              `<title>${escapeXml(decision.node.name)} — TSHT</title>\n${meta}`,
+            );
+            return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+          } catch {
+            return serveFile(res, path.join(PUBLIC, "category.html"));
+          }
+        }
+      }
+      const redir = await fetchVtcanyEpaperJson(`/news-categories/slug-redirects/${slug}`);
+      if (redir.ok && redir.data) redirectSlug = redir.data.slug || null;
+      const decision = decideCategoryRoute({ tree: cats.ok ? (cats.data || []) : [], slug, redirectSlug });
+      if (decision.kind === "redirect") {
+        return send(res, 301, "", "text/plain", { Location: `/chuyen-muc/${decision.slug}` });
+      }
+      return serveFile(res, path.join(PUBLIC, "category.html"));
+    }
     // A3: never serve sample assets or storage directly; content only via /api routes above.
     if (u.pathname.startsWith("/assets/") || u.pathname.startsWith("/storage/")) return err(res, 404, "not found");
     const file = path.join(PUBLIC, decodeURIComponent(u.pathname));

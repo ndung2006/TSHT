@@ -620,6 +620,21 @@ model NewsSlugRedirect {
   @@map("news_slug_redirects")
 }
 
+// Goi 1D-2: lich su slug cu cua chuyen muc (chuyen huong 301 khi doi
+// slug). Sao khuon NewsSlugRedirect. Khac bai viet: chuyen muc khong
+// co trang thai xuat ban nen ghi moi lan doi slug that (xem
+// patchCategory); tra cuu khong kiem tra an/hien vi route TSHT tra
+// HTML cho moi slug. Xoa chuyen muc cascade xoa ca redirect.
+model CategorySlugRedirect {
+  id         String       @id @default(uuid())
+  oldSlug    String       @unique @map("old_slug")
+  categoryId String       @map("category_id")
+  category   NewsCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@map("category_slug_redirects")
+}
+
 model NewsArticleApproval {
   id         String      @id @default(uuid())
   articleId  String      @map("article_id")

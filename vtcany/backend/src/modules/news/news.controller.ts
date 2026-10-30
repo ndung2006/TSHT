@@ -255,4 +255,12 @@ export class NewsCategoryPublicController {
   async list() {
     return this.news.listCategoriesPublic();
   }
+
+  // Goi 1D-2: giai slug cu -> slug hien tai (cho TSHT chuyen 301).
+  // Hai doan nen khong dung route list (khong doan); tra ve bat ke
+  // an/hien, giong hanh vi route /chuyen-muc/:slug cua TSHT.
+  @Get('slug-redirects/:slug')
+  async slugRedirect(@Param('slug') slug: string) {
+    return this.news.resolveCategorySlugRedirect(slug);
+  }
 }
