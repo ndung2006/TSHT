@@ -27,10 +27,29 @@
     return tpl.innerHTML;
   }
   // Khong dua anh bia vao trong bai doc: neu than bai (body) co chen
-  // chinh file anh bia (cung URL sau khi chuan hoa ve pathname, ke ca
-  // dang tuong doi /images/... hay tuyet doi qua origin backend) thi
-  // bo anh do khoi body, chi giu anh bia hien o hero tren cung. Chi
-  // khop dung file anh bia, khong xoa anh khac trong bai.
+  // Quy tac uu tien vi tri anh trong body (2026-10-30): neu anh bia da
+  // co trong body (cung file sau khi chuan hoa ve pathname, ke ca dang
+  // tuong doi /images/... hay tuyet doi qua origin backend) thi KHONG
+  // render hero bia rieng — anh chi hien o dung vi tri trong body, khong
+  // bi day len dau bai. Chi khi bia khong co trong body moi render hero
+  // va strip (du phong) anh bia khoi body.
+  function bodyContainsCover(html, coverUrl) {
+    if (!coverUrl || !html) return false;
+    var coverPath = "";
+    try { coverPath = new URL(coverUrl, location.origin).pathname; } catch (e) { coverPath = String(coverUrl); }
+    if (!coverPath) return false;
+    var tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    var found = false;
+    tpl.content.querySelectorAll("img").forEach(function (img) {
+      var src = img.getAttribute("src") || "";
+      if (!src) return;
+      var p = "";
+      try { p = new URL(src, location.origin).pathname; } catch (e) { p = src; }
+      if (p === coverPath) found = true;
+    });
+    return found;
+  }
   function stripCoverFromBody(html, coverUrl) {
     if (!coverUrl) return html || "";
     var coverPath = "";
@@ -93,12 +112,17 @@
       if (it.authors && it.authors.length) meta.push("Tác giả: " + esc(it.authors.join(", ")));
       var tags = (it.tags && it.tags.length)
         ? "<p class=\"news-meta\">Từ khóa: " + it.tags.map(esc).join(", ") + "</p>" : "";
+      // Uu tien vi tri anh trong body: bia da co trong body thi khong
+      // render hero (anh o yen vi tri trong body); chi khi bia khong co
+      // trong body moi render hero.
+      var bodyHtml = sanitize(it.body);
+      var coverInBody = bodyContainsCover(bodyHtml, it.cover);
       box.innerHTML = "<p class=\"news-meta\">" + meta.join(" · ") + "</p>" +
         "<h1>" + esc(it.title) + "</h1>" +
         (it.sapo ? "<p class=\"article-sapo\">" + esc(it.sapo) + "</p>" : "") +
-        (it.cover ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
+        (it.cover && !coverInBody ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
         mediaHtml(it) +
-        "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + stripCoverFromBody(sanitize(it.body), it.cover) + "</div>" + tags;
+        "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + (coverInBody ? bodyHtml : stripCoverFromBody(bodyHtml, it.cover)) + "</div>" + tags;
       // Quang cao trong bai (article_inbody): chen slot giua than bai
       // (sau doan van giua), roi nho TSHTAds render; neu TSHTAds chua
       // nap thi slot cu hidden, khong anh huong bai viet.

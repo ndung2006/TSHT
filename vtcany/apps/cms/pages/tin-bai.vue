@@ -329,7 +329,7 @@
           </div>
           <h2 class="text-xl font-semibold leading-snug">{{ reviewItem.title }}</h2>
           <p v-if="reviewItem.sapo" class="text-sm text-neutral-300 leading-relaxed">{{ reviewItem.sapo }}</p>
-          <img v-if="reviewItem.coverPath" :src="resolveMedia(reviewItem.coverPath)" :alt="reviewItem.title" class="w-full max-h-96 object-cover rounded-lg" />
+          <img v-if="reviewItem.coverPath && !reviewCoverInBody" :src="resolveMedia(reviewItem.coverPath)" :alt="reviewItem.title" class="w-full max-h-96 object-cover rounded-lg" />
           <!-- Xem truoc media dinh dang (Goi 1B) -->
           <video v-if="reviewItem.contentType === 'video' && reviewItem.formatData?.videoUrl" :src="resolveMedia(reviewItem.formatData.videoUrl)" controls preload="metadata" class="w-full rounded-lg" />
           <audio v-if="reviewItem.contentType === 'audio' && reviewItem.formatData?.audioUrl" :src="resolveMedia(reviewItem.formatData.audioUrl)" controls class="w-full" />
@@ -342,7 +342,7 @@
             <span v-if="reviewItem.publishAt"> · {{ fmtTime(reviewItem.publishAt) }}</span>
             <span v-if="reviewItem.status === 'published' && reviewItem.publishAt && new Date(reviewItem.publishAt).getTime() > Date.now()"> · Chờ xuất bản (hẹn giờ)</span>
           </p>
-          <div v-if="reviewItem.body" class="text-sm leading-relaxed" v-html="reviewBody" />
+          <div v-if="reviewItem.body" class="text-sm leading-relaxed" v-html="reviewCoverInBody ? reviewItem.body : reviewBody" />
           <p v-else class="text-sm text-neutral-400">Chưa có nội dung.</p>
         </div>
         <div v-else>
@@ -994,10 +994,32 @@ const reviewSodBlocked = computed(() => {
   const me = currentUserId();
   return !!(prev && me && prev === me);
 });
-/** Body hien trong popup Xem duyet: bo anh trung voi anh bia (cung file,
- * khop pathname sau resolveMedia) de khoi thay 2 anh giong nhau — giong
- * guard phia portal (article.js). Chi khop dung file bia, khong xoa anh
- * khac. Ban tai lai khac URL thi khong khop duoc, phai xoa tay trong body. */
+/** Uu tien vi tri anh trong body (giong portal): neu anh bia da co trong
+ * body thi popup KHONG render anh bia rieng — anh o yen vi tri trong
+ * body. reviewCoverInBody dung chung cach khop pathname sau resolveMedia
+ * voi reviewBody. Ban tai lai khac URL thi khong khop duoc o client;
+ * server se chuan hoa URL ve URL bia luc luu (xem cover-dedupe.ts). */
+/** true khi anh bia da co trong body (cung file, khop pathname). */
+const reviewCoverInBody = computed(() => {
+  const it: any = reviewItem.value;
+  if (!it?.body) return false;
+  const cover = it.coverPath ? resolveMedia(it.coverPath) : '';
+  if (!cover || typeof DOMParser === 'undefined') return false;
+  let coverPath = '';
+  try { coverPath = new URL(cover, window.location.origin).pathname; } catch { coverPath = cover; }
+  if (!coverPath) return false;
+  const doc = new DOMParser().parseFromString(it.body, 'text/html');
+  let found = false;
+  doc.querySelectorAll('img').forEach((img: any) => {
+    const src = img.getAttribute('src') || '';
+    if (!src) return;
+    let p = '';
+    try { p = new URL(resolveMedia(src), window.location.origin).pathname; } catch { p = src; }
+    if (p === coverPath) found = true;
+  });
+  return found;
+});
+
 const reviewBody = computed(() => {
   const it: any = reviewItem.value;
   if (!it?.body) return '';

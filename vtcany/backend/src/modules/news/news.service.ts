@@ -245,7 +245,7 @@ export class NewsService {
     return cat.id;
   }
 
-  // ---------------- Chong trung anh bia luc luu (xem cover-dedupe.ts) ----------------
+  // ---------------- Anh bia luc luu: bia mac dinh + chuan hoa URL (xem cover-dedupe.ts) ----------------
 
   /**
    * Tai bytes cua 1 anh de so byte voi bia. Nguon ho tro: data: (giai
@@ -270,7 +270,12 @@ export class NewsService {
       if (!/^https?:\/\//.test(url)) return null;
       const res = await fetch(url, {
         signal: AbortSignal.timeout(8000),
-        headers: { 'user-agent': 'VTCANY-CMS/1.0' },
+        // UA trinh duyet: mot so bao chan UA la (anh goc tra 403) thi
+        // dedupe fail-open va body giu nguyen anh cu.
+        headers: {
+          'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+          accept: 'image/*,*/*',
+        },
       });
       if (!res.ok) return null;
       const len = Number(res.headers.get('content-length') || 0);
@@ -428,7 +433,7 @@ export class NewsService {
     this.validateInput(input);
     const categoryId = await this.checkCategory(input.categoryId);
     const slug = await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title);
-    // Bia mac dinh + bo anh trung byte khoi body ngay luc tao.
+    // Bia mac dinh + chuan hoa URL anh trung byte ve URL bia ngay luc tao.
     const deduped = await this.applyCoverDedupe(input.body || '', input.coverPath || null);
     const row = await this.prisma.newsArticle.create({
       data: {
@@ -501,10 +506,12 @@ export class NewsService {
     if (input.isInfographic !== undefined) data.isInfographic = !!input.isInfographic;
     if (input.allowComments !== undefined) data.allowComments = !!input.allowComments;
     if (input.localNews !== undefined) data.localNews = input.localNews?.trim() ? input.localNews.trim() : null;
-    // Bia mac dinh + bo anh trung byte khoi body ngay luc luu. Chay ca khi
-    // chi doi bia (bia moi co the trung anh cu trong body) va ca khi bai
-    // cu chua co bia (luu lai se tu co bia mac dinh tu anh dau body).
-    // Chi ghi de khi dedupe that su doi body/bia, khong cham cac truong khac.
+    // Bia mac dinh + chuan hoa URL anh trung byte ve URL bia ngay luc luu.
+    // Chay ca khi chi doi bia (bia moi co the trung anh cu trong body) va
+    // ca khi bai cu chua co bia (luu lai se tu co bia mac dinh tu anh dau
+    // body). Chi ghi de khi dedupe that su doi body/bia, khong cham cac
+    // truong khac. Khong xoa anh khoi body — vi tri anh trong body duoc
+    // uu tien, client se tu an hero khi bia da co trong body.
     const effCover = input.coverPath !== undefined ? (input.coverPath || null) : row.coverPath;
     const effBody = input.body !== undefined ? input.body : (row.body || '');
     if (effBody && (effCover || effBody)) {
