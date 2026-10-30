@@ -74,6 +74,24 @@
         (it.cover ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
         mediaHtml(it) +
         "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + sanitize(it.body) + "</div>" + tags;
+      // Quang cao trong bai (article_inbody): chen slot giua than bai
+      // (sau doan van giua), roi nho TSHTAds render; neu TSHTAds chua
+      // nap thi slot cu hidden, khong anh huong bai viet.
+      try {
+        var bodyEl = box.querySelector(".article-body");
+        if (bodyEl) {
+          var paras = bodyEl.querySelectorAll("p");
+          var slot = document.createElement("div");
+          slot.className = "ad-slot";
+          slot.setAttribute("data-ad-placement", "article_inbody");
+          slot.hidden = true;
+          if (paras.length) {
+            var mid = paras[Math.floor(paras.length / 2)];
+            mid.parentNode.insertBefore(slot, mid.nextSibling);
+          } else { bodyEl.appendChild(slot); }
+          if (window.TSHTAds) window.TSHTAds.renderSlot(slot);
+        }
+      } catch (e) { /* quang cao loi khong duoc lam vo bai */ }
       rel.innerHTML = (it.related && it.related.length)
         ? it.related.map(card).join("")
         : "<p>Chưa có bài liên quan.</p>";

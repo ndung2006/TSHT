@@ -16,6 +16,7 @@ import { createVtcanySession, sessionEntryFromRequest, destroySession, userFromR
 import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
+import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 
@@ -161,6 +162,7 @@ const server = http.createServer(async (req, res) => {
       /^\/api\/v2\/events\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/liveblogs" ||
       /^\/api\/v2\/liveblogs\/[a-z0-9-]+$/.test(u.pathname) ||
+      u.pathname === "/api/v2/ads" ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
     // POST /api/v1/stream-token la public co chu dich: no chi tra link master
@@ -653,6 +655,26 @@ const server = http.createServer(async (req, res) => {
         media: e.mediaPath ? resolveVtcanyImageUrl(e.mediaPath) : "",
         isPinned: !!e.isPinned, createdAt: e.createdAt || null,
       })) });
+    }
+
+    // ---- Hien thi quang cao (goi tiep noi 2B, kieu 1E) ----
+    // GET /api/v2/ads?placement=... — proxy sang API cong khai cua
+    // backend (chi quang cao dang chay, backend tu loc lich + sap xep
+    // sortOrder ASC roi publishAt DESC). TSHT chi doi hinh dang qua
+    // whitelist adDisplayItem (khong lo truong noi bo) + ghep origin
+    // backend cho anh tuong doi, giong cach ghep anh bia su kien.
+    // Cache no-store: quang cao co lich chay + co the go xuong bat ky
+    // luc, danh sach cache co the phuc vu quang cao het han.
+    if (req.method === "GET" && u.pathname === "/api/v2/ads") {
+      const placement = sanitizePlacement(u.searchParams.get("placement"));
+      if (placement === null) return err(res, 400, "placement khong hop le");
+      const bq = new URLSearchParams({ limit: "50" });
+      if (placement) bq.set("placement", placement);
+      const ext = await fetchVtcanyEpaperJson(`/ads?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc quang cao");
+      const d = ext.data || {};
+      const items = (d.data || []).map((it) => adDisplayItem(it, resolveVtcanyImageUrl)).filter(Boolean);
+      return json(res, 200, { items, total: d.total || 0 }, { "Cache-Control": "no-store" });
     }
 
     // ---- SEO Goi 1D: robots.txt + sitemap.xml dong ----

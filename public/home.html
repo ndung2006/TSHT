@@ -57,6 +57,8 @@
 <p id="cat-note" class="cat-note" role="status">Chuyên mục tin tức sẽ có bài viết sau — module bài viết/chuyên mục là bước tiếp theo, chưa xây ở trang này.</p>
 
 <main class="wrap">
+  <!-- Quang cao home_top: dau trang chu -->
+  <div class="ad-slot" data-ad-placement="home_top" hidden></div>
   <section class="live-strip" aria-label="Đang phát">
     <h2>Đang phát</h2>
     <p id="live-tv" class="live-line">Đang tải chương trình truyền hình…</p>
@@ -111,6 +113,9 @@
     <p><a href="/bao-in">Xem tất cả các số báo in →</a></p>
     <div id="epaper-more" class="epaper-grid">Đang tải danh sách báo in…</div>
   </section>
+  <!-- Quang cao home_sidebar (FALLBACK): trang chu khong co cot sidebar,
+       nen slot dat cuoi cot chinh thay vi doi bo cuc trang -->
+  <div class="ad-slot" data-ad-placement="home_sidebar" hidden></div>
 </main>
 
 <footer class="footer">
@@ -124,5 +129,6 @@
   </nav>
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
+<script src="/js/ads.js?v=20261030-1"></script>
 <script src="/js/home.js?v=20261027-5"></script>
 </body></html>

@@ -61,3 +61,9 @@ a { color: #0b4fa6; }
 .article-body--emagazine { font-size: 1.05rem; line-height: 1.85; }
 .cat-children { margin: 0.5rem 0 1rem; }
 .pager { margin-top: 1rem; }
+
+/* Quang cao toa soan (goi tiep noi 2B): slot mac dinh hidden, chi hien
+   khi co quang cao; anh co theo cot, iframe doi tac rong 100%. */
+.ad-slot { margin: 1rem 0; text-align: center; }
+.ad-slot img { max-width: 100%; height: auto; }
+.ad-slot iframe { display: block; margin: 0 auto; }
