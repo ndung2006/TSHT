@@ -19,7 +19,7 @@
         :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
         <Column field="name" header="Tên quảng cáo" />
         <Column header="Vị trí" style="min-width:9rem">
-          <template #body="{ data }">{{ data.placement || '—' }}</template>
+          <template #body="{ data }">{{ placementLabel(data.placement) }}</template>
         </Column>
         <Column header="Loại" style="min-width:7rem">
           <template #body="{ data }">{{ data.type === 'html' ? 'HTML/JS' : 'Ảnh' }}</template>
@@ -68,9 +68,9 @@
       <div class="flex flex-col gap-3">
         <div><label class="field-label">Tên quảng cáo *</label><InputText v-model="form.name" class="w-full" /></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label class="field-label">Vị trí hiển thị (placement)</label>
-            <Dropdown v-model="form.placement" :options="placementOptions" editable
-              placeholder="vd: home_top, article_sidebar" class="w-full" />
+          <div><label class="field-label">Vị trí hiển thị (theo danh mục vị trí)</label>
+            <Dropdown v-model="form.placement" :options="PLACEMENTS" option-label="label" option-value="value" filter
+              placeholder="Chọn vị trí hiển thị" class="w-full" />
           </div>
           <div><label class="field-label">Loại quảng cáo</label>
             <Dropdown v-model="form.type" :options="typeOptions" option-label="label" option-value="value" class="w-full" />
@@ -146,7 +146,7 @@
     <Dialog v-model:visible="reviewDlg" modal :header="`Xem duyệt — ${reviewItem?.name || ''}`"
       class="w-[96vw] max-w-[96vw]" @hide="closeReview">
       <div v-if="reviewItem" class="flex flex-col gap-2">
-        <p class="text-sm text-neutral-400">{{ reviewItem.placement || '—' }} · {{ reviewItem.type === 'html' ? 'HTML/JS' : 'Ảnh' }} · {{ statusText(reviewItem) }} · {{ lastApprovalText(reviewItem) }}</p>
+        <p class="text-sm text-neutral-400">{{ placementLabel(reviewItem.placement) }} · {{ reviewItem.type === 'html' ? 'HTML/JS' : 'Ảnh' }} · {{ statusText(reviewItem) }} · {{ lastApprovalText(reviewItem) }}</p>
         <div v-if="reviewSodBlocked" class="p-3 rounded-lg border border-amber-700 bg-amber-950/40 flex flex-wrap items-center gap-2">
           <p class="text-sm flex-1 min-w-52">Bạn đã xử lý bước trước của quảng cáo này nên duyệt thường sẽ bị chặn theo quy tắc tách nhiệm vụ. Chỉ dùng ngoại lệ cho tin nóng thật sự — lượt duyệt này sẽ được ghi log là ngoại lệ.</p>
           <Button label="Duyệt với ngoại lệ tin nóng" size="small" severity="warn" @click="openExceptionApprove(reviewItem)" />
@@ -227,9 +227,49 @@ const typeOptions = [
   { label: 'Ảnh + link', value: 'image' },
   { label: 'Mã HTML/JS', value: 'html' },
 ];
-// Khoa placement goi y — danh sach cuoi khop voi goi hien thi cong khai
-// (Nguoi 1); Dropdown editable nen van nhap duoc khoa khac neu can.
-const placementOptions = ['home_top', 'home_sidebar', 'article_top', 'article_sidebar', 'article_inbody'];
+// Danh muc khoa placement — bo vi tri day du theo Bao Dien Bien (dieu phoi
+// vien chot 30/10/2026, thiet ke: tsht-2b-2c-draft/thiet-ke-2b-bo-vi-tri-
+// quang-cao.md). Khoa la bat bien khi da co quang cao dung; them vi tri moi
+// = them 1 dong o day + Nguoi 1 dung slot portal tuong ung. Backend giu
+// placement la khoa chuoi tu do nen khong can migration/API moi. 5 khoa cu
+// (cuoi danh sach) giu nguyen vi portal da co slot va quang cao da xuat ban
+// dang dung.
+const PLACEMENTS: { value: string; label: string }[] = [
+  // Web · Trang chu (theo Bao Dien Bien)
+  { value: 'web_home_under_menu', label: 'Web · Trang chủ · Ngang dưới thanh menu (1200×146)' },
+  { value: 'web_home_under_focus', label: 'Web · Trang chủ · Bên dưới khối "Tâm điểm" (1200×146)' },
+  { value: 'web_home_media_right', label: 'Web · Trang chủ · Bên phải mục "Đa Phương Tiện" (301×238)' },
+  { value: 'web_home_under_media', label: 'Web · Trang chủ · Ngang dưới mục "Đa Phương Tiện" (1200×430)' },
+  { value: 'web_home_weather_right', label: 'Web · Trang chủ · Bên phải khối chuyên mục có mục thời tiết (301×180)' },
+  { value: 'web_home_below_weather_1', label: 'Web · Trang chủ · #1 bên phải khối chuyên mục dưới thời tiết (301×228)' },
+  { value: 'web_home_below_weather_2', label: 'Web · Trang chủ · #2 bên phải khối chuyên mục dưới thời tiết (301×300)' },
+  { value: 'web_home_focus_right', label: 'Web · Trang chủ · Bên phải trang tại khối "Tâm điểm", trên link Facebook (263×210)' },
+  // App · Trang chu
+  { value: 'app_home_mid_1', label: 'App · Trang chủ · Giữa trang · Vị trí 1' },
+  { value: 'app_home_mid_2', label: 'App · Trang chủ · Giữa trang · Vị trí 2' },
+  { value: 'app_home_mid_3', label: 'App · Trang chủ · Giữa trang · Vị trí 3' },
+  { value: 'app_home_mid_4', label: 'App · Trang chủ · Giữa trang · Vị trí 4' },
+  { value: 'app_home_bottom_1', label: 'App · Trang chủ · Khối dưới · Vị trí 1' },
+  { value: 'app_home_bottom_2', label: 'App · Trang chủ · Khối dưới · Vị trí 2' },
+  { value: 'app_home_bottom_3', label: 'App · Trang chủ · Khối dưới · Vị trí 3' },
+  { value: 'app_home_bottom_4', label: 'App · Trang chủ · Khối dưới · Vị trí 4' },
+  { value: 'app_home_footer_1', label: 'App · Trang chủ · Chân trang · Vị trí 1' },
+  { value: 'app_home_footer_2', label: 'App · Trang chủ · Chân trang · Vị trí 2' },
+  // App · Popup
+  { value: 'app_popup_home', label: 'App · Popup · Trang chủ' },
+  { value: 'app_popup_list', label: 'App · Popup · Trang danh sách tin' },
+  { value: 'app_popup_article', label: 'App · Popup · Trang xem chi tiết' },
+  // Khoa cu — portal da co slot, giu nguyen
+  { value: 'home_top', label: 'Khóa cũ · Đầu trang chủ (home_top)' },
+  { value: 'home_sidebar', label: 'Khóa cũ · Cột bên trang chủ (home_sidebar)' },
+  { value: 'article_top', label: 'Khóa cũ · Trên bài viết (article_top)' },
+  { value: 'article_sidebar', label: 'Khóa cũ · Cột bên bài viết (article_sidebar)' },
+  { value: 'article_inbody', label: 'Khóa cũ · Giữa thân bài viết (article_inbody)' },
+];
+function placementLabel(key: string | null | undefined): string {
+  if (!key) return '—';
+  return PLACEMENTS.find((p) => p.value === key)?.label || key;
+}
 
 function statusText(it: any) {
   if (it.status === 'published' && it.publishAt && new Date(it.publishAt).getTime() > Date.now()) return 'Chờ xuất bản';
