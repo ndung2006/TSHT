@@ -209,9 +209,25 @@
         </div>
       </div>
       <template #footer>
+        <Button v-if="editing && can('print_articles:create')" label="Chuyển sang báo in" severity="secondary"
+          :loading="convertingPrint" @click="convertToPrint" />
         <Button label="Hủy" text @click="dlg = false" />
         <Button :label="editing ? 'Lưu' : 'Tạo'" :loading="saving" @click="save"
           :disabled="!form.title.trim() || form.sapo.length > 500" />
+      </template>
+    </Dialog>
+
+    <!-- Bai bao in da ton tai khi chuyen doi trung (409) — hien rieng,
+         khong di qua toast chung (toast chung nuot mat slug/title bai cu) -->
+    <Dialog v-model:visible="printDupDlg" modal header="Đã có bài báo in" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Bài này đã có bài báo in từ trước nên không tạo thêm:</p>
+        <p class="text-sm font-medium">{{ printDupItem?.title || printDupItem?.slug || '—' }}</p>
+        <p class="text-xs text-neutral-400">Mở trang Bài báo in để xem và duyệt bài đó theo quy trình báo in.</p>
+      </div>
+      <template #footer>
+        <Button label="Đóng" text @click="printDupDlg = false" />
+        <Button label="Mở trang Bài báo in" @click="navigateTo('/bai-bao-in')" />
       </template>
     </Dialog>
 
@@ -667,6 +683,31 @@ function openEdit(it: any) {
       .catch(() => { editApprovals.value = []; });
   }
   dlg.value = true;
+}
+// --- Chuyen sang bao in: tao 1 bai bao in copy noi dung bai nay ---
+// 409 = bai nay da co bai bao in -> mo dialog rieng hien bai cu (khong
+// di qua toast chung, vi toast chung nuot mat slug/title trong body 409).
+const convertingPrint = ref(false);
+const printDupDlg = ref(false);
+const printDupItem = ref<any>(null);
+async function convertToPrint() {
+  if (!editing.value?.publicId) return;
+  convertingPrint.value = true;
+  try {
+    const r = await api.post<any>('/admin/print-articles/from-news', { newsPublicId: editing.value.publicId });
+    toast.add({ severity: 'success', summary: 'Đã tạo bài báo in', detail: `"${r?.title || ''}" đang ở trạng thái nháp trong mục Bài báo in`, life: 4000 });
+  } catch (e: any) {
+    const status = e?.response?.status || e?.status;
+    const d = e?.data || {};
+    if (status === 409 && (d.publicId || d.slug)) {
+      printDupItem.value = d;
+      printDupDlg.value = true;
+      return;
+    }
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: d?.message || e?.response?.data?.message || e?.message || 'Chuyển sang báo in thất bại', life: 3000 });
+  } finally {
+    convertingPrint.value = false;
+  }
 }
 // --- Chen anh tu thu vien media (Dot 1a) ---
 // PrimeVue Editor phat event @load kem Quill instance. Chen them 1 nut

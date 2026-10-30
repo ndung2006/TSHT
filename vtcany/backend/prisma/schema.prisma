@@ -685,6 +685,58 @@ model NewsArticleApproval {
   @@map("news_article_approvals")
 }
 
+// Bai bao in: ban sao noi dung cua 1 bai bao dien tu, chuyen sang muc
+// Bao in de duyet LAI theo quy trinh bao in (KTV -> MD -> T.PP ->
+// P.TBT -> TBT), roi dan trang vao so. KHONG xuat ban cong khai len web:
+// TBT duyet xong -> status 'approved' = "Da duyet, cho dan trang".
+// Chi co quan he approvals <-> article (khuon theo EpaperIssue); category
+// va bai goc chi luu id dang chuoi (khong @relation) de tranh P1012 —
+// service tu giai ten chuyen muc khi tra ve.
+model PrintArticle {
+  id                String   @id @default(uuid())
+  publicId          String   @unique @map("public_id") // 24 hex, theo quy uoc chung
+  title             String
+  slug              String   @unique
+  sapo              String   @default("")
+  body              String   @default("") // HTML tu editor CMS (copy tu bai goc)
+  categoryId        String?  @map("category_id") // id NewsCategory (khong FK)
+  coverPath         String?  @map("cover_path")
+  authors           String[] @default([])
+  tags              String[] @default([])
+  sourceNewsPublicId String  @unique @map("source_news_public_id") // 1 bai goc -> toi da 1 bai bao in (chan trung)
+  sourceNewsSlug    String   @map("source_news_slug")
+  status            String   @default("draft") // draft | pending_review | approved
+  workflowStep      Int      @default(0) @map("workflow_step") // 0 = ngoai quy trinh; k = dang cho duyet buoc k
+  createdBy         String?  @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy         String?  @map("updated_by")
+  updatedByRole     String?  @map("updated_by_role")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  approvals         PrintArticleApproval[]
+
+  @@index([status, createdAt])
+  @@map("print_articles")
+}
+
+// Lich su duyet bai bao in theo buoc (khuon NewsArticleApproval).
+model PrintArticleApproval {
+  id         String       @id @default(uuid())
+  articleId  String       @map("article_id")
+  article    PrintArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc hanh dong (0 = ngoai buoc, hien khong dung)
+  stepLabel  String?      @map("step_label")
+  actorId    String?      @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?      @map("actor_role") // ten Role luc duyet
+  action     String // submit | approve | return
+  comment    String? // ly do tra lai
+  isException Boolean @default(false) @map("is_exception") // duyet voi ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason") // ly do ngoai le tin nong (neu co)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([articleId, createdAt])
+  @@map("print_article_approvals")
+}
+
 // Su kien luot xem bai (Dot 1a, CHI thu thap — chua dashboard, chua
 // chong lam dung). Ton trong rieng tu: chi luu bai duoc xem (publicId)
 // hoac duong dan + thoi diem; KHONG luu IP, user-agent, user id.

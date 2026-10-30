@@ -50,6 +50,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/su-kien', label: 'Sự kiện', icon: 'pi-calendar', workspace: 'tv', module: 'events' },
   // (2) Xuat ban Bao in
   { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
+  { to: '/bai-bao-in', label: 'Bài báo in', icon: 'pi-file-edit', workspace: 'print', module: 'print_articles' },
   // (3) Xuat ban Bao dien tu
   { to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles' },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },

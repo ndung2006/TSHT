@@ -22,6 +22,7 @@ import { EventsModule } from './modules/events/events.module';
 import { LiveblogModule } from './modules/liveblog/liveblog.module';
 import { AdsModule } from './modules/ads/ads.module';
 import { RoyaltiesModule } from './modules/royalties/royalties.module';
+import { PrintArticleModule } from './modules/print-articles/print-article.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -49,6 +50,7 @@ import { HealthController } from './health.controller';
     LiveblogModule,
     AdsModule,
     RoyaltiesModule,
+    PrintArticleModule,
   ],
   controllers: [HealthController],
 })
