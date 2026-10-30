@@ -2,7 +2,7 @@ import {
   Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import * as XLSX from 'xlsx';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
@@ -17,14 +17,17 @@ class ScoresDto {
   @IsOptional() @IsInt() other?: number;
 }
 
-class ShareDto {
+export class ShareDto {
+  // BAT BUOC co decorator: ValidationPipe whitelist se cat truong khong
+  // decorator khoi payload (da tung lam mat ten tac gia -> loi 400).
+  @IsString()
   author!: string;
 
   @IsInt()
   percent!: number;
 }
 
-class RoyaltyDto {
+export class RoyaltyDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => ScoresDto)
