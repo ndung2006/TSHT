@@ -10,6 +10,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { NewsService, type Actor } from '../news/news.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { EpaperService } from '../epaper/epaper.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { mapEpaperToDraft, mapTvToDraft, normalizeAuthors } from './crossmedia-map';
 
 // Goi 1C dot 2: tuy chon luc chuyen doi, do CMS gui kem (dialog xac nhan).
@@ -27,6 +28,7 @@ export class CrossmediaService {
     private readonly news: NewsService,
     private readonly catalog: CatalogService,
     private readonly epaper: EpaperService,
+    private readonly uploads: UploadsService,
   ) {}
 
   // Chan chuyen doi trung: cung type + id trong sourceRef ma da co bai
@@ -66,6 +68,16 @@ export class CrossmediaService {
       authors = normalizeAuthors(opts.authors);
     } catch (e: any) {
       throw new BadRequestException(e?.message || 'nguon khong hop le');
+    }
+    // DAM Proxy MP4 fail-open (chi phan video): co videoFileId nhung file
+    // goc khong con tren dia -> nhap roi ve text, chuyen doi van thanh
+    // cong; sourceRef giu videoFileId de sau nay khoi phuc duong video.
+    // Fail-closed nguon chua xuat ban o mapTvToDraft giu nguyen.
+    if (draft.contentType === 'video' && draft.sourceRef.videoFileId) {
+      if (!this.uploads.resolveLocalFile(draft.sourceRef.videoFileId)) {
+        draft.contentType = 'text';
+        draft.formatData = undefined;
+      }
     }
     await this.assertNotConverted(draft.sourceRef.type, draft.sourceRef.id);
     return this.news.create({ ...draft, authors, categoryId: opts.categoryId ?? null, sourceRef: draft.sourceRef }, actor);

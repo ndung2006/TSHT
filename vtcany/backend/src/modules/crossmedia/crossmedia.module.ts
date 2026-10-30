@@ -6,11 +6,12 @@ import { AuthModule } from '../auth/auth.module';
 import { NewsModule } from '../news/news.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { EpaperModule } from '../epaper/epaper.module';
+import { UploadsModule } from '../uploads/uploads.module';
 import { CrossmediaController } from './crossmedia.controller';
 import { CrossmediaService } from './crossmedia.service';
 
 @Module({
-  imports: [AuthModule, NewsModule, CatalogModule, EpaperModule],
+  imports: [AuthModule, NewsModule, CatalogModule, EpaperModule, UploadsModule],
   controllers: [CrossmediaController],
   providers: [CrossmediaService],
 })

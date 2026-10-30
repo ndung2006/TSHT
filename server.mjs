@@ -9,6 +9,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { Readable } from "node:stream";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { STORAGE_DIR } from "./lib/db.mjs";
@@ -163,6 +164,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/liveblogs" ||
       /^\/api\/v2\/liveblogs\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/ads" ||
+      /^\/api\/v2\/media\/[A-Za-z0-9_-]{1,64}\/mp4$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
     // POST /api/v1/stream-token la public co chu dich: no chi tra link master
@@ -507,6 +509,37 @@ const server = http.createServer(async (req, res) => {
         }
       }
       return json(res, 200, { ...newEpaperListItem(it), id: it.publicId, can_download: false, pdf_url: `/api/v2/epaper/${publicId}/pdf`, pages });
+    }
+
+    // ---- Proxy MP4 goc (DAM Proxy MP4) ----
+    // GET /api/v2/media/<uploadId>/mp4 — stream file MP4 goc tu backend
+    // (route /api/v1/media/<uploadId>/file.mp4), la URL on dinh ma ban
+    // nhap video gan vao formatData.videoUrl. KHONG buffer nhu proxy PDF
+    // (video dai, buffer se nut RAM): stream truc tiep + forward header
+    // Range de tua (seek) hoat dong; status/header tra ve nguyen ven
+    // (206 + Content-Range tu backend). Khong dat timeout cho fetch nay:
+    // AbortSignal.timeout se cat stream giua chung khi phat video dai.
+    // Cache no-store: quyen hien thi cua video goc co the doi bat ky luc
+    // nao (backend gate theo isVisible), nen proxy khong cache.
+    const mediaMp4Match = u.pathname.match(/^\/api\/v2\/media\/([A-Za-z0-9_-]{1,64})\/mp4$/);
+    if (mediaMp4Match && req.method === "GET") {
+      const base = vtcanyApiBase();
+      if (!base) return err(res, 503, "backend media chua cau hinh");
+      try {
+        const headers = {};
+        if (req.headers.range) headers.range = req.headers.range;
+        const r = await fetch(`${base}/media/${mediaMp4Match[1]}/file.mp4`, { headers });
+        if (!r.ok) return err(res, r.status === 404 ? 404 : 502, r.status === 404 ? "khong tim thay file media" : "khong lay duoc file media");
+        const passthrough = {};
+        for (const h of ["content-type", "content-length", "content-range", "accept-ranges", "cache-control"]) {
+          const v = r.headers.get(h);
+          if (v) passthrough[h] = v;
+        }
+        res.writeHead(r.status, passthrough);
+        if (!r.body) return res.end();
+        Readable.fromWeb(r.body).on("error", () => res.destroy()).pipe(res);
+        return;
+      } catch (e) { return err(res, 502, "khong lay duoc file media"); }
     }
 
     // ---- Tin bai he moi qua proxy (chi bai da xuat ban) ----

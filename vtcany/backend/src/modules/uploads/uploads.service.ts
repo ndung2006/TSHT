@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { isAbsolute, join, relative } from 'path';
 import { Readable } from 'stream';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -129,6 +129,33 @@ export class UploadsService implements OnModuleInit {
 
   storageRoot(): string {
     return this.config.get<string>('STORAGE_DIR', '') || storageRootDefault();
+  }
+
+  // Duong dan file MP4 goc da merge cua mot upload, hoac null khi khong
+  // co ban ghi upload / khong co file tren dia / duong dan thoat root.
+  // Dung cho DAM Proxy MP4 o 2 cho: controller phuc vu file (kem gate
+  // hien thi catalog) va crossmedia kiem tra truoc khi gan videoUrl vao
+  // nhap (file thieu -> nhap roi ve text, khong fail chuyen doi).
+  // Ban ghi upload duoc nap lai tu bang media_asset o onModuleInit nen
+  // van tra duoc sau khi backend restart, mien la file con tren dia.
+  resolveLocalFile(uploadId: string): string | null {
+    if (!isValidUploadId(uploadId)) return null;
+    let rec: UploadRecord;
+    try {
+      rec = this.get(uploadId);
+    } catch {
+      return null;
+    }
+    const root = this.storageRoot();
+    const p = finalPath(root, uploadId, rec.filename);
+    const rel = relative(root, p);
+    if (rel.startsWith('..') || isAbsolute(rel)) return null;
+    try {
+      if (!statSync(p).isFile()) return null;
+    } catch {
+      return null;
+    }
+    return p;
   }
 
   async putChunk(id: string, n: number, stream: Readable): Promise<{ chunk: number; received: boolean }> {

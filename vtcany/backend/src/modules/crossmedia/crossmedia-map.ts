@@ -8,11 +8,17 @@
 //   KTV -> MD -> T.PP -> P.TBT -> TBT). Fail-closed tuong tu.
 //
 // Han che da khao sat (ghi ro, khong tu bia):
-// - Khong co URL MP4 on dinh nao de ke thua: video catalog phat qua HLS ky
-//   HMAC (het han nhanh), file MP4 goc tren dia khong co endpoint cong khai.
-//   Nhet URL HLS ky vao formatData se hong sau vai phut va lo URL ky —
-//   nen ban nhap TV de contentType 'text', media that doi ban DAM Proxy MP4
-//   (muc mo ben duoi). Anh bia chi ke thua khi la duong dan tuong doi '/'.
+// - Video catalog phat chinh qua HLS ky HMAC (het han nhanh) nen khong
+//   nhet URL HLS ky vao formatData (se hong sau vai phut va lo URL ky).
+//   DAM Proxy MP4 (goi nay): file MP4 goc duoc phuc vu qua route on
+//   dinh GET /api/v1/media/<uploadId>/file.mp4 (backend, gate theo video
+//   catalog dang hien thi) + proxy TSHT /api/v2/media/<uploadId>/mp4;
+//   ban nhap TV co videoFileId thi contentType 'video' + formatData
+//   .videoUrl = URL proxy tuyet doi (xem portalMp4Url). File goc co the
+//   dung codec ma mot so trinh duyet khong giai duoc (ban transcode HLS
+//   moi la ban chuan phat) va viec giu file goc sau transcode chua xac
+//   minh tren dia — thieu file thi endpoint tra 404, nhap roi ve text
+//   luc chuyen doi (xem crossmedia.service.ts).
 // - Nguon khong co ten tac gia (catalog khong co truong author; so bao chi
 //   co createdBy la id) nen server KHONG bao gio tu gan tac gia: bien tap
 //   chon/ghi tac gia luc chuyen doi (o CMS, mac dinh la email tai khoan
@@ -41,9 +47,8 @@ export interface SourceRef {
   title: string;
   issueNumber?: number;
   issueType?: string;
-  // Goi 1C dot 2, chi dat nen: id upload cua video catalog (form
-  // videos.vue/short.vue mang videoFileId). Khong phai URL phat, khong doi
-  // player — buoc DAM Proxy sau nay moi dung toi.
+  // Goi 1C dot 2: id upload cua video catalog (form videos.vue/short.vue
+  // mang videoFileId). DAM Proxy MP4 dung toi de sinh videoUrl.
   videoFileId?: string;
 }
 
@@ -75,8 +80,32 @@ export interface DraftInput {
   coverPath: string | null;
   authors: string[];
   tags: string[];
-  contentType: 'text';
+  contentType: 'text' | 'video';
+  formatData?: { videoUrl?: string };
   sourceRef: SourceRef;
+}
+
+/**
+ * URL proxy MP4 on dinh cho ban nhap video (DAM Proxy MP4).
+ *
+ * PHAI la URL tuyet doi ve origin cong khai, khong phai duong dan tuong
+ * doi, vi ca hai noi render deu ghep origin cho URL tuong doi:
+ * - Trang cong khai: server.mjs resolveFormatData() ghep moi URL tuong
+ *   doi trong formatData voi origin backend (resolveVtcanyImageUrl) —
+ *   duong dan '/api/v2/media/...' se bi ghep thanh backend origin +
+ *   '/api/v2/...' (backend khong co route /api/v2) -> 404.
+ * - CMS xem duyet: tin-bai.vue resolveMedia() ghep URL tuong doi voi
+ *   apiBase (backend) — hong tuong tu; duong dan tran tren origin CMS
+ *   cung khong co route /api/v2.
+ * URL tuyet doi di qua ca hai noi render nguyen ven (ca hai deu giu
+ * nguyen URL http(s) tuyet doi) va the <video> phat truc tiep qua proxy
+ * TSHT ma khong can CORS (the media khong dung crossorigin).
+ * Origin lay tu env PORTAL_PUBLIC_ORIGIN (Coolify backend set khi
+ * deploy); mac dinh la origin san xuat hien tai.
+ */
+export function portalMp4Url(uploadId: string): string {
+  const origin = (process.env.PORTAL_PUBLIC_ORIGIN || 'https://tsht.vtctech.xyz').replace(/\/+$/, '');
+  return `${origin}/api/v2/media/${encodeURIComponent(uploadId)}/mp4`;
 }
 
 export function escapeHtml(input: string): string {
@@ -115,12 +144,21 @@ export function normalizeAuthors(input: unknown): string[] {
 
 /**
  * Chi ke thua anh bia khi la duong dan tuong doi '/...' (quy uoc coverPath
- * cua tin bai). URL tuyet doi (http...) khong dua vao coverPath.
+ * cua tin bai) hoac ten file anh tran. Ten file tran (khong slash, duoi
+ * anh) duoc ghep thanh '/images/<file>': anh goc nam o storage/images,
+ * backend phuc vu static o /images/<file> (main.ts useStaticAssets) —
+ * dung quy uoc coverPath '/images/...' ma resolveMedia() o CMS va
+ * resolveVtcanyImageUrl o server.mjs ghep origin backend. URL tuyet doi
+ * (http...) khong dua vao coverPath; duong dan tuong doi khong bat dau
+ * bang '/' (vd 'images/a.png') van bi loai de khong doan sai.
  */
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
 export function relativeCover(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const v = value.trim();
-  return v.startsWith('/') ? v : null;
+  if (v.startsWith('/')) return v;
+  if (!v.includes('/') && !v.includes('\\') && IMAGE_EXT.test(v)) return `/images/${v}`;
+  return null;
 }
 
 function requireTitle(title: string | null | undefined): string {
@@ -132,6 +170,11 @@ function requireTitle(title: string | null | undefined): string {
 /**
  * Video / short catalog -> ban nhap. Fail-closed: chua xuat ban
  * (isVisible !== true) thi throw, khong tao nhap.
+ * Co videoFileId -> nhap video (contentType 'video', formatData.videoUrl
+ * la URL proxy MP4 on dinh); khong co -> nhap text nhu cu. Kiem tra file
+ * goc co that tren dia hay khong KHONG nam o ham thuan nay ma o service
+ * (crossmedia.service.ts): thieu file thi nhap roi ve text, chuyen doi
+ * van khong fail.
  */
 export function mapTvToDraft(src: TvSource, kind: 'tv-video' | 'tv-short'): DraftInput {
   if (!src || typeof src.id !== 'string' || !src.id) throw new Error('nguon truyen hinh khong hop le');
@@ -150,7 +193,8 @@ export function mapTvToDraft(src: TvSource, kind: 'tv-video' | 'tv-short'): Draf
     coverPath: relativeCover(src.thumbnail) ?? relativeCover(src.poster),
     authors: [],
     tags: [],
-    contentType: 'text',
+    contentType: videoFileId ? 'video' : 'text',
+    ...(videoFileId ? { formatData: { videoUrl: portalMp4Url(videoFileId) } } : {}),
     sourceRef: { type: kind, id: src.id, title, ...(videoFileId ? { videoFileId } : {}) },
   };
 }

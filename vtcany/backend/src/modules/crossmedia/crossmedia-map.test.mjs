@@ -9,6 +9,7 @@ import {
   mapEpaperToDraft,
   mapTvToDraft,
   normalizeAuthors,
+  portalMp4Url,
   relativeCover,
   truncateSapo,
 } from './crossmedia-map.ts';
@@ -133,9 +134,53 @@ test('Goi 1C dot 2: mapTvToDraft giu videoFileId vao sourceRef, thieu/rong thi k
     'tv-video',
   );
   assert.equal(d.sourceRef.videoFileId, 'up-123');
-  assert.equal(d.contentType, 'text');
+  // DAM Proxy MP4: co videoFileId -> nhap video (khong con text nhu dot 1C).
+  assert.equal(d.contentType, 'video');
   const d2 = mapTvToDraft({ id: 'vi-10', title: 'V', isVisible: true }, 'tv-video');
   assert.equal('videoFileId' in d2.sourceRef, false);
+  assert.equal(d2.contentType, 'text');
+  assert.equal('formatData' in d2, false);
   const d3 = mapTvToDraft({ id: 'vi-11', title: 'V', isVisible: true, videoFileId: '   ' }, 'tv-video');
   assert.equal('videoFileId' in d3.sourceRef, false);
+  assert.equal(d3.contentType, 'text');
+});
+
+test('DAM Proxy MP4: co videoFileId -> nhap video + videoUrl la URL proxy tuyet doi', () => {
+  const prev = process.env.PORTAL_PUBLIC_ORIGIN;
+  delete process.env.PORTAL_PUBLIC_ORIGIN;
+  try {
+    const d = mapTvToDraft(
+      { id: 'vi-20', title: 'V', description: '', thumbnail: null, isVisible: true, videoFileId: 'up-abc_1' },
+      'tv-video',
+    );
+    assert.equal(d.contentType, 'video');
+    assert.equal(d.formatData.videoUrl, 'https://tsht.vtctech.xyz/api/v2/media/up-abc_1/mp4');
+    // URL tuyet doi di qua ca hai noi render nguyen ven (khong bi ghep origin).
+    assert.equal(portalMp4Url('up-abc_1'), 'https://tsht.vtctech.xyz/api/v2/media/up-abc_1/mp4');
+    process.env.PORTAL_PUBLIC_ORIGIN = 'https://portal.example/';
+    assert.equal(portalMp4Url('up-abc_1'), 'https://portal.example/api/v2/media/up-abc_1/mp4');
+  } finally {
+    if (prev === undefined) delete process.env.PORTAL_PUBLIC_ORIGIN;
+    else process.env.PORTAL_PUBLIC_ORIGIN = prev;
+  }
+});
+
+test('DAM Proxy MP4: relativeCover ghep ten file anh tran thanh /images/<file>', () => {
+  assert.equal(relativeCover('thumb-1.jpg'), '/images/thumb-1.jpg');
+  assert.equal(relativeCover('  anh.PNG  '), '/images/anh.PNG');
+  assert.equal(relativeCover('poster.webp'), '/images/poster.webp');
+  // Khong phai anh, co slash, hoac URL tuyet doi thi van loai nhu cu.
+  assert.equal(relativeCover('video.mp4'), null);
+  assert.equal(relativeCover('images/a.png'), null);
+  assert.equal(relativeCover('https://cdn.example/a.png'), null);
+  assert.equal(relativeCover('..\\a.jpg'), null);
+});
+
+test('DAM Proxy MP4: thumbnail ten file tran duoc ke thua vao nhap video', () => {
+  const d = mapTvToDraft(
+    { id: 'vi-21', title: 'V', description: '', thumbnail: 'thumb-21.jpg', isVisible: true, videoFileId: 'up-21' },
+    'tv-short',
+  );
+  assert.equal(d.coverPath, '/images/thumb-21.jpg');
+  assert.equal(d.contentType, 'video');
 });
