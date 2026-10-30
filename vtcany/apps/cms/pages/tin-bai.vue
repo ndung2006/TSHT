@@ -443,8 +443,13 @@ function lastEditText(it: any) {
 function lastActivityText(it: any) {
   const a = it.lastApproval;
   if (a && a.createdAt && it.updatedAt && a.createdAt >= it.updatedAt) {
+    // Truoc day an vai tro khi ten nguoi trung nhan vai tro (vd. tai khoan
+    // superadmin co ten hien thi dung la "Super Admin"), khien cot chi con
+    // "Super Admin · thoi gian" va doc nhu thieu ten nguoi. Nay: ten that
+    // thi luon kem vai tro (ke ca khi hai chuoi trung nhau); chi khi khong
+    // co ten that moi lay vai tro lam ten va khong lap lai.
     const who = a.actorName || a.actorRole || '?';
-    const role = a.actorRole && a.actorName !== a.actorRole ? ` · ${a.actorRole}` : '';
+    const role = a.actorName && a.actorRole ? ` · ${a.actorRole}` : '';
     return `${who}${role} · ${fmtTime(a.createdAt)}`;
   }
   return lastEditText(it);
@@ -482,14 +487,20 @@ async function loadAuthors() {
   try { authorsList.value = await api.get<any[]>('/admin/news/authors') || []; }
   catch { authorsList.value = []; }
 }
+// Chan so dem cu ghi de so dem moi: load() goi loadCounts() khong await,
+// nen khi doi loc nhanh (vd. Loai bai Video -> Tat ca), phan hoi counts
+// cua lan loc cu co the ve SAU phan hoi cua lan loc moi va ghi de so dem
+// moi (4) bang so dem cu (0). Chi ap dung phan hoi cua lan goi moi nhat.
+let countsSeq = 0;
 async function loadCounts() {
+  const seq = ++countsSeq;
   try {
     const r = await api.get<any>('/admin/news/counts', {
       q: q.value || undefined, categoryId: catFilter.value || undefined,
       author: authorFilter.value || undefined, contentType: contentTypeFilter.value || undefined,
       dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined,
     });
-    if (r) counts.value = { total: r.total || 0, draft: r.draft || 0, pending_review: r.pending_review || 0, published: r.published || 0, unpublished: r.unpublished || 0 };
+    if (r && seq === countsSeq) counts.value = { total: r.total || 0, draft: r.draft || 0, pending_review: r.pending_review || 0, published: r.published || 0, unpublished: r.unpublished || 0 };
   } catch { /* giu so dem cu, khong chan danh sach */ }
 }
 async function load(page = 1) {
