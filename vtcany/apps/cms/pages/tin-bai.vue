@@ -342,7 +342,7 @@
             <span v-if="reviewItem.publishAt"> · {{ fmtTime(reviewItem.publishAt) }}</span>
             <span v-if="reviewItem.status === 'published' && reviewItem.publishAt && new Date(reviewItem.publishAt).getTime() > Date.now()"> · Chờ xuất bản (hẹn giờ)</span>
           </p>
-          <div v-if="reviewItem.body" class="text-sm leading-relaxed" v-html="reviewItem.body" />
+          <div v-if="reviewItem.body" class="text-sm leading-relaxed" v-html="reviewBody" />
           <p v-else class="text-sm text-neutral-400">Chưa có nội dung.</p>
         </div>
         <div v-else>
@@ -993,6 +993,32 @@ const reviewSodBlocked = computed(() => {
   const prev = reviewPrevActorId.value;
   const me = currentUserId();
   return !!(prev && me && prev === me);
+});
+/** Body hien trong popup Xem duyet: bo anh trung voi anh bia (cung file,
+ * khop pathname sau resolveMedia) de khoi thay 2 anh giong nhau — giong
+ * guard phia portal (article.js). Chi khop dung file bia, khong xoa anh
+ * khac. Ban tai lai khac URL thi khong khop duoc, phai xoa tay trong body. */
+const reviewBody = computed(() => {
+  const it: any = reviewItem.value;
+  if (!it?.body) return '';
+  const cover = it.coverPath ? resolveMedia(it.coverPath) : '';
+  if (!cover || typeof DOMParser === 'undefined') return it.body;
+  let coverPath = '';
+  try { coverPath = new URL(cover, window.location.origin).pathname; } catch { coverPath = cover; }
+  if (!coverPath) return it.body;
+  const doc = new DOMParser().parseFromString(it.body, 'text/html');
+  doc.querySelectorAll('img').forEach((img: any) => {
+    const src = img.getAttribute('src') || '';
+    if (!src) return;
+    let p = '';
+    try { p = new URL(resolveMedia(src), window.location.origin).pathname; } catch { p = src; }
+    if (p === coverPath) {
+      const parent: any = img.parentNode;
+      img.remove();
+      if (parent && (parent.nodeName === 'P' || parent.nodeName === 'FIGURE') && !parent.textContent.trim() && !parent.querySelector('img')) parent.remove();
+    }
+  });
+  return doc.body.innerHTML;
 });
 async function openReview(it: any) {
   reviewItem.value = it;
