@@ -54,6 +54,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles' },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
   { to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog' },
+  { to: '/quang-cao-toa-soan', label: 'Quảng cáo', icon: 'pi-bullseye', workspace: 'online', module: 'newsroom_ads' },
   { to: '/danh-muc', label: 'Danh mục', icon: 'pi-folder', workspace: 'online', module: 'categories' },
   { to: '/banner', label: 'Banner', icon: 'pi-flag', workspace: 'online', module: 'banners' },
   { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images', workspace: 'online', module: 'layout' },

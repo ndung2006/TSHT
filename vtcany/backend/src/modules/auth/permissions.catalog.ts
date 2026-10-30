@@ -40,6 +40,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: 'zones', label: 'Vùng hiển thị (Zone)', actions: FIVE },
   { key: 'newsroom_events', label: 'Sự kiện tòa soạn', actions: FIVE },
   { key: 'liveblog', label: 'Tường thuật trực tiếp', actions: FIVE },
+  { key: 'newsroom_ads', label: 'Quảng cáo tòa soạn', actions: FIVE },
   { key: 'departments', label: 'Phòng ban', actions: FIVE },
   { key: 'events', label: 'Sự kiện', actions: FIVE },
   { key: 'keywords', label: 'Từ khoá tìm kiếm', actions: FIVE },

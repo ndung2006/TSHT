@@ -870,3 +870,63 @@ model LiveblogEntry {
   @@index([liveblogId, createdAt])
   @@map("liveblog_entries")
 }
+
+// ---------------------------------------------------------------------------
+// Goi 2B (Nguoi 2) — Quang cao toa soan, giai doan 1: backend + CMS + API
+// (hien thi cong khai do Nguoi 1 tich hop sau, nhu mau 2A/1E; binh luan la
+// phan con lai cua 2B, lam sau theo lenh dieu phoi vien 30/10/2026).
+// Workflow 1 buoc duyet theo mau events/liveblog:
+//   QL-QC (tac gia) tao + gui duyet -> TBT duyet = xuat ban.
+// Tach han he banner catalog OTT (quyen 'banners', trang banner.vue,
+// LayoutBlock) — quang cao toa soan co quyen rieng 'newsroom_ads'.
+// Hai loai: 'image' (anh + link dich) va 'html' (ma HTML/JS cua doi tac —
+// chi hien thi trong iframe sandbox phia portal; backend chi luu + tra
+// noi dung DA DUYET qua API cong khai). placement la khoa chuoi tu do
+// (home_top, article_sidebar...) de khop voi goi hien thi sau, khong can
+// doi schema. Khong slug: quang cao khong co trang chi tiet cong khai.
+// ---------------------------------------------------------------------------
+model NewsroomAd {
+  id           String    @id @default(uuid())
+  publicId     String    @unique @map("public_id") // 24 hex, theo quy uoc chung
+  name         String // ten noi bo cua quang cao (hien trong CMS + alt text)
+  placement    String    @default("") // khoa vi tri hien thi phia portal
+  type         String    @default("image") // image | html
+  imagePath    String?   @map("image_path") // duong dan tuong doi, hien thi qua resolveMedia()
+  linkUrl      String?   @map("link_url") // link dich khi bam vao quang cao anh
+  htmlContent  String    @default("") @map("html_content") // ma HTML/JS (chi khi type = html)
+  sortOrder    Int       @default(0) @map("sort_order")
+  startsAt     DateTime? @map("starts_at") // lich chay: bat dau
+  endsAt       DateTime? @map("ends_at") // lich chay: ket thuc
+  status       String    @default("draft") // draft | pending_review | published | unpublished
+  workflowStep Int       @default(0) @map("workflow_step") // 0 = ngoai quy trinh; 1 = cho TBT duyet
+  publishAt    DateTime? @map("publish_at") // theo quy uoc news: hen gio + loc cong khai
+  createdBy    String?   @map("created_by") // AdminUser id (JWT sub), khong FK
+  updatedBy    String?   @map("updated_by")
+  updatedByRole String?  @map("updated_by_role")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  approvals    NewsroomAdApproval[]
+
+  @@index([status, publishAt])
+  @@index([placement, status])
+  @@map("newsroom_ads")
+}
+
+// Lich su duyet quang cao — sao khuon NewsroomEventApproval.
+model NewsroomAdApproval {
+  id         String     @id @default(uuid())
+  adId       String     @map("ad_id")
+  ad         NewsroomAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  step       Int // buoc duyet luc ghi (0 = hanh dong ngoai buoc: xuat ban/go xuong)
+  stepLabel  String?    @map("step_label")
+  actorId    String?    @map("actor_id") // AdminUser id, khong FK
+  actorRole  String?    @map("actor_role") // ten Role luc duyet
+  action     String // submit | approve | return | publish | unpublish
+  comment    String? // ly do tra lai
+  isException Boolean @default(false) @map("is_exception") // duyet voi ngoai le tin nong (tach nhiem vu)
+  exceptionReason String? @map("exception_reason") // ly do ngoai le tin nong (neu co)
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  @@index([adId, createdAt])
+  @@map("newsroom_ad_approvals")
+}
