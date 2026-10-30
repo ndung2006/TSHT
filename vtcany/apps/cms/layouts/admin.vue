@@ -127,6 +127,8 @@ const titles: Record<string, string> = {
   '/su-kien-toa-soan': 'Sự kiện tòa soạn',
   '/tuong-thuat': 'Tường thuật trực tiếp',
   '/quang-cao-toa-soan': 'Quảng cáo tòa soạn',
+  '/nhuan-but': 'Nhuận bút',
+  '/thong-ke-nhuan-but': 'Thống kê nhuận bút',
   '/su-kien': 'Quản lý Sự kiện',
   '/danh-muc': 'Quản lý Danh mục',
   '/truyen-hinh': 'Truyền hình & EPG',
