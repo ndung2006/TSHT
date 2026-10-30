@@ -19,6 +19,8 @@ export interface MediaItem {
   posterUrl: string;
   status: string;
   createdAt: number;
+  /** Thu muc logic (Goi 2D-1); ban ghi in-memory chua co truong nay. */
+  folderId?: string | null;
 }
 
 export interface MediaQuery {
@@ -26,6 +28,7 @@ export interface MediaQuery {
   q?: string;
   page?: unknown;
   limit?: unknown;
+  folderId?: unknown;
 }
 
 export interface NormalizedMediaQuery {
@@ -33,6 +36,8 @@ export interface NormalizedMediaQuery {
   q: string;
   page: number;
   limit: number;
+  /** undefined = khong loc theo thu muc; null = chua phan loai; string = id thu muc. */
+  folderId?: string | null;
 }
 
 export function normalizeMediaQuery(input: MediaQuery): NormalizedMediaQuery {
@@ -45,7 +50,13 @@ export function normalizeMediaQuery(input: MediaQuery): NormalizedMediaQuery {
   }
   const page = Math.max(1, Number(input?.page) || 1);
   const limit = Math.min(50, Math.max(1, Number(input?.limit) || 20));
-  return { kind, q: typeof input?.q === 'string' ? input.q.trim() : '', page, limit };
+  // folderId: khong truyen -> undefined (khong loc); 'root' -> null.
+  let folderId: string | null | undefined;
+  const rawFolder = (input as any)?.folderId;
+  if (rawFolder !== undefined && rawFolder !== null && rawFolder !== '') {
+    folderId = String(rawFolder) === 'root' ? null : String(rawFolder);
+  }
+  return { kind, q: typeof input?.q === 'string' ? input.q.trim() : '', page, limit, folderId };
 }
 
 /** Dong media_assets -> MediaItem. kind la -> null (bo qua: subtitle...). */
@@ -66,6 +77,7 @@ export function mapDbRow(row: any, publicBase: string, posterUrl = ''): MediaIte
     posterUrl: kind === 'video' ? posterUrl : '',
     status: row.status || '',
     createdAt: row.createdAt ? new Date(row.createdAt).getTime() : 0,
+    folderId: row.folderId ?? null,
   };
 }
 
@@ -109,9 +121,13 @@ export function mergeAndPage(
   for (const it of dbItems) byId.set(it.id, it);
   for (const it of memoryItems) {
     const prev = byId.get(it.id);
-    byId.set(it.id, prev ? { ...prev, ...it, posterUrl: it.posterUrl || prev.posterUrl } : it);
+    // Ban in-memory khong co folderId -> giu folderId cua ban DB.
+    byId.set(it.id, prev ? { ...prev, ...it, posterUrl: it.posterUrl || prev.posterUrl, folderId: it.folderId !== undefined ? it.folderId : prev.folderId } : it);
   }
   let items = [...byId.values()];
+  if (query.folderId !== undefined) {
+    items = items.filter((it) => (it.folderId ?? null) === query.folderId);
+  }
   if (query.kind) items = items.filter((it) => it.kind === query.kind);
   if (query.q) {
     const needle = query.q.toLowerCase();

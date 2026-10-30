@@ -29,6 +29,10 @@
 
     <!-- Thu vien anh da tai len -->
     <Dialog v-model:visible="libDlg" modal header="Thư viện ảnh" class="w-[95vw] max-w-3xl">
+      <div class="flex items-center gap-2 mb-3">
+        <Dropdown v-model="libFolder" :options="libFolderOptions" option-label="label" option-value="value" class="w-64" @change="loadLib" />
+        <span class="text-xs text-neutral-400">Lọc theo thư mục thư viện (Gói 2D-1)</span>
+      </div>
       <div v-if="loadingLib" class="text-sm text-neutral-400">Đang tải...</div>
       <div v-else-if="!lib.length" class="text-sm text-neutral-400">Chưa có ảnh nào. Hãy tải ảnh mới lên trước.</div>
       <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60dvh] overflow-y-auto pr-1">
@@ -100,22 +104,59 @@ const libDlg = ref(false);
 const lib = ref<any[]>([]);
 const loadingLib = ref(false);
 const libLoaded = ref(false);
+// Loc theo thu muc logic (Goi 2D-1): '' = tat ca, 'root' = chua phan loai,
+// con lai = id thu muc. Nguon chinh la /admin/media (co folderId); neu
+// khong goi duoc (thieu quyen catalog:read) thi lui ve /uploads/images cu
+// va tat loc thu muc.
+const libFolder = ref('');
+const libFolders = ref<any[]>([]);
+const libFolderOptions = computed(() => [
+  { label: 'Tất cả thư mục', value: '' },
+  { label: 'Chưa phân loại', value: 'root' },
+  ...libFolders.value.map((f: any) => ({ label: `${'— '.repeat(f.depth || 0)}${f.name}`, value: f.id })),
+]);
 async function openLib() {
   libDlg.value = true;
   if (libLoaded.value) return;
+  await loadLib();
+}
+async function loadLib() {
   loadingLib.value = true;
   try {
-    const r = await api.get<any>('/uploads/images');
-    lib.value = r.data || [];
+    const r = await api.get<any>('/admin/media', {
+      kind: 'image', page: 1, limit: 50,
+      folderId: libFolder.value || undefined,
+    });
+    lib.value = (r.data || []).filter((im: any) => im.url);
     libLoaded.value = true;
+    if (!libFolders.value.length) {
+      try {
+        const fr = await api.get<any>('/admin/media-folders');
+        libFolders.value = fr.data || [];
+      } catch { /* khong co danh sach thu muc thi chi tat loc */ }
+    }
   } catch {
-    lib.value = [];
+    // Fallback endpoint cu (khong co folderId -> chi tai khi dang xem tat ca).
+    try {
+      const r = await api.get<any>('/uploads/images');
+      lib.value = r.data || [];
+      libLoaded.value = true;
+    } catch {
+      lib.value = [];
+    }
   } finally {
     loadingLib.value = false;
   }
 }
 function pick(im: any) {
-  url.value = im.url;
+  // Gia tri LUU phai la duong dan tuong doi (/images/...) nhu truoc day:
+  // /admin/media co the tra URL tuyet doi (kem origin API) -> cat origin di.
+  let u = String(im.url || '');
+  try {
+    const origin = new URL(useRuntimeConfig().public.apiBase as string).origin;
+    if (u.startsWith(origin)) u = u.slice(origin.length);
+  } catch { /* giu nguyen */ }
+  url.value = u;
   libDlg.value = false;
 }
 </script>

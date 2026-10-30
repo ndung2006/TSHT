@@ -134,11 +134,34 @@ model MediaAsset {
   sizeBytes   BigInt?  @map("size_bytes")
   contentType String?  @map("content_type")
   videoId     String?  @map("video_id")
+  // Thu muc LOGIC cua Thu vien media (Goi 2D-1): chi la truong phan loai
+  // trong DB, KHONG di chuyen file vat ly (URL da nhung trong bai da xuat
+  // ban phai nguyen ven). Null = chua phan loai.
+  folderId    String?  @map("folder_id")
+  folder      MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([status, createdAt])
+  @@index([folderId])
   @@map("media_assets")
+}
+
+// Thu muc logic cho Thu vien media (Goi 2D-1): cay thu muc bang parentId,
+// xoa thu muc thi file ve chua phan loai + thu muc con len thu muc cha
+// (xu ly trong service, khong cascade xoa file).
+model MediaFolder {
+  id        String        @id @default(uuid())
+  name      String
+  parentId  String?       @map("parent_id")
+  parent    MediaFolder?  @relation("MediaFolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  MediaFolder[] @relation("MediaFolderTree")
+  assets    MediaAsset[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@index([parentId])
+  @@map("media_folders")
 }
 
 // Kenh truyen hinh lay tu VTC AIO (khong co bang kenh rieng). Bang nay chi luu
