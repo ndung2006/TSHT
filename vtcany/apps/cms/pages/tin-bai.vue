@@ -81,31 +81,21 @@
     </div>
 
     <!-- Form bai viet -->
-    <Dialog v-model:visible="dlg" modal :header="editing ? 'Sửa bài viết' : 'Thêm bài viết'" class="w-full max-w-4xl">
-      <div class="flex flex-col gap-3">
-        <div><label class="field-label">Tiêu đề *</label><InputText v-model="form.title" class="w-full" /></div>
+    <Dialog v-model:visible="dlg" modal :header="editing ? 'Sửa bài viết' : 'Thêm bài viết'" class="w-[96vw] max-w-[96vw]">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <!-- Cot trai: nhap lieu chinh (tieu de, sapo, editor lon, media dinh dang) -->
+        <div class="xl:col-span-2 flex flex-col gap-3">
+        <div><label class="field-label">Tiêu đề *</label><InputText v-model="form.title" class="w-full text-lg font-semibold" /></div>
         <div><label class="field-label">Slug (để trống = tự sinh từ tiêu đề)</label><InputText v-model="form.slug" class="w-full" /></div>
         <div>
           <label class="field-label">Sapo (tóm tắt, tối đa 500 ký tự) — {{ form.sapo.length }}/500</label>
-          <Textarea v-model="form.sapo" rows="3" class="w-full" maxlength="500" />
+          <Textarea v-model="form.sapo" rows="4" class="w-full" maxlength="500" />
         </div>
         <div><label class="field-label">Nội dung</label>
-          <Editor ref="editorRef" v-model="form.body" editor-style="height: 320px" @load="onEditorLoad" />
+          <Editor ref="editorRef" v-model="form.body" editor-style="height: 560px" @load="onEditorLoad" />
           <div class="flex flex-wrap items-center gap-2 mt-2">
             <Button label="Chèn ảnh từ thư viện" icon="pi pi-images" size="small" severity="secondary" @click="openLib" />
             <span class="text-xs text-neutral-500">Ảnh chèn từ thư viện là URL đã host (không nhúng base64). Nút ảnh trên thanh công cụ vẫn tải file như cũ; ảnh base64 sẽ được chuyển thành URL khi lưu.</span>
-          </div>
-        </div>
-        <div><label class="field-label">Chuyên mục</label>
-          <Dropdown v-model="form.categoryId" :options="catOptions" option-label="label" option-value="value"
-            placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label class="field-label">Định dạng nội dung (mỗi loại có trường nhập riêng bên dưới, 1B)</label>
-            <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
-          </div>
-          <div><label class="field-label">Nhãn tin địa phương (chọn một cách duy nhất: trường này)</label>
-            <InputText v-model="form.localNews" class="w-full" placeholder="VD: Tuyên Quang" />
           </div>
         </div>
         <!-- Truong rieng theo dinh dang (Goi 1B). Media luu vao formatData
@@ -156,31 +146,65 @@
         <div v-if="form.contentType === 'emagazine'" class="rounded-lg border border-neutral-800 p-3">
           <p class="text-xs text-neutral-500">Emagazine / Longform dùng ảnh bìa làm hero và nội dung dài trong editor; trang công khai hiển thị kiểu longform. Không cần trường riêng.</p>
         </div>
-        <div class="flex flex-wrap gap-4 pb-1">
-          <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
-            <label for="spot">Tiêu điểm (lên cột Tiêu điểm)</label>
-          </div>
-          <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" />
-            <label for="photo">Tin ảnh</label>
-          </div>
-          <div class="flex items-center gap-2"><Checkbox v-model="form.isInfographic" binary input-id="info" />
-            <label for="info">Infographic</label>
-          </div>
-          <div class="flex items-center gap-2"><Checkbox v-model="form.allowComments" binary input-id="cmt" />
-            <label for="cmt">Cho phép bình luận</label>
-          </div>
-        </div>
-        <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="form.coverPath" ratio="16/9" /></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><label class="field-label">Tác giả (nhiều người cách nhau bằng dấu phẩy)</label><InputText v-model="authorsText" class="w-full" /></div>
           <div><label class="field-label">Từ khóa (cách nhau bằng dấu phẩy)</label><InputText v-model="tagsText" class="w-full" /></div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label class="field-label">Hẹn giờ xuất bản (giờ Việt Nam, để trống = ngay khi bấm Xuất bản)</label>
-            <InputText v-model="publishAtText" type="datetime-local" class="w-full" />
+        </div>
+        <!-- Cot phai: thong tin + quy trinh (kieu trang Sua bai cua CMS tham chieu) -->
+        <div class="flex flex-col gap-3">
+          <div class="flex gap-2">
+            <Button label="Thông tin bài viết" size="small" :text="editTab !== 0" @click="editTab = 0" />
+            <Button label="Quy trình" size="small" :text="editTab !== 1" @click="editTab = 1" />
           </div>
-          <div class="flex items-end gap-2 pb-1"><Checkbox v-model="form.isFeatured" binary input-id="feat" />
-            <label for="feat">Tin nổi bật (lên khối Tin nổi bật ở trang chủ)</label>
+          <div v-if="editTab === 0" class="flex flex-col gap-3">
+            <p v-if="editing" class="text-sm text-neutral-400">{{ statusText(editing) }}</p>
+            <div><label class="field-label">Chuyên mục</label>
+              <Dropdown v-model="form.categoryId" :options="catOptions" option-label="label" option-value="value"
+                placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+            </div>
+            <div><label class="field-label">Định dạng nội dung (mỗi loại có trường nhập riêng bên dưới, 1B)</label>
+              <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
+            </div>
+            <div><label class="field-label">Nhãn tin địa phương (chọn một cách duy nhất: trường này)</label>
+              <InputText v-model="form.localNews" class="w-full" placeholder="VD: Tuyên Quang" />
+            </div>
+            <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="form.coverPath" ratio="16/9" /></div>
+            <div><label class="field-label">Hẹn giờ xuất bản (giờ Việt Nam, để trống = ngay khi bấm Xuất bản)</label>
+              <InputText v-model="publishAtText" type="datetime-local" class="w-full" />
+            </div>
+            <div class="flex flex-wrap gap-4 pb-1">
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isFeatured" binary input-id="feat" />
+                <label for="feat">Tin nổi bật (lên khối Tin nổi bật ở trang chủ)</label>
+              </div>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
+                <label for="spot">Tiêu điểm (lên cột Tiêu điểm)</label>
+              </div>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" />
+                <label for="photo">Tin ảnh</label>
+              </div>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isInfographic" binary input-id="info" />
+                <label for="info">Infographic</label>
+              </div>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.allowComments" binary input-id="cmt" />
+                <label for="cmt">Cho phép bình luận</label>
+              </div>
+            </div>
+          </div>
+          <div v-else class="flex flex-col gap-2">
+            <p v-if="!editing" class="text-xs text-neutral-400">Bài mới chưa có lịch sử duyệt. Chuỗi duyệt: PV (tác giả) → TP → PBĐT → BBT → XB (duyệt bước cuối = xuất bản).</p>
+            <p v-else class="text-sm text-neutral-400">{{ statusText(editing) }}</p>
+            <template v-if="editing">
+            <div v-for="row in workflowRows" :key="row.key" class="flex gap-3 rounded-lg border border-neutral-800 p-2">
+              <span class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold"
+                :class="row.state === 'done' ? 'bg-green-700 text-white' : row.state === 'current' ? 'bg-sky-600 text-white' : 'bg-neutral-800 text-neutral-400'">{{ row.state === 'done' ? '✓' : row.num }}</span>
+              <div class="min-w-0">
+                <p class="text-sm font-medium">{{ row.label }}</p>
+                <p class="text-xs text-neutral-400">{{ row.stateText }}</p>
+                <p v-if="row.actor" class="text-xs text-neutral-400">{{ row.actor }}<span v-if="row.time"> · {{ fmtTime(row.time) }}</span></p>
+              </div>
+            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -570,8 +594,48 @@ function localInputToIso(v: string) {
 function splitList(s: string) {
   return s.split(',').map((x) => x.trim()).filter(Boolean);
 }
+// --- Panel phai cua dialog Sua bai: tab Thong tin / Quy trinh ---
+// Quy trinh hien chuoi duyet tin bai (PV tac gia -> TP -> PBDT -> BBT ->
+// XB), giong backend news-workflow.ts: workflowStep 0 = ngoai quy trinh
+// (nhap/da xuat ban/ha xuat ban), k (1..4) = dang cho duyet buoc k.
+// Lich su chi xet tu sau lan tra lai gan nhat (bai bi tra ve chay lai tu dau).
+const editTab = ref(0);
+const editApprovals = ref<any[]>([]);
+const WORKFLOW_PANEL_STEPS = [
+  { key: 'pv', num: 0, label: 'PV — Phóng viên (tác giả)' },
+  { key: 'tp', num: 1, label: 'TP — Trưởng phòng' },
+  { key: 'pbdt', num: 2, label: 'PBĐT — Phó Ban điện tử' },
+  { key: 'bbt', num: 3, label: 'BBT — Ban biên tập' },
+  { key: 'xb', num: 4, label: 'XB — Xuất bản' },
+];
+const workflowRows = computed(() => {
+  const it: any = editing.value;
+  const base = WORKFLOW_PANEL_STEPS.map((s) => ({ ...s, state: 'todo', stateText: 'Chờ', actor: '', time: '' }));
+  if (!it) return base;
+  const status = it.status;
+  const finished = status === 'published' || status === 'unpublished';
+  const all = editApprovals.value || [];
+  const lastReturn = all.map((a: any) => a.action).lastIndexOf('return');
+  const run = lastReturn >= 0 ? all.slice(lastReturn + 1) : all;
+  const submit = [...run].reverse().find((a: any) => a.action === 'submit');
+  const approveByStep = new Map<number, any>();
+  for (const a of run) if (a.action === 'approve' && typeof a.step === 'number') approveByStep.set(a.step, a);
+  const who = (a: any) => [a?.actorName, a?.actorRole].filter(Boolean).join(' · ');
+  return WORKFLOW_PANEL_STEPS.map((s) => {
+    if (s.num === 0) {
+      if (finished || submit) return { ...s, state: 'done', stateText: 'Đã gửi duyệt', actor: submit ? who(submit) : '', time: submit?.createdAt || '' };
+      return { ...s, state: 'current', stateText: 'Đang soạn', actor: '', time: '' };
+    }
+    const ap = approveByStep.get(s.num);
+    if (finished || ap) return { ...s, state: 'done', stateText: 'Đã duyệt', actor: ap ? who(ap) : '', time: ap?.createdAt || '' };
+    if (status === 'pending_review' && (it.workflowStep || 0) === s.num) return { ...s, state: 'current', stateText: 'Đang chờ duyệt', actor: '', time: '' };
+    return { ...s, state: 'todo', stateText: 'Chờ', actor: '', time: '' };
+  });
+});
 function openAdd() {
   editing.value = null;
+  editTab.value = 0;
+  editApprovals.value = [];
   form.value = {
     title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
     contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
@@ -594,6 +658,14 @@ function openEdit(it: any) {
   tagsText.value = (it.tags || []).join(', ');
   publishAtText.value = isoToLocalInput(it.publishAt);
   loadFormatForm(it.formatData);
+  // Nap lich su duyet cho tab Quy trinh (cung API nhu dialog Lich su duyet).
+  editTab.value = 0;
+  editApprovals.value = [];
+  if (it?.publicId) {
+    api.get<any>(`/admin/news/${it.publicId}/approvals`)
+      .then((r: any) => { editApprovals.value = Array.isArray(r) ? r : (r?.data || []); })
+      .catch(() => { editApprovals.value = []; });
+  }
   dlg.value = true;
 }
 // --- Chen anh tu thu vien media (Dot 1a) ---
