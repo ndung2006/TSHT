@@ -157,6 +157,10 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/news-categories" ||
       /^\/api\/v2\/zones\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/distribution" ||
+      u.pathname === "/api/v2/events" ||
+      /^\/api\/v2\/events\/[a-z0-9-]+$/.test(u.pathname) ||
+      u.pathname === "/api/v2/liveblogs" ||
+      /^\/api\/v2\/liveblogs\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
     // POST /api/v1/stream-token la public co chu dich: no chi tra link master
@@ -588,6 +592,69 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { items, total: d.total || 0, page: d.page || 1, limit: d.limit || 20 });
     }
 
+    // ---- Goi 1E: hien thi cong khai su kien + tuong thuat (2A) ----
+    // GET /api/v2/events?page&limit — danh sach su kien da xuat ban
+    // (backend tu loc publishAt <= now). GET /api/v2/events/:slug —
+    // chi tiet (cung truong nhu list). Anh bia tuong doi ghep origin
+    // backend nhu tin bai. GET /api/v2/liveblogs — tuong tu; chi tiet
+    // kem entries (backend tra san theo createdAt ASC, eventId
+    // nullable: event null = tuong thuat doc lap). Chi bai published
+    // moi duoc backend tra, TSHT khong lo truong noi bo (event chi
+    // giu slug + title, entry chi giu id UUID + body + media + ghim).
+    function eventListItem(it) {
+      return {
+        slug: it.slug, title: it.title, description: it.description || "",
+        cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+        category: it.category || null, startsAt: it.startsAt || null, endsAt: it.endsAt || null,
+        publishAt: it.publishAt, url: `/su-kien/${it.slug}`,
+      };
+    }
+    function liveblogListItem(it) {
+      return {
+        slug: it.slug, title: it.title, description: it.description || "",
+        cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+        event: (it.event && typeof it.event === "object") ? { slug: it.event.slug || null, title: it.event.title || "" } : null,
+        publishAt: it.publishAt, url: `/tuong-thuat/${it.slug}`,
+      };
+    }
+    if (req.method === "GET" && u.pathname === "/api/v2/events") {
+      const bq = new URLSearchParams();
+      for (const k of ["page", "limit"]) { const v = u.searchParams.get(k); if (v) bq.set(k, v); }
+      const ext = await fetchVtcanyEpaperJson(`/events?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach su kien");
+      const d = ext.data || {};
+      const items = (d.data || []).map(eventListItem);
+      const per = Math.max(1, Number(d.limit) || 20);
+      return json(res, 200, { items, total: d.total || 0, page: d.page || 1, total_pages: Math.max(1, Math.ceil((d.total || 0) / per)) });
+    }
+    const eventSlugMatch = u.pathname.match(/^\/api\/v2\/events\/([a-z0-9-]+)$/);
+    if (req.method === "GET" && eventSlugMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/events/${eventSlugMatch[1]}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay su kien");
+      return json(res, 200, eventListItem(ext.data));
+    }
+    if (req.method === "GET" && u.pathname === "/api/v2/liveblogs") {
+      const bq = new URLSearchParams();
+      for (const k of ["page", "limit"]) { const v = u.searchParams.get(k); if (v) bq.set(k, v); }
+      const ext = await fetchVtcanyEpaperJson(`/liveblogs?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach tuong thuat");
+      const d = ext.data || {};
+      const items = (d.data || []).map(liveblogListItem);
+      const per = Math.max(1, Number(d.limit) || 20);
+      return json(res, 200, { items, total: d.total || 0, page: d.page || 1, total_pages: Math.max(1, Math.ceil((d.total || 0) / per)) });
+    }
+    const liveblogSlugMatch = u.pathname.match(/^\/api\/v2\/liveblogs\/([a-z0-9-]+)$/);
+    if (req.method === "GET" && liveblogSlugMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/liveblogs/${liveblogSlugMatch[1]}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay tuong thuat");
+      const it = ext.data;
+      return json(res, 200, { ...liveblogListItem(it), entries: (it.entries || []).map((e) => ({
+        id: e.id || null, body: e.body || "",
+        media: e.mediaPath ? resolveVtcanyImageUrl(e.mediaPath) : "",
+        isPinned: !!e.isPinned, createdAt: e.createdAt || null,
+      })) });
+    }
+
     // ---- SEO Goi 1D: robots.txt + sitemap.xml dong ----
     // Sitemap tu cap nhat theo du lieu cong khai: bai da xuat ban (phan
     // trang limit 50 vi backend chan tran), chuyen muc hien, so bao da
@@ -625,6 +692,27 @@ const server = http.createServer(async (req, res) => {
         if (items.length < 100 || epage >= 20) break;
         epage++;
       }
+      // Goi 1E: them su kien + tuong thuat da xuat ban vao sitemap
+      // (chi URL chi tiet, khong them trang danh sach — giong quy
+      // uoc 1D: /bao-in chi co URL doc so, khong co URL danh sach).
+      let evpage = 1;
+      for (;;) {
+        const ext = await fetchVtcanyEpaperJson(`/events?page=${evpage}&limit=50`);
+        if (!ext.ok) return err(res, 502, "khong lay duoc sitemap");
+        const items = ext.data.data || [];
+        for (const it of items) urls.push({ loc: `${origin}/su-kien/${it.slug}`, lastmod: it.publishAt || null });
+        if (items.length < 50 || evpage >= 20) break;
+        evpage++;
+      }
+      let lbpage = 1;
+      for (;;) {
+        const ext = await fetchVtcanyEpaperJson(`/liveblogs?page=${lbpage}&limit=50`);
+        if (!ext.ok) return err(res, 502, "khong lay duoc sitemap");
+        const items = ext.data.data || [];
+        for (const it of items) urls.push({ loc: `${origin}/tuong-thuat/${it.slug}`, lastmod: it.publishAt || null });
+        if (items.length < 50 || lbpage >= 20) break;
+        lbpage++;
+      }
       return send(res, 200, buildSitemapXml(urls), "application/xml", { "Cache-Control": "no-cache, must-revalidate" });
     }
 
@@ -641,6 +729,8 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"));
     if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));
     if (u.pathname === "/nen-tang-so") return serveFile(res, path.join(PUBLIC, "nen-tang-so.html"));
+    if (u.pathname === "/su-kien") return serveFile(res, path.join(PUBLIC, "su-kien.html"));
+    if (u.pathname === "/tuong-thuat") return serveFile(res, path.join(PUBLIC, "tuong-thuat.html"));
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
     if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
@@ -682,6 +772,64 @@ const server = http.createServer(async (req, res) => {
         }
       }
       return serveFile(res, path.join(PUBLIC, "article.html"));
+    }
+    // Goi 1E: trang chi tiet su kien / tuong thuat kem meta SEO phia
+    // server (giong /tin/:slug). Fail-open: backend loi thi tra HTML
+    // tran (trang van chay bang client fetch). Slug khong ton tai thi
+    // van tra HTML tran (hanh vi giong /tin/:slug).
+    if (/^\/su-kien\/[a-z0-9-]+$/.test(u.pathname)) {
+      const slug = u.pathname.slice(9);
+      const ext = await fetchVtcanyEpaperJson(`/events/${slug}`);
+      if (ext.ok) {
+        try {
+          const html = await fs.promises.readFile(path.join(PUBLIC, "su-kien-detail.html"), "utf8");
+          const it = ext.data;
+          const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+          const canonicalUrl = `${origin}/su-kien/${it.slug}`;
+          const meta = buildArticleMeta({
+            title: it.title, sapo: it.description || "",
+            coverUrl: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+            categoryName: it.category ? it.category.name : "",
+            publishAt: it.publishAt || "",
+            canonicalUrl,
+          });
+          const out = html.replace(
+            "<title>Sự kiện — TSHT</title>",
+            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+          );
+          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+        } catch {
+          return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"));
+        }
+      }
+      return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"));
+    }
+    if (/^\/tuong-thuat\/[a-z0-9-]+$/.test(u.pathname)) {
+      const slug = u.pathname.slice(13);
+      const ext = await fetchVtcanyEpaperJson(`/liveblogs/${slug}`);
+      if (ext.ok) {
+        try {
+          const html = await fs.promises.readFile(path.join(PUBLIC, "tuong-thuat-detail.html"), "utf8");
+          const it = ext.data;
+          const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
+          const canonicalUrl = `${origin}/tuong-thuat/${it.slug}`;
+          const meta = buildArticleMeta({
+            title: it.title, sapo: it.description || "",
+            coverUrl: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+            categoryName: "",
+            publishAt: it.publishAt || "",
+            canonicalUrl,
+          });
+          const out = html.replace(
+            "<title>Tường thuật — TSHT</title>",
+            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+          );
+          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+        } catch {
+          return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"));
+        }
+      }
+      return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"));
     }
     if (/^\/chuyen-muc\/[a-z0-9-]+$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "category.html"));
     // A3: never serve sample assets or storage directly; content only via /api routes above.
