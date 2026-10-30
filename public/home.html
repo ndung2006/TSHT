@@ -8,7 +8,7 @@
 <meta property="og:title" content="TSHT — Tòa soạn hội tụ">
 <meta property="og:description" content="TSHT — Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261030-2"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261030-3"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -37,8 +37,10 @@
 </div>
 
 <header class="masthead">
-  <img src="/icons/vtc-tsht/logo-vtc-tsht-light.svg" alt="VTC TSHT" width="167" height="64">
+  <img id="masthead-logo" src="/icons/vtc-tsht/logo-vtc-tsht-light.svg" alt="VTC TSHT" width="167" height="64">
   <p class="wordmark-sub">TÒA SOẠN HỘI TỤ</p>
+  <!-- Lien he header do CMS Quan ly giao dien dat (an khi chua dat) -->
+  <p id="masthead-contact" class="masthead-contact" hidden></p>
 </header>
 
 <nav class="catnav" aria-label="Chuyên mục">
@@ -55,6 +57,8 @@
   <span class="catnav-icons" aria-hidden="true">☰ 🔍</span>
 </nav>
 <p id="cat-note" class="cat-note" role="status">Chuyên mục tin tức sẽ có bài viết sau — module bài viết/chuyên mục là bước tiếp theo, chưa xây ở trang này.</p>
+<!-- Day hot link do CMS Quan ly giao dien dat (an khi chua dat) -->
+<div id="hotlink-strip" class="hotlink-strip" hidden></div>
 
 <main class="wrap">
   <!-- Quang cao web_home_under_menu 1200x146 — Ngang duoi thanh menu
@@ -108,6 +112,8 @@
     <h2 class="section-title">Tin mới nhất</h2>
     <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
   </section>
+  <!-- Khoi tin theo chuyen muc do CMS Quan ly giao dien chon (sau Tin moi nhat) -->
+  <div id="home-sections"></div>
   <!-- Quang cao web_home_below_weather_1 301x228 — #1 ben phai khoi chuyen
        muc duoi thoi tiet (danh muc Dien Bien). Trang chu khong co khoi
        thoi tiet rieng; 2 slot duoi thoi tiet dat ngay sau khoi Tin tuc,
@@ -157,6 +163,12 @@
 </main>
 
 <footer class="footer">
+  <!-- Footer tuy chinh do CMS Quan ly giao dien dat (an khi chua dat) -->
+  <div id="footer-custom" hidden>
+    <img id="footer-logo" alt="Logo chân trang" hidden>
+    <p id="footer-desc"></p>
+    <p id="footer-copyright"></p>
+  </div>
   <p><strong>TSHT — Tòa soạn hội tụ</strong></p>
   <nav aria-label="Liên kết chân trang">
     <a href="/bao-in">Báo in</a> ·
@@ -168,5 +180,5 @@
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261030-2"></script>
-<script src="/js/home.js?v=20261030-2"></script>
+<script src="/js/home.js?v=20261030-3"></script>
 </body></html>

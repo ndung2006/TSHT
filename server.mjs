@@ -157,6 +157,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/news" ||
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/news-categories" ||
+      u.pathname === "/api/v2/site-interface" ||
       /^\/api\/v2\/zones\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/distribution" ||
       u.pathname === "/api/v2/events" ||
@@ -591,6 +592,41 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/news-categories`);
       if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
       return json(res, 200, { data: ext.data || [] });
+    }
+
+    // ---- Quan ly giao dien (Goi site-interface) ----
+    // GET /api/v2/site-interface — cai dat hien thi portal do CMS quan ly:
+    // menu, khoi trang chu, hot link, header, footer, favicon. Chi doi hinh
+    // dang qua whitelist (khong lo truong noi bo) + ghep origin backend cho
+    // anh tuong doi. Cache no-store: editor doi la portal phai doi theo.
+    if (req.method === "GET" && u.pathname === "/api/v2/site-interface") {
+      const ext = await fetchVtcanyEpaperJson(`/site-interface`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc cai dat giao dien");
+      const d = ext.data || {};
+      const str = (v) => (typeof v === "string" ? v : "");
+      const menuItem = (m) => (m && m.slug ? {
+        name: str(m.name), slug: str(m.slug),
+        children: (m.children || []).filter((k) => k && k.slug).map((k) => ({ name: str(k.name), slug: str(k.slug) })),
+      } : null);
+      return json(res, 200, {
+        menu: (d.menu || []).map(menuItem).filter(Boolean),
+        homeSections: (d.homeSections || []).filter((s) => s && s.slug).map((s) => ({ name: str(s.name), slug: str(s.slug) })),
+        hotLinks: (d.hotLinks || []).filter((h) => h && h.slug).map((h) => ({ title: str(h.title), slug: str(h.slug) })),
+        header: {
+          image: d.header && d.header.image ? resolveVtcanyImageUrl(d.header.image) : "",
+          email: d.header ? str(d.header.email) : "", facebook: d.header ? str(d.header.facebook) : "",
+          youtube: d.header ? str(d.header.youtube) : "", tiktok: d.header ? str(d.header.tiktok) : "",
+          zalo: d.header ? str(d.header.zalo) : "", phone: d.header ? str(d.header.phone) : "",
+        },
+        footer: {
+          logo: d.footer && d.footer.logo ? resolveVtcanyImageUrl(d.footer.logo) : "",
+          description: d.footer ? str(d.footer.description) : "", copyright: d.footer ? str(d.footer.copyright) : "",
+        },
+        favicon: {
+          image: d.favicon && d.favicon.image ? resolveVtcanyImageUrl(d.favicon.image) : "",
+          name: d.favicon ? str(d.favicon.name) : "", description: d.favicon ? str(d.favicon.description) : "",
+        },
+      }, { "Cache-Control": "no-store" });
     }
 
     // ---- Vung hien thi trang chu — Goi 1A Zone/Widget Manager ----

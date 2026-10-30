@@ -23,6 +23,7 @@ import { LiveblogModule } from './modules/liveblog/liveblog.module';
 import { AdsModule } from './modules/ads/ads.module';
 import { RoyaltiesModule } from './modules/royalties/royalties.module';
 import { PrintArticleModule } from './modules/print-articles/print-article.module';
+import { SiteInterfaceModule } from './modules/site-interface/site-interface.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -51,6 +52,7 @@ import { HealthController } from './health.controller';
     AdsModule,
     RoyaltiesModule,
     PrintArticleModule,
+    SiteInterfaceModule,
   ],
   controllers: [HealthController],
 })

@@ -31,6 +31,7 @@ export const WORKSPACES: Workspace[] = [
   { id: 'tv', label: 'Sản xuất Truyền hình/Phát thanh' },
   { id: 'print', label: 'Xuất bản Báo in' },
   { id: 'online', label: 'Xuất bản Báo điện tử' },
+  { id: 'interface', label: 'Quản lý giao diện' },
   { id: 'admin', label: 'Quản trị chung' },
 ];
 
@@ -63,6 +64,14 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images', workspace: 'online', module: 'layout' },
   { to: '/vung-hien-thi', label: 'Vùng hiển thị', icon: 'pi-th-large', workspace: 'online', module: 'zones' },
   { to: '/phan-phoi', label: 'Phân phối', icon: 'pi-share-alt', workspace: 'online', module: 'distribution' },
+  // (3b) Quan ly giao dien (goi moi): menu, khoi trang chu, hot link,
+  // header, footer, favicon — hien khi co bat ky quyen site_interface nao.
+  { to: '/giao-dien-menu', label: 'Menu', icon: 'pi-bars', workspace: 'interface', module: 'site_interface' },
+  { to: '/giao-dien-trang-chu', label: 'Trang chủ', icon: 'pi-home', workspace: 'interface', module: 'site_interface' },
+  { to: '/giao-dien-hot-link', label: 'Hot Link', icon: 'pi-link', workspace: 'interface', module: 'site_interface' },
+  { to: '/giao-dien-header', label: 'Header', icon: 'pi-arrow-up', workspace: 'interface', module: 'site_interface' },
+  { to: '/giao-dien-footer', label: 'Footer', icon: 'pi-arrow-down', workspace: 'interface', module: 'site_interface' },
+  { to: '/giao-dien-favicon', label: 'Favicon', icon: 'pi-star', workspace: 'interface', module: 'site_interface' },
   // (4) Quan tri chung
   { to: '/nguoi-dung', label: 'Người dùng', icon: 'pi-users', workspace: 'admin', module: 'users' },
   { to: '/thong-bao', label: 'Thông báo', icon: 'pi-bell', workspace: 'admin', module: 'notifications' },

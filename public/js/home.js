@@ -200,8 +200,81 @@
   }
   loadZoneBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin nổi bật.");
   loadZoneBlock("tin-moi-nhat", "news-latest", "/api/v2/news?limit=8", "Chưa có tin bài.");
+  // Cai dat giao dien do CMS Quan ly giao dien dat (menu, hot link, khoi
+  // trang chu, header, footer, favicon). Lay 1 lan, dung chung cho nav +
+  // khoi + header; tai loi thi tra null va portal giu hanh vi cu.
+  var siteInterfacePromise = fetch("/api/v2/site-interface")
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .catch(function () { return null; });
+
+  // Ap dung cai dat giao dien (tru nav — nav xu ly rieng trong loadCategories).
+  function applySiteInterface(si) {
+    if (!si) return;
+    var strip = document.getElementById("hotlink-strip");
+    if (strip && si.hotLinks && si.hotLinks.length) {
+      strip.innerHTML = si.hotLinks.map(function (h) {
+        return "<a href=\"/tin/" + esc(h.slug) + "\">" + esc(h.title) + "</a>";
+      }).join("");
+      strip.hidden = false;
+    }
+    var wrap = document.getElementById("home-sections");
+    if (wrap && si.homeSections && si.homeSections.length) {
+      si.homeSections.forEach(function (s, i) {
+        var sec = document.createElement("section");
+        sec.setAttribute("aria-label", s.name);
+        var h = document.createElement("h2");
+        h.className = "section-title";
+        var a = document.createElement("a");
+        a.href = "/chuyen-muc/" + encodeURIComponent(s.slug);
+        a.textContent = s.name;
+        h.appendChild(a);
+        var grid = document.createElement("div");
+        grid.id = "home-sec-" + i;
+        grid.className = "news-grid";
+        grid.textContent = "Đang tải tin…";
+        sec.appendChild(h);
+        sec.appendChild(grid);
+        wrap.appendChild(sec);
+        loadNewsBlock("/api/v2/news?category=" + encodeURIComponent(s.slug) + "&limit=4", grid.id, "Chưa có tin bài.");
+      });
+    }
+    var hd = si.header || {};
+    if (hd.image) {
+      var logo = document.getElementById("masthead-logo");
+      if (logo) logo.src = hd.image;
+    }
+    var parts = [];
+    if (hd.phone) parts.push("<a href=\"tel:" + esc(String(hd.phone).replace(/\s+/g, "")) + "\">" + esc(hd.phone) + "</a>");
+    if (hd.email) parts.push("<a href=\"mailto:" + esc(hd.email) + "\">" + esc(hd.email) + "</a>");
+    [["facebook", "Facebook"], ["youtube", "Youtube"], ["tiktok", "TikTok"], ["zalo", "Zalo"]].forEach(function (p) {
+      if (hd[p[0]]) parts.push("<a href=\"" + esc(hd[p[0]]) + "\" target=\"_blank\" rel=\"noopener\">" + p[1] + "</a>");
+    });
+    var contact = document.getElementById("masthead-contact");
+    if (contact && parts.length) { contact.innerHTML = parts.join(" · "); contact.hidden = false; }
+    var ft = si.footer || {};
+    if (ft.logo || ft.description || ft.copyright) {
+      var fc = document.getElementById("footer-custom");
+      if (fc) {
+        var fl = document.getElementById("footer-logo");
+        if (fl && ft.logo) { fl.src = ft.logo; fl.hidden = false; }
+        var fd = document.getElementById("footer-desc");
+        if (fd && ft.description) fd.innerHTML = ft.description;
+        var fcp = document.getElementById("footer-copyright");
+        if (fcp && ft.copyright) fcp.textContent = ft.copyright;
+        fc.hidden = false;
+      }
+    }
+    if (si.favicon && si.favicon.image) {
+      var icon = document.querySelector('link[rel="icon"][sizes="any"]');
+      if (icon) icon.href = si.favicon.image;
+    }
+  }
+
   // Catnav that: thay link placeholder bang chuyen muc that (cap 1);
   // neu khong tai duoc thi giu nguyen link cu + ghi chu nhu cu.
+  // Neu CMS Quan ly giao dien da chon menu thi nav chi hien muc da chon
+  // theo dung thu tu do (children lay tu payload menu, da loc muc hien);
+  // neu menu con trong thi giu nguyen cay day du nhu cu.
   (function loadCategories() {
     var nav = document.querySelector(".catnav");
     if (!nav) return;
@@ -210,13 +283,20 @@
       .then(function (d) {
         var cats = (d && d.data) || [];
         if (!cats.length) return;
+        return siteInterfacePromise.then(function (si) { return { cats: cats, si: si }; });
+      })
+      .then(function (pair) {
+        if (!pair) return;
+        var cats = pair.cats;
+        var si = pair.si;
+        var displayCats = (si && si.menu && si.menu.length) ? si.menu : cats;
         var home = nav.querySelector("a.home-link");
         var icons = nav.querySelector(".catnav-icons");
         nav.querySelectorAll("a[data-cat]").forEach(function (a) { a.remove(); });
         // Nav kieu bao dien tu: muc cha tren thanh nav, di chuot (hover) hoac
         // focus hien dropdown muc con ben duoi; tren cam ung, bam nut mui ten
         // de mo/dong dropdown, bam chu muc cha van chuyen trang binh thuong.
-        cats.forEach(function (c) {
+        displayCats.forEach(function (c) {
           var item = document.createElement("div");
           item.className = "catnav-item";
           var a = document.createElement("a");
@@ -271,8 +351,13 @@
         var note = document.getElementById("cat-note");
         if (note) note.style.display = "none";
         void home;
+        applySiteInterface(si);
       })
-      .catch(function () { /* giu nguyen catnav placeholder */ });
+      .catch(function () {
+        /* giu nguyen catnav placeholder, nhung van ap dung hot link /
+           khoi / header / footer / favicon neu tai duoc cai dat. */
+        siteInterfacePromise.then(applySiteInterface);
+      });
   })();
 
   loadSchedule("tv", "live-tv", "card-tv", false);

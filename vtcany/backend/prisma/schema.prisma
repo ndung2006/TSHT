@@ -1101,3 +1101,55 @@ model ArticleRoyaltyApproval {
   @@index([royaltyId, createdAt])
   @@map("article_royalty_approvals")
 }
+
+// Goi "Quan ly giao dien": menu portal, khoi chuyen muc trang chu,
+// hot link, va cai dat header/footer/favicon.
+// categoryId/articleId chi la chuoi (khong @relation) de tranh loi P1012
+// khi Prisma generate: quan he doi chieu phai co o ca hai dau, ma muc
+// dich o day chi can tra cuu ten/slug luc doc (khuon print-articles).
+model NavMenuItem {
+  id         String   @id @default(uuid())
+  categoryId String   @unique @map("category_id")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@map("nav_menu_items")
+}
+
+model HomeSection {
+  id         String   @id @default(uuid())
+  categoryId String   @unique @map("category_id")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@map("home_sections")
+}
+
+model HotLink {
+  id        String   @id @default(uuid())
+  articleId String   @unique @map("article_id")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@map("hot_links")
+}
+
+// Cai dat giao dien dang key/value: header.image, header.email,
+// header.facebook, header.youtube, header.tiktok, header.zalo,
+// header.phone, footer.logo, footer.description, footer.copyright,
+// favicon.image, favicon.name, favicon.description.
+model SiteSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
