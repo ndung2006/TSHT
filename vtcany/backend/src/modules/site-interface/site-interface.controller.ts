@@ -3,7 +3,7 @@
 // full-admin bypass qua '*'. DTO khai du moi truong (whitelist se loc
 // truong khong khai, bai hoc tu 1B).
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { SiteInterfaceService } from './site-interface.service';
@@ -13,7 +13,11 @@ class AddRefDto {
   ref!: string;
 }
 
+// SUA 2026-10-31: ids truoc day khong co decorator nen ValidationPipe
+// (whitelist) luoc mat -> reorder luon 400 khi danh sach khong rong.
 class ReorderDto {
+  @IsArray()
+  @IsString({ each: true })
   ids!: string[];
 }
 

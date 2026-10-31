@@ -200,17 +200,32 @@ export class SiteInterfaceService {
     }
   }
 
+  // SUA 2026-10-31: DTO controller + form CMS gui khoa ngan (phone,
+  // image...) nhung putSettings truoc day tra khoa cham (header.phone...)
+  // nen moi PUT deu bi bo qua lang le ma van tra 200 (toast thanh cong
+  // gia). Map khoa ngan -> khoa cham o day; nhan ca khoa cham cu neu
+  // co caller nao gui dang do, de khong vo tinh lam mat du lieu.
+  private toDotted(input: Record<string, string | undefined>, prefix: string, fields: string[]) {
+    const out: Record<string, string | undefined> = {};
+    for (const f of fields) {
+      const v = input[f] !== undefined ? input[f] : input[`${prefix}.${f}`];
+      if (v !== undefined) out[`${prefix}.${f}`] = v;
+    }
+    return out;
+  }
+
   async getHeader() {
     const s = await this.getSettings(['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone']);
     return { image: s['header.image'], email: s['header.email'], facebook: s['header.facebook'], youtube: s['header.youtube'], tiktok: s['header.tiktok'], zalo: s['header.zalo'], phone: s['header.phone'] };
   }
 
   async putHeader(input: Record<string, string | undefined>) {
+    const mapped = this.toDotted(input, 'header', ['image', 'email', 'facebook', 'youtube', 'tiktok', 'zalo', 'phone']);
     for (const k of ['header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo']) {
-      if (input[k] && !isHttpUrl(String(input[k]))) throw new BadRequestException('link mang xa hoi phai bat dau http(s)');
+      if (mapped[k] && !isHttpUrl(String(mapped[k]))) throw new BadRequestException('link mang xa hoi phai bat dau http(s)');
     }
-    if (input['header.image'] && !isImageRef(String(input['header.image']))) throw new BadRequestException('anh header khong hop le');
-    await this.putSettings(input, ['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone']);
+    if (mapped['header.image'] && !isImageRef(String(mapped['header.image']))) throw new BadRequestException('anh header khong hop le');
+    await this.putSettings(mapped, ['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone']);
     return this.getHeader();
   }
 
@@ -220,8 +235,9 @@ export class SiteInterfaceService {
   }
 
   async putFooter(input: Record<string, string | undefined>) {
-    if (input['footer.logo'] && !isImageRef(String(input['footer.logo']))) throw new BadRequestException('anh footer khong hop le');
-    await this.putSettings(input, ['footer.logo', 'footer.description', 'footer.copyright']);
+    const mapped = this.toDotted(input, 'footer', ['logo', 'description', 'copyright']);
+    if (mapped['footer.logo'] && !isImageRef(String(mapped['footer.logo']))) throw new BadRequestException('anh footer khong hop le');
+    await this.putSettings(mapped, ['footer.logo', 'footer.description', 'footer.copyright']);
     return this.getFooter();
   }
 
@@ -231,8 +247,9 @@ export class SiteInterfaceService {
   }
 
   async putFavicon(input: Record<string, string | undefined>) {
-    if (input['favicon.image'] && !isImageRef(String(input['favicon.image']))) throw new BadRequestException('anh favicon khong hop le');
-    await this.putSettings(input, ['favicon.image', 'favicon.name', 'favicon.description']);
+    const mapped = this.toDotted(input, 'favicon', ['image', 'name', 'description']);
+    if (mapped['favicon.image'] && !isImageRef(String(mapped['favicon.image']))) throw new BadRequestException('anh favicon khong hop le');
+    await this.putSettings(mapped, ['favicon.image', 'favicon.name', 'favicon.description']);
     return this.getFavicon();
   }
 
