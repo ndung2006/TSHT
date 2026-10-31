@@ -18,7 +18,9 @@
 // - Kich thuoc vi tri moi (goi slot trang chu kieu Dien Bien, 8 khoa
 //   web_home_*): iframe HTML lay chieu cao dung bang kich thuoc vi tri,
 //   container slot lay max-width dung chieu rong vi tri (slot ngang thi
-//   can giua, slot phai thi can phai). 5 vi tri cu (home_top,
+//   can giua, slot phai thi can phai), nhung kep khong vuot qua chieu
+//   rong that cua the cha (slot ngang 1200px trong long khung 1148px
+//   truoc day tran ra ngoai). 5 vi tri cu (home_top,
 //   home_sidebar, article_top, article_sidebar, article_inbody) KHONG co
 //   trong bang nay nen giu nguyen cach render cu (iframe cao 250px).
 //   Anh: max-width 100% (da co trong CSS .ad-slot img) + display block
@@ -90,7 +92,8 @@
           // bo hidden) de slot rong khong lam dich layout.
           var size = PLACEMENT_SIZES[placement];
           if (size) {
-            el.style.maxWidth = size.w + "px";
+            var parentW = el.parentElement ? el.parentElement.clientWidth : 0;
+            el.style.maxWidth = (parentW > 0 ? Math.min(size.w, parentW) : size.w) + "px";
             if (RIGHT_SLOTS[placement]) {
               el.style.marginLeft = "auto";
               el.style.marginRight = "0";

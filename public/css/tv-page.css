@@ -9,6 +9,11 @@
 .catnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #c00; padding: 0.6rem 1rem; }
 .catnav a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
 .catnav-icons { margin-left: auto; color: #fff; }
+/* Khung chung kieu bao dien tu (2026-10-31): cac hang tren (link tren,
+   logo, nav do) cung nam trong khung 1200px can giua nhu .tv-wrap va
+   .tv-subnav, khong tran full man hinh. box-sizing de padding khong
+   lam vo khung. */
+.utility, .masthead, .catnav { box-sizing: border-box; max-width: 1200px; margin-left: auto; margin-right: auto; }
 /* TV sub-navigation: white bar under the red nav, anchor links only. */
 .tv-subnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #fff; border-bottom: 1px solid #ddd; padding: 0.6rem 1rem; max-width: 1200px; margin: 0 auto; }
 .tv-subnav-label { font-weight: 900; color: #c00; }

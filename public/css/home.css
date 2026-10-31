@@ -99,3 +99,14 @@ a { color: #0b4fa6; }
 .ad-slot { margin: 1rem 0; text-align: center; }
 .ad-slot img { max-width: 100%; height: auto; }
 .ad-slot iframe { display: block; margin: 0 auto; }
+
+/* Khung chung kieu bao dien tu (2026-10-31): cac hang tren/chan trang
+   (link tren, logo, nav do, day hot link, ghi chu, chan trang) cung nam
+   trong khung 1180px can giua nhu main.wrap, khong tran full man hinh.
+   home.css co box-sizing: border-box toan cuc nen padding khong lam
+   vo khung. */
+.utility, .masthead, .catnav, .hotlink-strip, .cat-note, .footer {
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+}

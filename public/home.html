@@ -8,7 +8,7 @@
 <meta property="og:title" content="TSHT — Tòa soạn hội tụ">
 <meta property="og:description" content="TSHT — Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261030-3"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261031-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -67,6 +67,16 @@
   <div class="ad-slot" data-ad-placement="web_home_under_menu" hidden></div>
   <!-- Quang cao home_top: dau trang chu -->
   <div class="ad-slot" data-ad-placement="home_top" hidden></div>
+  <!-- Tin tuc len dau main (truoc dai Dang phat): bai bao dien tu da
+       xuat ban hien truoc cac khoi khac; khoi chuyen muc do CMS Quan ly
+       giao dien chon van nam ngay sau Tin moi nhat. -->
+  <section aria-label="Tin tức">
+    <h2 class="section-title">Tin nổi bật</h2>
+    <div id="news-featured" class="news-grid">Đang tải tin nổi bật…</div>
+    <h2 class="section-title">Tin mới nhất</h2>
+    <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
+  </section>
+  <div id="home-sections"></div>
   <section class="live-strip" aria-label="Đang phát">
     <h2>Đang phát</h2>
     <p id="live-tv" class="live-line">Đang tải chương trình truyền hình…</p>
@@ -106,18 +116,11 @@
        dat ngay sau khoi Noi bat, ngang toan bo. -->
   <div class="ad-slot" data-ad-placement="web_home_under_focus" hidden></div>
 
-  <section aria-label="Tin tức">
-    <h2 class="section-title">Tin nổi bật</h2>
-    <div id="news-featured" class="news-grid">Đang tải tin nổi bật…</div>
-    <h2 class="section-title">Tin mới nhất</h2>
-    <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
-  </section>
-  <!-- Khoi tin theo chuyen muc do CMS Quan ly giao dien chon (sau Tin moi nhat) -->
-  <div id="home-sections"></div>
   <!-- Quang cao web_home_below_weather_1 301x228 — #1 ben phai khoi chuyen
        muc duoi thoi tiet (danh muc Dien Bien). Trang chu khong co khoi
-       thoi tiet rieng; 2 slot duoi thoi tiet dat ngay sau khoi Tin tuc,
-       theo thu tu #1 roi #2, can phai 301px. -->
+       thoi tiet rieng; 2 slot duoi thoi tiet dat sau khoi Noi bat (vi tri
+       hien tai sau khi Tin tuc len dau main), theo thu tu #1 roi #2,
+       can phai 301px. -->
   <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
   <!-- Quang cao web_home_below_weather_2 301x300 — #2 ben phai khoi chuyen
        muc duoi thoi tiet (danh muc Dien Bien). Vi tri nhu slot #1, ngay
@@ -179,6 +182,6 @@
   </nav>
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
-<script src="/js/ads.js?v=20261030-2"></script>
+<script src="/js/ads.js?v=20261031-1"></script>
 <script src="/js/home.js?v=20261030-3"></script>
 </body></html>
