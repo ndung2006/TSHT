@@ -198,7 +198,81 @@
       })
       .catch(function () { loadNewsBlock(fallbackUrl, elId, emptyText); });
   }
-  loadZoneBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin nổi bật.");
+  // --- Khoi Tin noi bat kieu hero (mau Tuyen Quang TV): tin hero lon o
+  // giua (nut < > chuyen tin trong danh sach tieu diem), 2 tin nho ben
+  // trai, hop "Ban doc quan tam" ben phai lay tu tin moi nhat (tru cac
+  // tin da hien o hero/cot trai). Chi hoc bo cuc, noi dung la tin cua
+  // minh; chua co API xep hang luot doc that nen cot phai khong phai
+  // "doc nhieu nhat" dung nghia.
+  function heroSmallCard(it) {
+    return "<div class=\"hero-small\"><a href=\"" + esc(it.url) + "\">" +
+      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      "<h3>" + esc(it.title) + "</h3></a></div>";
+  }
+  function heroSideRow(it) {
+    return "<a class=\"hero-side-row\" href=\"" + esc(it.url) + "\">" +
+      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      "<span>" + esc(it.title) + "</span></a>";
+  }
+  function renderHeroBlock(el, zoneItems, sideItems, heroIdx) {
+    var hero = zoneItems[heroIdx];
+    var left = [];
+    var i;
+    for (i = 1; i < zoneItems.length && left.length < 2; i++) {
+      left.push(zoneItems[(heroIdx + i) % zoneItems.length]);
+    }
+    var html = "<div class=\"hero-block\">" +
+      "<div class=\"hero-left\">" + left.map(heroSmallCard).join("") + "</div>" +
+      "<div class=\"hero-center\">" +
+        "<div class=\"hero-media\">" +
+          (hero.cover ? "<a href=\"" + esc(hero.url) + "\"><img src=\"" + esc(hero.cover) + "\" alt=\"\" loading=\"lazy\"></a>" : "") +
+          "<button type=\"button\" class=\"hero-arrow hero-prev\" aria-label=\"Tin trước\">‹</button>" +
+          "<button type=\"button\" class=\"hero-arrow hero-next\" aria-label=\"Tin sau\">›</button>" +
+        "</div>" +
+        "<h3><a href=\"" + esc(hero.url) + "\">" + esc(hero.title) + "</a></h3>" +
+        (hero.sapo ? "<p class=\"news-sapo\">" + esc(hero.sapo) + "</p>" : "") +
+        "<p class=\"news-meta\">" + esc(hero.category ? hero.category.name : "") +
+        (hero.publishAt ? " · " + esc(String(hero.publishAt).slice(0, 10)) : "") + "</p>" +
+      "</div>" +
+      "<aside class=\"hero-right\"><h3>Bạn đọc quan tâm</h3>" +
+        (sideItems.length ? sideItems.map(heroSideRow).join("") : "<p>Chưa có tin.</p>") +
+      "</aside></div>";
+    el.innerHTML = html;
+    var prev = el.querySelector(".hero-prev");
+    var next = el.querySelector(".hero-next");
+    if (prev) prev.addEventListener("click", function () {
+      renderHeroBlock(el, zoneItems, sideItems, (heroIdx - 1 + zoneItems.length) % zoneItems.length);
+    });
+    if (next) next.addEventListener("click", function () {
+      renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length);
+    });
+  }
+  function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    function fetchItems(url) {
+      return fetch(url)
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) { return (d && d.items) || []; });
+    }
+    function show(zoneItems) {
+      if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; return; }
+      fetchItems("/api/v2/news?limit=12").then(function (latest) {
+        var seen = {};
+        zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
+        var side = latest.filter(function (it) { return it.url && !seen[it.url]; }).slice(0, 5);
+        renderHeroBlock(el, zoneItems, side, 0);
+      }).catch(function () { renderHeroBlock(el, zoneItems, [], 0); });
+    }
+    function loadFallback() {
+      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
+    }
+    fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
+      if (items.length) show(items);
+      else loadFallback();
+    }).catch(loadFallback);
+  }
+  loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin nổi bật.");
   loadZoneBlock("tin-moi-nhat", "news-latest", "/api/v2/news?limit=8", "Chưa có tin bài.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (menu, hot link, khoi
   // trang chu, header, footer, favicon). Lay 1 lan, dung chung cho nav +
