@@ -39,27 +39,36 @@
       <Button label="Tìm" size="small" @click="load(1)" />
     </div>
 
-    <div class="surface-card p-4">
+    <div class="surface-card p-4 overflow-x-auto">
       <DataTable :value="items" :loading="loading" paginator :rows="20" :total-records="meta.total" lazy
-        :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
-        <Column field="title" header="Tiêu đề" />
-        <Column header="Chuyên mục" style="min-width:9rem">
+        :first="(meta.page - 1) * meta.limit" @page="onPage" size="small" class="tinbai-list">
+        <Column header="Tiêu đề" style="min-width:24rem">
+          <template #body="{ data }">
+            <p class="font-medium text-[15px] leading-snug">{{ data.title }}</p>
+            <p class="text-xs text-neutral-400 mt-0.5">{{ contentTypeLabel(data.contentType) }} | {{ fmtTime(data.createdAt) }}</p>
+          </template>
+        </Column>
+        <Column header="Chuyên mục" style="min-width:8rem">
           <template #body="{ data }">{{ data.category?.name || '—' }}</template>
         </Column>
-        <Column header="Tác giả" style="min-width:10rem">
+        <Column header="Tác giả" style="min-width:9rem">
           <template #body="{ data }">{{ data.authors?.length ? data.authors.join(', ') : '—' }}</template>
         </Column>
-        <Column header="Trạng thái" style="min-width:10rem">
-          <template #body="{ data }">{{ statusText(data) }}</template>
+        <Column header="Trạng thái" style="min-width:9rem">
+          <template #body="{ data }">
+            <Tag :value="statusText(data)" :severity="statusSeverity(data)" />
+            <p v-if="data.status === 'published' && data.publishAt" class="text-xs text-neutral-400 mt-0.5">{{ fmtTime(data.publishAt) }}</p>
+          </template>
         </Column>
-        <Column header="Nổi bật" style="width:7rem">
+        <Column header="Nổi bật" style="width:6rem">
           <template #body="{ data }"><Tag :value="data.isFeatured ? 'Có' : 'Không'" :severity="data.isFeatured ? 'success' : 'secondary'" /></template>
         </Column>
-        <Column header="Định dạng" style="min-width:8rem">
-          <template #body="{ data }">{{ contentTypeLabel(data.contentType) }}</template>
-        </Column>
-        <Column header="Sửa đổi gần nhất" style="min-width:13rem">
-          <template #body="{ data }">{{ lastActivityText(data) }}</template>
+        <Column header="Sửa đổi gần nhất" style="min-width:15rem">
+          <template #body="{ data }">
+            <p>Người thực hiện: {{ lastActivityParts(data).who }}</p>
+            <p v-if="lastActivityParts(data).role">Chức vụ: {{ lastActivityParts(data).role }}</p>
+            <p>Thời gian: {{ lastActivityParts(data).time }}</p>
+          </template>
         </Column>
         <Column header="Thao tác" style="min-width:20rem">
           <template #body="{ data }">
@@ -426,6 +435,12 @@ function statusText(it: any) {
   }
   return 'Nháp';
 }
+function statusSeverity(it: any) {
+  if (it.status === 'published') return 'info';
+  if (it.status === 'pending_review') return 'warn';
+  if (it.status === 'unpublished') return 'danger';
+  return 'secondary';
+}
 function lastApprovalText(it: any) {
   const a = it.lastApproval;
   if (!a) return '—';
@@ -437,11 +452,6 @@ function lastApprovalText(it: any) {
 function fmtTime(s: string | null | undefined) {
   return s ? s.slice(0, 16).replace('T', ' ') : '';
 }
-function lastEditText(it: any) {
-  const who = it.updatedBy || '?';
-  const role = it.updatedByRole ? ` · ${it.updatedByRole}` : '';
-  return `${who}${role} · ${fmtTime(it.updatedAt)}`;
-}
 /**
  * Cot "Sua doi gan nhat" gop (theo mau tham chieu): hoat dong gan nhat
  * duoi dang "nguoi — vai tro — thoi gian". Hanh dong duyet (submit/duyet/
@@ -449,7 +459,7 @@ function lastEditText(it: any) {
  * duyet moi nhat moi hon lan sua noi dung thi hien nguoi duyet, neu khong
  * hien nguoi sua. Lich su duyet day du van xem o nut "Lich su duyet".
  */
-function lastActivityText(it: any) {
+function lastActivityParts(it: any) {
   const a = it.lastApproval;
   if (a && a.createdAt && it.updatedAt && a.createdAt >= it.updatedAt) {
     // Truoc day an vai tro khi ten nguoi trung nhan vai tro (vd. tai khoan
@@ -458,10 +468,16 @@ function lastActivityText(it: any) {
     // thi luon kem vai tro (ke ca khi hai chuoi trung nhau); chi khi khong
     // co ten that moi lay vai tro lam ten va khong lap lai.
     const who = a.actorName || a.actorRole || '?';
-    const role = a.actorName && a.actorRole ? ` · ${a.actorRole}` : '';
-    return `${who}${role} · ${fmtTime(a.createdAt)}`;
+    const role = a.actorName && a.actorRole ? a.actorRole : '';
+    return { who, role, time: fmtTime(a.createdAt) };
   }
-  return lastEditText(it);
+  const who = it.updatedBy || '?';
+  const role = it.updatedByRole || '';
+  return { who, role, time: fmtTime(it.updatedAt) };
+}
+function lastActivityText(it: any) {
+  const p = lastActivityParts(it);
+  return `${p.who}${p.role ? ` · ${p.role}` : ''} · ${p.time}`;
 }
 function parentName(parentId: string | null) {
   if (!parentId) return '—';
@@ -1219,3 +1235,12 @@ loadCats();
 loadAuthors();
 load(1);
 </script>
+
+<style scoped>
+/* Danh sach Tin bai kieu mau tham chieu: chu bang nho lai, chi tieu de
+ * noi bat hon (15px, dam). */
+.tinbai-list :deep(.p-datatable-tbody > tr > td),
+.tinbai-list :deep(.p-datatable-thead > tr > th) {
+  font-size: 13px;
+}
+</style>
