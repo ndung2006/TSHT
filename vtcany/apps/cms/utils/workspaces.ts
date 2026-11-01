@@ -28,9 +28,9 @@ export interface MenuItem {
 }
 
 export const WORKSPACES: Workspace[] = [
+  { id: 'online', label: 'Xuất bản Báo điện tử' },
   { id: 'tv', label: 'Sản xuất Truyền hình/Phát thanh' },
   { id: 'print', label: 'Xuất bản Báo in' },
-  { id: 'online', label: 'Xuất bản Báo điện tử' },
   { id: 'interface', label: 'Quản lý giao diện' },
   { id: 'admin', label: 'Quản trị chung' },
 ];
