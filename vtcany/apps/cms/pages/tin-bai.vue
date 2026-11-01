@@ -63,13 +63,6 @@
         <Column header="Nổi bật" style="width:6rem">
           <template #body="{ data }"><Tag :value="data.isFeatured ? 'Có' : 'Không'" :severity="data.isFeatured ? 'success' : 'secondary'" /></template>
         </Column>
-        <Column header="Sửa đổi gần nhất" style="min-width:15rem">
-          <template #body="{ data }">
-            <p>Người thực hiện: {{ lastActivityParts(data).who }}</p>
-            <p v-if="lastActivityParts(data).role">Chức vụ: {{ lastActivityParts(data).role }}</p>
-            <p>Thời gian: {{ lastActivityParts(data).time }}</p>
-          </template>
-        </Column>
         <Column header="Thao tác" style="min-width:20rem">
           <template #body="{ data }">
             <Button v-if="can('articles:update')" label="Sửa" size="small" text @click="openEdit(data)" />
@@ -87,6 +80,13 @@
               severity="danger" @click="removeItem(data)" />
             <Button v-if="can('articles:view')" label="Xem duyệt" size="small" text @click="openReview(data)" />
             <Button v-if="can('articles:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
+          </template>
+        </Column>
+        <Column header="Sửa đổi gần nhất" style="min-width:15rem">
+          <template #body="{ data }">
+            <p>Người thực hiện: {{ lastActivityParts(data).who }}</p>
+            <p v-if="lastActivityParts(data).role">Chức vụ: {{ lastActivityParts(data).role }}</p>
+            <p>Thời gian: {{ lastActivityParts(data).time }}</p>
           </template>
         </Column>
       </DataTable>
