@@ -328,7 +328,7 @@ export class NewsService {
 
   // ---------------- Admin: bai viet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where = await this.buildListWhere(params);
@@ -354,9 +354,19 @@ export class NewsService {
    * publishAt); ngay sai dinh dang thi bo qua (giong cach loc lenh lac
    * hien co: status la cung tra 0 dong chu khong 400).
    */
-  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string }) {
+  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null }) {
     const where: any = {};
     if (params.status) where.status = params.status;
+    // Loc "cua toi" (day so lieu ca nhan, 2026-11-01): mine = bai do chinh
+    // tai khoan dang nhap tao (createdBy = JWT sub, da ghi tu luc tao bai
+    // qua create(), ke ca ban nhap chuyen doi cheo); approved/published =
+    // bai co lich su duyet/xuat ban cua tai khoan do (bang approvals).
+    // Scope la thi bo qua (khong loc) de tham so sai khong tra 0 dong.
+    if (params.actorId) {
+      if (params.scope === 'mine') where.createdBy = params.actorId;
+      else if (params.scope === 'approved') where.approvals = { some: { actorId: params.actorId, action: 'approve' } };
+      else if (params.scope === 'published') where.approvals = { some: { actorId: params.actorId, action: 'publish' } };
+    }
     if (params.categoryId) {
       const cat = await this.prisma.newsCategory.findFirst({
         where: { OR: [{ id: params.categoryId }, { publicId: params.categoryId }] },
@@ -385,7 +395,7 @@ export class NewsService {
   }
 
   /** So dem theo trang thai duoi cung bo loc (tru status) voi listAdmin. */
-  async countsAdmin(params: { q?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string }) {
+  async countsAdmin(params: { q?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null }) {
     const where = await this.buildListWhere(params);
     const [total, groups] = await Promise.all([
       this.prisma.newsArticle.count({ where }),
@@ -394,6 +404,26 @@ export class NewsService {
     const out: any = { total, draft: 0, pending_review: 0, published: 0, unpublished: 0 };
     for (const g of groups) if (g.status in out) out[g.status] = g._count._all;
     return out;
+  }
+
+  /**
+   * So lieu "Bai viet cua toi" cho tai khoan dang nhap (2026-11-01).
+   * authored/draft/pending dem theo createdBy (nguoi tao bai); approved /
+   * published dem theo lich su duyet (so bai, khong phai so lan duyet:
+   * dem tren bang bai viet voi dieu kien approvals SOME nen moi bai chi
+   * tinh 1 lan du duyet lai nhieu vong). Bai khong co createdBy (neu co,
+   * vd. tao truoc khi co cot) khong thuoc ve ai, chi hien o so lieu chung.
+   */
+  async myCounts(actorId: string | null) {
+    if (!actorId) return { authored: 0, draft: 0, pending: 0, approved: 0, published: 0 };
+    const [authored, draft, pending, approved, published] = await Promise.all([
+      this.prisma.newsArticle.count({ where: { createdBy: actorId } }),
+      this.prisma.newsArticle.count({ where: { createdBy: actorId, status: 'draft' } }),
+      this.prisma.newsArticle.count({ where: { createdBy: actorId, status: 'pending_review' } }),
+      this.prisma.newsArticle.count({ where: { approvals: { some: { actorId, action: 'approve' } } } }),
+      this.prisma.newsArticle.count({ where: { approvals: { some: { actorId, action: 'publish' } } } }),
+    ]);
+    return { authored, draft, pending, approved, published };
   }
 
   /**

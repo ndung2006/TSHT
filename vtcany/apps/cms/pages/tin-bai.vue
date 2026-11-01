@@ -14,6 +14,14 @@
         @click="applyStatusLink(l.value)" />
     </div>
 
+    <div class="surface-card p-4 flex flex-wrap items-center gap-2">
+      <span class="text-sm text-neutral-400">Bài viết của tôi:</span>
+      <Button v-for="t in myTiles" :key="t.key" :label="`${t.label} (${myCounts[t.key] ?? 0})`" size="small"
+        :severity="isMyTileActive(t) ? undefined : 'secondary'" :text="!isMyTileActive(t)"
+        @click="applyMyTile(t)" />
+      <Button v-if="myScope" label="✕ Bỏ lọc của tôi" size="small" severity="secondary" text @click="clearMyScope" />
+    </div>
+
     <div class="surface-card p-4 flex flex-wrap gap-2">
       <InputText v-model="q" placeholder="Tìm tiêu đề / sapo..." class="flex-1 min-w-52" @keyup.enter="load(1)" />
       <Dropdown v-model="catFilter" :options="catFilterOptions" option-label="label" option-value="value"
@@ -476,6 +484,26 @@ const statusLinks = [
   { label: 'Hạ xuất bản', value: 'unpublished', key: 'unpublished' },
 ];
 function applyStatusLink(v: string) { statusFilter.value = v; load(1); }
+// Day so lieu "Bai viet cua toi" (2026-11-01): bam vao o thi loc danh
+// sach theo pham vi do (scope giu nguyen khi doi loc nhanh khac, nhu
+// cach counts hien tai theo bo loc); bam lai o dang chon hoac nut ✕
+// de bo loc ve toan bo.
+const myScope = ref('');
+const myCounts = ref({ authored: 0, draft: 0, pending: 0, approved: 0, published: 0 });
+const myTiles = [
+  { label: 'Tôi đã viết', key: 'authored', scope: 'mine', status: '' },
+  { label: 'Nháp của tôi', key: 'draft', scope: 'mine', status: 'draft' },
+  { label: 'Chờ duyệt', key: 'pending', scope: 'mine', status: 'pending_review' },
+  { label: 'Tôi đã duyệt', key: 'approved', scope: 'approved', status: '' },
+  { label: 'Tôi đã xuất bản', key: 'published', scope: 'published', status: '' },
+];
+function isMyTileActive(t: any) { return myScope.value === t.scope && statusFilter.value === t.status; }
+function applyMyTile(t: any) {
+  if (isMyTileActive(t)) myScope.value = '';
+  else { myScope.value = t.scope; statusFilter.value = t.status; }
+  load(1);
+}
+function clearMyScope() { myScope.value = ''; load(1); }
 const catParentOptions = computed(() => cats.value
   .filter((c) => !c.parentId)
   .map((c) => ({ label: c.name, value: c.publicId })));
@@ -500,9 +528,20 @@ async function loadCounts() {
       q: q.value || undefined, categoryId: catFilter.value || undefined,
       author: authorFilter.value || undefined, contentType: contentTypeFilter.value || undefined,
       dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined,
+      scope: myScope.value || undefined,
     });
     if (r && seq === countsSeq) counts.value = { total: r.total || 0, draft: r.draft || 0, pending_review: r.pending_review || 0, published: r.published || 0, unpublished: r.unpublished || 0 };
   } catch { /* giu so dem cu, khong chan danh sach */ }
+}
+// So lieu "cua toi" tai rieng (khong theo bo loc khac), cung chan
+// phan hoi cu nhu loadCounts.
+let myCountsSeq = 0;
+async function loadMyCounts() {
+  const seq = ++myCountsSeq;
+  try {
+    const r = await api.get<any>('/admin/news/my-counts');
+    if (r && seq === myCountsSeq) myCounts.value = { authored: r.authored || 0, draft: r.draft || 0, pending: r.pending || 0, approved: r.approved || 0, published: r.published || 0 };
+  } catch { /* giu so lieu cu, khong chan danh sach */ }
 }
 async function load(page = 1) {
   loading.value = true;
@@ -512,6 +551,7 @@ async function load(page = 1) {
       categoryId: catFilter.value || undefined, author: authorFilter.value || undefined,
       contentType: contentTypeFilter.value || undefined,
       dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined,
+      scope: myScope.value || undefined,
       page, limit: meta.value.limit,
     });
     items.value = r.data || [];
@@ -520,6 +560,7 @@ async function load(page = 1) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Không tải được danh sách', life: 3000 });
   } finally { loading.value = false; }
   loadCounts();
+  loadMyCounts();
 }
 function onPage(e: any) { load(Math.floor(e.first / e.rows) + 1); }
 
