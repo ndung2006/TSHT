@@ -13,22 +13,24 @@
       <Button v-if="can('print_articles:create')" label="Thêm bài báo in" icon="pi pi-plus" size="small" @click="openAdd" />
     </div>
 
-    <div class="surface-card p-4">
+    <div class="surface-card p-4 overflow-x-auto">
       <DataTable :value="items" :loading="loading" paginator :rows="meta.limit" :total-records="meta.total"
-        lazy :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
-        <Column field="title" header="Tiêu đề" />
-        <Column header="Bài gốc" style="min-width:12rem">
+        lazy :first="(meta.page - 1) * meta.limit" @page="onPage" size="small" class="print-list">
+        <Column header="Tiêu đề" style="min-width:24rem">
+          <template #body="{ data }">
+            <p class="font-medium text-[15px] leading-snug">{{ data.title }}</p>
+            <p class="text-xs text-neutral-400 mt-0.5">Bài báo in | {{ fmtTime(data.createdAt) }}</p>
+          </template>
+        </Column>
+        <Column header="Bài gốc" style="min-width:10rem">
           <template #body="{ data }"><span class="text-sm text-neutral-400">{{ data.sourceNewsSlug || '—' }}</span></template>
         </Column>
-        <Column header="Chuyên mục" style="min-width:10rem">
+        <Column header="Chuyên mục" style="min-width:8rem">
           <template #body="{ data }"><span class="text-sm">{{ data.category?.name || '—' }}</span></template>
         </Column>
         <Column header="Trạng thái" style="width:11rem">
           <template #body="{ data }"><Tag :value="statusText(data)"
             :severity="data.status === 'approved' ? 'success' : data.status === 'pending_review' ? 'warn' : 'secondary'" /></template>
-        </Column>
-        <Column header="Sửa đổi gần nhất" style="min-width:11rem">
-          <template #body="{ data }"><span class="text-sm text-neutral-400">{{ lastApprovalText(data) }}</span></template>
         </Column>
         <Column header="Thao tác" style="min-width:16rem">
           <template #body="{ data }">
@@ -43,6 +45,13 @@
             <Button v-if="can('print_articles:view')" label="Lịch sử duyệt" size="small" text @click="openHistory(data)" />
             <Button v-if="can('print_articles:delete') && data.status === 'draft'" label="Xóa" size="small" text
               severity="danger" @click="removeItem(data)" />
+          </template>
+        </Column>
+        <Column header="Sửa đổi gần nhất" style="min-width:15rem">
+          <template #body="{ data }">
+            <p>Người thực hiện: {{ lastActivityParts(data).who }}</p>
+            <p v-if="lastActivityParts(data).role">Chức vụ: {{ lastActivityParts(data).role }}</p>
+            <p>Thời gian: {{ lastActivityParts(data).time }}</p>
           </template>
         </Column>
       </DataTable>
@@ -203,6 +212,21 @@ function lastApprovalText(it: any) {
   const step = a.stepLabel ? ` (${a.stepLabel})` : '';
   const comment = a.comment ? ` — ${a.comment}` : '';
   return `${a.actionLabel || a.action}${step}${role} · ${fmtTime(a.createdAt)}${comment}`;
+}
+/**
+ * Cot "Sua doi gan nhat" dang 3 dong co nhan (giong bang Tin bai):
+ * hanh dong duyet khong cap nhat updatedBy nen so sanh thoi gian —
+ * dong duyet moi nhat moi hon lan sua thi hien nguoi duyet, neu khong
+ * hien nguoi sua. Chi tiet buoc/hanh dong/ly do van xem o "Lich su duyet".
+ */
+function lastActivityParts(it: any) {
+  const a = it.lastApproval;
+  if (a && a.createdAt && it.updatedAt && a.createdAt >= it.updatedAt) {
+    const who = a.actorName || a.actorRole || '?';
+    const role = a.actorName && a.actorRole ? a.actorRole : '';
+    return { who, role, time: fmtTime(a.createdAt) };
+  }
+  return { who: it.updatedBy || '?', role: it.updatedByRole || '', time: fmtTime(it.updatedAt) };
 }
 function fmtTime(s: string | null | undefined) {
   return s ? s.slice(0, 16).replace('T', ' ') : '';
@@ -468,3 +492,12 @@ function viewReturn() {
   openReturn(viewItem.value);
 }
 </script>
+
+<style scoped>
+/* Bang Bai bao in giong bang Tin bai: chu bang nho lai, chi tieu de
+ * noi bat hon (15px, dam). */
+.print-list :deep(.p-datatable-tbody > tr > td),
+.print-list :deep(.p-datatable-thead > tr > th) {
+  font-size: 13px;
+}
+</style>
