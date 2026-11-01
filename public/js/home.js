@@ -270,6 +270,79 @@
     }
   }
 
+  // Mega-menu chuyen muc kieu bao dien tu (2026-11-01): nut ☰ tren
+  // thanh nav mo bang day du cay chuyen muc (lay tu
+  // /api/v2/news-categories, cay day du chu khong chi menu CMS da chon
+  // cho nav); nut ✕ / Escape / bam ra ngoai de dong. Neu khong tai
+  // duoc cay thi an nut ☰ di (khong mo bang trong).
+  function hideMegaButton() {
+    var b = document.querySelector(".catnav-menu-btn");
+    if (b) b.style.display = "none";
+  }
+  function closeMegaMenu() {
+    var panel = document.getElementById("catnav-mega");
+    var btn = document.querySelector(".catnav-menu-btn");
+    if (panel) panel.hidden = true;
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+  function buildMegaMenu(cats) {
+    var panel = document.getElementById("catnav-mega");
+    if (!panel) return;
+    panel.innerHTML = "";
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "mega-close";
+    close.setAttribute("aria-label", "Đóng toàn bộ chuyên mục");
+    close.textContent = "✕";
+    close.addEventListener("click", function () { closeMegaMenu(); });
+    panel.appendChild(close);
+    var grid = document.createElement("div");
+    grid.className = "mega-grid";
+    (cats || []).forEach(function (c) {
+      if (!c || !c.slug) return;
+      var col = document.createElement("div");
+      col.className = "mega-col";
+      var pa = document.createElement("a");
+      pa.className = "mega-parent";
+      pa.href = "/chuyen-muc/" + encodeURIComponent(c.slug);
+      pa.textContent = c.name;
+      col.appendChild(pa);
+      (c.children || []).filter(function (k) { return k && k.slug; }).forEach(function (k) {
+        var ka = document.createElement("a");
+        ka.className = "mega-child";
+        ka.href = "/chuyen-muc/" + encodeURIComponent(k.slug);
+        ka.textContent = k.name;
+        col.appendChild(ka);
+      });
+      grid.appendChild(col);
+    });
+    panel.appendChild(grid);
+  }
+  (function initMegaMenu() {
+    var btn = document.querySelector(".catnav-menu-btn");
+    var panel = document.getElementById("catnav-mega");
+    if (!btn || !panel) return;
+    btn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (panel.hidden && !panel.hasChildNodes()) return; // chua tai duoc cay
+      var willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      if (willOpen) {
+        var close = panel.querySelector(".mega-close");
+        if (close) close.focus();
+      }
+    });
+    document.addEventListener("click", function (ev) {
+      if (panel.hidden || !ev.target.closest) return;
+      if (!ev.target.closest(".catnav") && !ev.target.closest("#catnav-mega")) closeMegaMenu();
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && !panel.hidden) closeMegaMenu();
+    });
+  })();
+
   // Catnav that: thay link placeholder bang chuyen muc that (cap 1);
   // neu khong tai duoc thi giu nguyen link cu + ghi chu nhu cu.
   // Neu CMS Quan ly giao dien da chon menu thi nav chi hien muc da chon
@@ -282,7 +355,7 @@
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (d) {
         var cats = (d && d.data) || [];
-        if (!cats.length) return;
+        if (!cats.length) { hideMegaButton(); return; }
         return siteInterfacePromise.then(function (si) { return { cats: cats, si: si }; });
       })
       .then(function (pair) {
@@ -330,6 +403,7 @@
           }
           if (icons) nav.insertBefore(item, icons); else nav.appendChild(item);
         });
+        buildMegaMenu(cats);
         document.addEventListener("click", function (ev) {
           if (!ev.target.closest || !ev.target.closest(".catnav-item")) {
             nav.querySelectorAll(".catnav-item.open").forEach(function (it) {
@@ -356,6 +430,7 @@
       .catch(function () {
         /* giu nguyen catnav placeholder, nhung van ap dung hot link /
            khoi / header / footer / favicon neu tai duoc cai dat. */
+        hideMegaButton();
         siteInterfacePromise.then(applySiteInterface);
       });
   })();

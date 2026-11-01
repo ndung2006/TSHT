@@ -8,7 +8,7 @@
 <meta property="og:title" content="TSHT — Tòa soạn hội tụ">
 <meta property="og:description" content="TSHT — Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261031-1"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261101-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -54,8 +54,12 @@
   <a href="#" data-cat="QUỐC TẾ">QUỐC TẾ</a>
   <a href="#" data-cat="PHÁP LUẬT">PHÁP LUẬT</a>
   <a href="#" data-cat="MULTIMEDIA">MULTIMEDIA</a>
-  <span class="catnav-icons" aria-hidden="true">☰ 🔍</span>
+  <span class="catnav-icons"><button type="button" class="catnav-menu-btn" aria-expanded="false" aria-controls="catnav-mega" aria-label="Mở toàn bộ chuyên mục">☰</button><span aria-hidden="true"> 🔍</span></span>
 </nav>
+<!-- Bang day du chuyen muc kieu bao dien tu: nut ☰ tren nav mo ra;
+     noi dung do home.js xay tu cay chuyen muc day du (khong chi menu
+     CMS da chon). An mac dinh. -->
+<div id="catnav-mega" class="catnav-mega" hidden></div>
 <p id="cat-note" class="cat-note" role="status">Chuyên mục tin tức sẽ có bài viết sau — module bài viết/chuyên mục là bước tiếp theo, chưa xây ở trang này.</p>
 <!-- Day hot link do CMS Quan ly giao dien dat (an khi chua dat) -->
 <div id="hotlink-strip" class="hotlink-strip" hidden></div>
@@ -183,5 +187,5 @@
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261031-1"></script>
-<script src="/js/home.js?v=20261030-3"></script>
+<script src="/js/home.js?v=20261101-1"></script>
 </body></html>

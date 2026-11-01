@@ -105,8 +105,27 @@ a { color: #0b4fa6; }
    trong khung 1180px can giua nhu main.wrap, khong tran full man hinh.
    home.css co box-sizing: border-box toan cuc nen padding khong lam
    vo khung. */
-.utility, .masthead, .catnav, .hotlink-strip, .cat-note, .footer {
+.utility, .masthead, .catnav, .hotlink-strip, .cat-note, .footer, .catnav-mega {
   max-width: 1180px;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Mega-menu chuyen muc kieu bao dien tu (2026-11-01): nut ☰ tren nav mo
+   bang day du cay chuyen muc, nam trong khung 1180px ngay duoi nav.
+   Panel an mac dinh (thuoc tinh hidden); chi hien khi JS bo hidden. */
+.catnav-menu-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
+.catnav-mega { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem 1.25rem; }
+.catnav-mega .mega-close { background: transparent; border: 0; color: #c00; font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem 0.25rem 0; }
+.catnav-mega .mega-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem 1rem; margin-top: 0.5rem; }
+.catnav-mega .mega-col { min-width: 0; }
+.catnav-mega .mega-parent { display: block; font-weight: 800; color: #111; text-decoration: none; margin-bottom: 0.35rem; }
+.catnav-mega .mega-parent:hover { color: #c00; }
+.catnav-mega .mega-child { display: block; color: #333; text-decoration: none; font-size: 0.95rem; padding: 0.15rem 0; }
+.catnav-mega .mega-child:hover { color: #c00; }
+@media (max-width: 900px) {
+  .catnav-mega .mega-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .catnav-mega .mega-grid { grid-template-columns: 1fr; }
 }
