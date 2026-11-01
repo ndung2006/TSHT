@@ -96,6 +96,7 @@ export function hasModulePermission(permissions: string[], module: string | null
 }
 
 export interface WorkspaceGroup {
+  id: string;
   label: string;
   items: MenuItem[];
 }
@@ -105,7 +106,7 @@ export function visibleMenu(permissions: string[]): WorkspaceGroup[] {
   const out: WorkspaceGroup[] = [];
   for (const ws of WORKSPACES) {
     const items = MENU_ITEMS.filter((m) => m.workspace === ws.id && hasModulePermission(permissions, m.module));
-    if (items.length) out.push({ label: ws.label, items });
+    if (items.length) out.push({ id: ws.id, label: ws.label, items });
   }
   return out;
 }

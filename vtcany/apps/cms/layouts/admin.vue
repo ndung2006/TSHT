@@ -5,14 +5,21 @@
         <img src="/icons/vtc-tsht/logo-vtc-tsht-transparent.svg" alt="VTC TSHT" width="130" height="50" />
       </NuxtLink>
       <nav class="mt-2 flex flex-col text-sm">
-        <template v-for="g in groups" :key="g.label">
-          <p class="mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">{{ g.label }}</p>
-          <NuxtLink v-for="m in g.items" :key="m.to" :to="m.to"
-            class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
-            active-class="!bg-white/15 font-semibold">
-            <i :class="['pi', m.icon]" />
-            {{ m.label }}
-          </NuxtLink>
+        <template v-for="g in groups" :key="g.id">
+          <button type="button"
+            class="mt-3 flex w-full items-center gap-2 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-300"
+            :aria-expanded="!isCollapsed(g.id)" @click="toggleGroup(g.id)">
+            <i :class="['pi', isCollapsed(g.id) ? 'pi-chevron-right' : 'pi-chevron-down']" />
+            {{ g.label }}
+          </button>
+          <template v-if="!isCollapsed(g.id)">
+            <NuxtLink v-for="m in g.items" :key="m.to" :to="m.to"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
+              active-class="!bg-white/15 font-semibold">
+              <i :class="['pi', m.icon]" />
+              {{ m.label }}
+            </NuxtLink>
+          </template>
         </template>
       </nav>
     </aside>
@@ -202,6 +209,29 @@ async function disable2fa() {
 }
 
 const groups = computed(() => visibleMenu(permissions.value));
+
+// Sidebar: tung nhom workspace dong/mo duoc bang mui ten (giong mau
+// tham chieu: '>' la dang thu, 'V' la dang mo). Mac dinh mo het nhu
+// hien tai; trang thai thu/gap luu localStorage de tai lai trang van giu.
+const collapsedGroups = ref<string[]>([]);
+function isCollapsed(id: string) {
+  return collapsedGroups.value.includes(id);
+}
+function toggleGroup(id: string) {
+  collapsedGroups.value = isCollapsed(id)
+    ? collapsedGroups.value.filter((x) => x !== id)
+    : [...collapsedGroups.value, id];
+}
+onMounted(() => {
+  try {
+    const raw = localStorage.getItem('cms_sidebar_collapsed');
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) collapsedGroups.value = parsed.filter((x) => typeof x === 'string');
+  } catch { /* bo qua du lieu hong, giu mac dinh mo het */ }
+});
+watch(collapsedGroups, (v) => {
+  try { localStorage.setItem('cms_sidebar_collapsed', JSON.stringify(v)); } catch { /* bo qua */ }
+});
 
 const titles: Record<string, string> = {
   '/': 'Dashboard',
