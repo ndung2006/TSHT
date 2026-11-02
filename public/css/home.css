@@ -32,12 +32,13 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 /* Logo header gian het chieu rong con lai cua khung (bo gioi han cao 64px cu). */
 .brand-logo { display: block; width: 100%; height: auto; }
 .brand-name { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; color: #c00; line-height: 1.1; }
-.masthead-actions { display: flex; gap: 0.4rem 1.2rem; align-items: center; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
+.masthead-actions { display: flex; flex-direction: column; gap: 0.4rem 1.2rem; align-items: flex-end; align-self: flex-start; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
 .masthead-date { color: #555; font-size: 0.9rem; white-space: nowrap; }
 .masthead-actions a { color: #333; text-decoration: none; font-weight: 600; }
 .masthead-actions a:hover { color: #c00; }
 @media (max-width: 800px) {
   header.masthead { justify-content: center; text-align: center; flex-wrap: wrap; }
+  .masthead-actions { align-self: auto; align-items: center; }
   .brand-name { font-size: 1.6rem; }
 }
 .wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
