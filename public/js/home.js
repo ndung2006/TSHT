@@ -230,7 +230,7 @@
       return heroLeftRow(it, idx, idx === heroIdx);
     }).join("");
     var html = "<div class=\"hero-block\">" +
-      "<div class=\"hero-left\">" + leftHtml + "</div>" +
+      "<div class=\"hero-left-wrap\"><div class=\"hero-left\">" + leftHtml + "</div><div class=\"hero-scroll\"><i></i></div></div>" +
       "<div class=\"hero-center\">" +
         "<div class=\"hero-media\">" +
           (hero.cover ? "<a href=\"" + esc(hero.url) + "\"><img src=\"" + esc(hero.cover) + "\" alt=\"\" loading=\"lazy\"></a>" : "") +
@@ -253,6 +253,21 @@
       var active = newLeft.querySelector(".hero-left-row.active");
       if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
     }
+    // Vach do ngan chi thi vi tri cuon (kieu TQTV: ranh an, chi hien
+    // doan do ngan chay theo): thanh cuon goc da an han nen moi trinh
+    // duyet deu hien cung mot vach; keo vach khong cuon, cuon bang
+    // chuot/cam ung/nut < >.
+    var scrollTrack = el.querySelector(".hero-scroll");
+    var scrollThumb = el.querySelector(".hero-scroll i");
+    function syncHeroScroll() {
+      if (!newLeft || !scrollThumb) return;
+      var max = newLeft.scrollHeight - newLeft.clientHeight;
+      if (scrollTrack) scrollTrack.style.display = max > 0 ? "" : "none";
+      var top = max > 0 ? (newLeft.scrollTop / max) * (newLeft.clientHeight - 48) : 0;
+      scrollThumb.style.top = top + "px";
+    }
+    if (newLeft) newLeft.addEventListener("scroll", syncHeroScroll);
+    syncHeroScroll();
     el.querySelectorAll(".hero-left-row").forEach(function (btn) {
       btn.addEventListener("click", function () {
         renderHeroBlock(el, zoneItems, sideItems, parseInt(btn.getAttribute("data-idx"), 10) || 0);

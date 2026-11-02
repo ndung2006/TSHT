@@ -111,10 +111,11 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
    tin con lai cuon doc xuong xem them; giua hero lon (nut < >) +
    link tin tieu diem dang text phia duoi; phai hop Ban doc quan tam. */
 .hero-block { display: grid; grid-template-columns: 1fr 2.5fr 1.15fr; gap: 1rem; align-items: stretch; }
-.hero-left { display: flex; flex-direction: column; gap: 12px; height: 639px; overflow-y: auto; padding-right: 0.25rem; scrollbar-width: thin; scrollbar-color: #c00 transparent; }
-.hero-left::-webkit-scrollbar { width: 2px; }
-.hero-left::-webkit-scrollbar-track { background: transparent; }
-.hero-left::-webkit-scrollbar-thumb { background: #c00; border-radius: 1px; }
+.hero-left-wrap { position: relative; min-height: 0; }
+.hero-left { display: flex; flex-direction: column; gap: 12px; height: 639px; overflow-y: auto; padding-right: 0.25rem; scrollbar-width: none; }
+.hero-left::-webkit-scrollbar { width: 0; height: 0; }
+.hero-scroll { position: absolute; top: 0; bottom: 0; right: 0; width: 2px; pointer-events: none; }
+.hero-scroll i { position: absolute; left: 0; top: 0; width: 2px; height: 48px; background: #c00; border-radius: 1px; }
 .hero-left-row { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 8px; border: 0; border-left: 3px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .hero-left-row img { width: 100%; height: 120px; object-fit: cover; background: #f2f2f2; }
 .hero-left-row span { font-size: 15px; line-height: 21px; height: 63px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
