@@ -1,7 +1,7 @@
 import * as pdfjs from "/vendor/pdfjs.mjs?v=20261026-2";
 import {
   zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
-  fitBookWidth, singlePageShift, pdfZoomScale,
+  fitBookWidth, singlePageShift, pdfZoomScale, MAX_ZOOM,
   readBaseDpi, cappedReadScale, sharpReadScale,
 } from "./viewer-logic.js?v=20261026-2";
 
@@ -21,7 +21,7 @@ const isNew = !!newMatch;
 // da co anh trang. Gan ?v= theo ban reader (doi moi lan sua reader)
 // de edge coi la URL moi va tra JSON moi ngay. Proxy TSHT chi xet
 // pathname nen query nay khong anh huong logic server.
-const READER_BUILD = "20261027-5";
+const READER_BUILD = "20261102-1";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
 const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}?v=${READER_BUILD}` : `/api/v1/issues/${issueId}`);
@@ -275,6 +275,50 @@ flipWrap.addEventListener("wheel", (e) => {
   e.preventDefault(); // cuon = zoom, khong cuon trang web, khong lat trang
   stepFlipZoom(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
 }, { passive: false });
+
+// ---------- Pinch zoom 2 ngon tay tren cam ung ----------
+// PageFlip chi xu ly 1 ngon (lat trang) va chan pinch goc cua trinh
+// duyet, nen phai tu bat pinch: khi du 2 ngon, chan su kien o phase
+// capture (truoc handler cua PageFlip) roi tu tinh zoom theo khoang
+// cach 2 ngon, tam giu theo diem giua nhu stepFlipZoom. 1 ngon khong
+// bi chan nen vuot lat trang nhu cu.
+let pinch = null;
+function pinchDist(t) {
+  const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+  return Math.hypot(dx, dy);
+}
+function pinchMid(t) {
+  return { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
+}
+flipWrap.addEventListener("touchstart", (e) => {
+  if (!flip || $("read-wrap").style.display === "block") return;
+  if (e.touches.length !== 2) return;
+  e.stopPropagation(); e.preventDefault();
+  if (flipPdfVisible) hideFlipPdfOverlay(); // hien sach CSS de zoom truc tiep theo tay
+  pinch = { startDist: pinchDist(e.touches), startZoom: flipZoom };
+}, { passive: false, capture: true });
+flipWrap.addEventListener("touchmove", (e) => {
+  if (!pinch) return;
+  if (e.touches.length !== 2) return;
+  e.stopPropagation(); e.preventDefault();
+  const next = Math.min(Math.max(pinch.startZoom * (pinchDist(e.touches) / pinch.startDist), 1), MAX_ZOOM);
+  if (next === flipZoom) return;
+  const rect = flipWrap.getBoundingClientRect();
+  const mid = pinchMid(e.touches);
+  const mx = mid.x - rect.left, my = mid.y - rect.top;
+  const oldW = flipBaseW * flipZoom, oldH = flipBaseH * flipZoom;
+  flipZoom = next; applyFlipZoom();
+  flipWrap.scrollLeft = scrollAfterZoom({ scroll: flipWrap.scrollLeft, cursor: mx, oldSize: oldW, newSize: flipBaseW * flipZoom, viewport: flipWrap.clientWidth });
+  flipWrap.scrollTop = scrollAfterZoom({ scroll: flipWrap.scrollTop, cursor: my, oldSize: oldH, newSize: flipBaseH * flipZoom, viewport: flipWrap.clientHeight });
+}, { passive: false, capture: true });
+function endPinch() {
+  if (!pinch) return;
+  pinch = null;
+  scheduleFlipPdfOverlay(); // ve lai sac net o muc zoom cuoi (sau 200ms on dinh)
+  // Khong chan touchend: de PageFlip reset trang thai keo cua no.
+}
+flipWrap.addEventListener("touchend", endPinch, { capture: true });
+flipWrap.addEventListener("touchcancel", endPinch, { capture: true });
 $("flip-zoom-in").onclick = () => stepFlipZoom(1);
 window.addEventListener("resize", () => {
   if (!flip || $("read-wrap").style.display === "block") return;

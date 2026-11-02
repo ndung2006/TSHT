@@ -23,7 +23,7 @@ header.top a{color:#fff}
 .note{padding:12px 16px;background:#fff7cc;border:1px solid #e6c200;margin:16px}
 
 /* Reader kieu Tuyen Quang: khung vua man hinh, thumbnail trai, toolbar duoi noi */
-body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body.reader-page{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .reader-head.tq-head{background:#b00000;color:#fff}
 .reader-head.tq-head a{color:#fff;text-decoration:none}
 .reader-head.tq-head .share-btn{background:#1877f2;color:#fff;border:0;border-radius:4px;padding:6px 12px;cursor:pointer;margin-left:auto}
@@ -46,7 +46,7 @@ body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden
 #flip-pdf-zoom canvas{display:block;flex-shrink:0}
 .edge-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:5;background:rgba(255,255,255,.8);border:1px solid #ccc;border-radius:50%;width:40px;height:40px;font-size:24px;cursor:pointer}
 .edge-left{left:8px}.edge-right{right:8px}
-.toolbar.tq-toolbar{position:relative;justify-content:center;background:#fff;box-shadow:0 -2px 12px rgba(0,0,0,.15);border-radius:12px 12px 0 0}
+.toolbar.tq-toolbar{position:relative;justify-content:center;background:#fff;box-shadow:0 -2px 12px rgba(0,0,0,.15);border-radius:12px 12px 0 0;padding-bottom:max(10px, env(safe-area-inset-bottom))}
 .toolbar.tq-toolbar input{width:48px}
 .more-menu{position:absolute;bottom:100%;right:8px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2);display:flex;flex-direction:column;padding:8px;gap:4px;z-index:20}
 .more-menu button,.more-menu a{text-align:left;background:#fff;border:0;cursor:pointer;padding:8px 12px;text-decoration:none;color:#222;font-size:14px}
@@ -57,6 +57,9 @@ body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden
      (refitFlip tren resize giu sach vua khung). */
   .thumbs-panel{display:none}
   #thumbs-toggle{display:none}
+  /* Thanh cong cu duoi khong bi thanh dieu huong cua may de len: them
+     dem duoi tren mobile (dvh o body xu ly phan thanh dia chi). */
+  .toolbar.tq-toolbar{padding-bottom:max(20px, env(safe-area-inset-bottom))}
 }
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}
