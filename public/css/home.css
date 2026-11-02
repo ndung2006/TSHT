@@ -48,7 +48,7 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
 .wordmark-sub { margin: 0.2rem 0 0; font-weight: 700; letter-spacing: 0.15em; color: #333; }
 .catnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #c00; padding: 0.6rem 1rem; }
-.catnav a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+.catnav a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; }
 /* Nav muc cha + dropdown muc con kieu bao dien tu: muc cha tren thanh nav,
    di chuot/focus hien dropdown; nut mui ten danh cho cam ung. */
 .catnav-item { position: relative; display: flex; align-items: center; gap: 0.15rem; }
