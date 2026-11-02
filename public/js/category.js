@@ -40,7 +40,7 @@
       })(all);
       if (found) {
         title.textContent = found.name;
-        document.title = found.name + " — TSHT";
+        document.title = found.name + " — Tòa soạn hội tụ";
         if (found.children && found.children.length) {
           childrenNav.innerHTML = found.children.map(function (c) {
             return "<a href=\"/chuyen-muc/" + esc(c.slug) + "\">" + esc(c.name) + "</a>";

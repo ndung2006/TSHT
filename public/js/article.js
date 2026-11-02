@@ -105,7 +105,7 @@
   fetch("/api/v2/news/" + encodeURIComponent(slug))
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (it) {
-      document.title = it.title + " — TSHT";
+      document.title = it.title + " — Tòa soạn hội tụ";
       var meta = [];
       if (it.category) meta.push("<a href=\"/chuyen-muc/" + esc(it.category.slug) + "\">" + esc(it.category.name) + "</a>");
       if (it.publishAt) meta.push(esc(fmtDate(it.publishAt)));
