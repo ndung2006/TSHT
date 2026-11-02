@@ -55,3 +55,34 @@ body.reader-page{height:100vh;display:flex;flex-direction:column;overflow:hidden
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}
 .more-menu[hidden]{display:none}
+/* Header chung kieu trang chu (utilitybar + masthead). */
+.utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: nowrap; box-sizing: border-box; background: #fff; }
+.utilitybar-links, .utilitybar-right { display: flex; gap: 0.4rem 0.75rem; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+@media (max-width: 900px) { .utilitybar, .utilitybar-links, .utilitybar-right { flex-wrap: wrap; } }
+.soc-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; color: #fff !important; font-size: 12px; font-weight: 700; text-decoration: none; }
+.soc-fb { background: #1877f2; }
+.soc-yt { background: #f00; }
+.soc-tt { background: #111; }
+.soc-zl { background: #0068ff; }
+.utilitybar a { color: #333; text-decoration: none; font-weight: 600; }
+.utilitybar a:hover { color: #c00; }
+.utility-social a { color: #333; text-decoration: none; font-weight: 600; }
+.utility-social a:hover { color: #c00; }
+.lang-note { margin-right: 1rem; color: #888; cursor: default; }
+header.masthead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1rem; flex-wrap: nowrap; text-align: left; box-sizing: border-box; background: #fff; }
+.brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 0 0 auto; min-width: 0; }
+.brand-logo { display: block; height: 118px; width: auto; }
+.brand-name { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; color: #c00; line-height: 1.1; }
+.masthead-actions { display: flex; flex-direction: column; gap: 0.4rem 1.2rem; align-items: flex-end; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
+.news-bell { display: inline-flex; align-items: center; gap: 0.5rem; }
+.news-bell-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1.5px dashed #c00; border-radius: 50%; }
+.news-bell-icon svg { display: block; }
+.masthead-date { color: #555; font-size: 0.9rem; white-space: nowrap; }
+.masthead-actions a { color: #333; text-decoration: none; font-weight: 600; }
+.masthead-actions a:hover { color: #c00; }
+@media (max-width: 800px) {
+  header.masthead { justify-content: center; text-align: center; flex-wrap: wrap; }
+  .masthead-actions { align-items: center; }
+  .brand-name { font-size: 1.6rem; }
+}
+.utilitybar, header.masthead { box-sizing: border-box; max-width: 1264px; margin-left: auto; margin-right: auto; }
