@@ -60,6 +60,11 @@ body.reader-page{height:100vh;height:100dvh;display:flex;flex-direction:column;o
   /* Thanh cong cu duoi khong bi thanh dieu huong cua may de len: them
      dem duoi tren mobile (dvh o body xu ly phan thanh dia chi). */
   .toolbar.tq-toolbar{padding-bottom:max(20px, env(safe-area-inset-bottom))}
+  /* Thanh cong cu chi 1 hang tren mobile: khong wrap, thu gap/co nut
+     va o nhap so trang lai de tat ca vua trong 1 hang. */
+  .toolbar.tq-toolbar{flex-wrap:nowrap;gap:4px;padding-left:6px;padding-right:6px}
+  .toolbar.tq-toolbar button{padding:4px 5px;font-size:14px;min-width:0}
+  .toolbar.tq-toolbar input{width:40px}
 }
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}
