@@ -12,8 +12,15 @@ a { color: #0b4fa6; }
 .topline { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
 /* Thanh tren cung (khoi phuc theo mau cu): chuyen trang trai, ENGLISH /
    KET NOI / Dang nhap / Dang ky phai. */
-.utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
-.utilitybar-links, .utilitybar-right { display: flex; gap: 0.4rem 1rem; align-items: center; flex-wrap: wrap; }
+.utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: nowrap; }
+.utilitybar-links, .utilitybar-right { display: flex; gap: 0.4rem 0.75rem; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+@media (max-width: 900px) { .utilitybar, .utilitybar-links, .utilitybar-right { flex-wrap: wrap; } }
+/* Icon tron mau cho mang xa hoi o KET NOI. */
+.soc-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; color: #fff !important; font-size: 12px; font-weight: 700; text-decoration: none; }
+.soc-fb { background: #1877f2; }
+.soc-yt { background: #f00; }
+.soc-tt { background: #111; }
+.soc-zl { background: #0068ff; }
 .utilitybar a { color: #333; text-decoration: none; font-weight: 600; }
 .utilitybar a:hover { color: #c00; }
 .utility-social a { color: #333; text-decoration: none; font-weight: 600; }

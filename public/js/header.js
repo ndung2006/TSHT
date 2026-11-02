@@ -29,10 +29,11 @@
       var socialEl = document.getElementById("utility-social");
       if (socialEl) {
         var socials = [];
-        [["facebook", "Facebook"], ["youtube", "Youtube"], ["tiktok", "TikTok"], ["zalo", "Zalo"]].forEach(function (p) {
-          if (hd[p[0]]) socials.push("<a href=\"" + esc(hd[p[0]]) + "\" target=\"_blank\" rel=\"noopener\">" + p[1] + "</a>");
+        // Icon tron mau theo mang (ky tu don gian, khong dung anh ngoai).
+        [["facebook", "f", "soc-fb", "Facebook"], ["youtube", "▶", "soc-yt", "Youtube"], ["tiktok", "♪", "soc-tt", "TikTok"], ["zalo", "Z", "soc-zl", "Zalo"]].forEach(function (p) {
+          if (hd[p[0]]) socials.push("<a class=\"soc-icon " + p[2] + "\" href=\"" + esc(hd[p[0]]) + "\" target=\"_blank\" rel=\"noopener\" title=\"" + p[3] + "\">" + p[1] + "</a>");
         });
-        if (socials.length) { socialEl.innerHTML = "KẾT NỐI " + socials.join(" · "); socialEl.hidden = false; }
+        if (socials.length) { socialEl.innerHTML = "KẾT NỐI " + socials.join(" "); socialEl.hidden = false; }
       }
       // Co logo that thi chi hien logo, an chu ten (kieu khoi logo cua
       // DBP); logo loi thi quay ve hien chu de khong co khoi trong.
