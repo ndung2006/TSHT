@@ -198,31 +198,32 @@
       })
       .catch(function () { loadNewsBlock(fallbackUrl, elId, emptyText); });
   }
-  // --- Khoi Tin noi bat kieu hero (mau Tuyen Quang TV): tin hero lon o
-  // giua (nut < > chuyen tin trong danh sach tieu diem), 2 tin nho ben
-  // trai, hop "Ban doc quan tam" ben phai lay tu tin moi nhat (tru cac
-  // tin da hien o hero/cot trai). Chi hoc bo cuc, noi dung la tin cua
-  // minh; chua co API xep hang luot doc that nen cot phai khong phai
-  // "doc nhieu nhat" dung nghia.
-  function heroSmallCard(it) {
-    return "<div class=\"hero-small\"><a href=\"" + esc(it.url) + "\">" +
-      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
-      "<h3>" + esc(it.title) + "</h3></a></div>";
-  }
+  // --- Khoi Tin noi bat kieu hero (mau Tuyen Quang TV): cot trai la
+  // danh sach doc co thanh cuon (hien 3 tin, cuon xem them, bam vao tin
+  // nao thi tin do len giua lam hero), tin hero lon o giua (nut < >
+  // chuyen tin, tu cuon cot trai theo), hop "Ban doc quan tam" ben
+  // phai lay tu tin moi nhat (tru cac tin da hien o hero). Chi hoc bo
+  // cuc, noi dung la tin cua minh; chua co API xep hang luot doc that
+  // nen cot phai khong phai "doc nhieu nhat" dung nghia.
   function heroSideRow(it) {
     return "<a class=\"hero-side-row\" href=\"" + esc(it.url) + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></a>";
   }
+  function heroLeftRow(it, idx, active) {
+    return "<button type=\"button\" class=\"hero-left-row" + (active ? " active" : "") + "\" data-idx=\"" + idx + "\">" +
+      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      "<span>" + esc(it.title) + "</span></button>";
+  }
   function renderHeroBlock(el, zoneItems, sideItems, heroIdx) {
     var hero = zoneItems[heroIdx];
-    var left = [];
-    var i;
-    for (i = 1; i < zoneItems.length && left.length < 2; i++) {
-      left.push(zoneItems[(heroIdx + i) % zoneItems.length]);
-    }
+    var prevLeft = el.querySelector(".hero-left");
+    var prevScroll = prevLeft ? prevLeft.scrollTop : 0;
+    var leftHtml = zoneItems.map(function (it, idx) {
+      return heroLeftRow(it, idx, idx === heroIdx);
+    }).join("");
     var html = "<div class=\"hero-block\">" +
-      "<div class=\"hero-left\">" + left.map(heroSmallCard).join("") + "</div>" +
+      "<div class=\"hero-left\">" + leftHtml + "</div>" +
       "<div class=\"hero-center\">" +
         "<div class=\"hero-media\">" +
           (hero.cover ? "<a href=\"" + esc(hero.url) + "\"><img src=\"" + esc(hero.cover) + "\" alt=\"\" loading=\"lazy\"></a>" : "") +
@@ -238,6 +239,17 @@
         (sideItems.length ? sideItems.map(heroSideRow).join("") : "<p>Chưa có tin.</p>") +
       "</aside></div>";
     el.innerHTML = html;
+    var newLeft = el.querySelector(".hero-left");
+    if (newLeft) {
+      newLeft.scrollTop = prevScroll;
+      var active = newLeft.querySelector(".hero-left-row.active");
+      if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
+    }
+    el.querySelectorAll(".hero-left-row").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        renderHeroBlock(el, zoneItems, sideItems, parseInt(btn.getAttribute("data-idx"), 10) || 0);
+      });
+    });
     var prev = el.querySelector(".hero-prev");
     var next = el.querySelector(".hero-next");
     if (prev) prev.addEventListener("click", function () {
@@ -246,6 +258,14 @@
     if (next) next.addEventListener("click", function () {
       renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length);
     });
+  }
+  // Khoi Tin tieu diem duoi hero: cung nguon zone tieu diem nhu hero,
+  // hien dang luoi (trang chu hay lap lai tin top o nhieu khoi nhu bao
+  // thuong lam, khong phai loi trung du lieu).
+  function renderTieudiem(items) {
+    var grid = document.getElementById("news-tieudiem");
+    if (!grid) return;
+    grid.innerHTML = items.length ? items.map(newsCard).join("") : "<p>Chưa có tin tiêu điểm.</p>";
   }
   function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
     var el = document.getElementById(elId);
@@ -256,7 +276,8 @@
         .then(function (d) { return (d && d.items) || []; });
     }
     function show(zoneItems) {
-      if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; return; }
+      if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); return; }
+      renderTieudiem(zoneItems);
       fetchItems("/api/v2/news?limit=12").then(function (latest) {
         var seen = {};
         zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
@@ -265,7 +286,7 @@
       }).catch(function () { renderHeroBlock(el, zoneItems, [], 0); });
     }
     function loadFallback() {
-      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
+      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); });
     }
     fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
       if (items.length) show(items);
