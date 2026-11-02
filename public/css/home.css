@@ -27,18 +27,22 @@ a { color: #0b4fa6; }
 .utility-social a:hover { color: #c00; }
 .topline-contact a { color: #333; text-decoration: none; font-weight: 600; }
 .topline-contact a:hover { color: #c00; }
-header.masthead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem; flex-wrap: nowrap; text-align: left; }
-.brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 1 1 auto; min-width: 0; }
-/* Logo header gian het chieu rong con lai cua khung (bo gioi han cao 64px cu). */
-.brand-logo { display: block; width: 100%; height: auto; }
+header.masthead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.75rem 1rem; flex-wrap: nowrap; text-align: left; }
+.brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 0 0 auto; min-width: 0; }
+/* Logo header thu nho theo mau (cao ~96px, giu ti le), khong con full khung. */
+.brand-logo { display: block; height: 96px; width: auto; }
 .brand-name { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; color: #c00; line-height: 1.1; }
-.masthead-actions { display: flex; flex-direction: column; gap: 0.4rem 1.2rem; align-items: flex-end; align-self: flex-start; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
+.masthead-actions { display: flex; flex-direction: column; gap: 0.4rem 1.2rem; align-items: flex-end; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
+/* Nut Tin moi kieu mau: chuong vien tron net dut + chu. */
+.news-bell { display: inline-flex; align-items: center; gap: 0.5rem; }
+.news-bell-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1.5px dashed #c00; border-radius: 50%; }
+.news-bell-icon svg { display: block; }
 .masthead-date { color: #555; font-size: 0.9rem; white-space: nowrap; }
 .masthead-actions a { color: #333; text-decoration: none; font-weight: 600; }
 .masthead-actions a:hover { color: #c00; }
 @media (max-width: 800px) {
   header.masthead { justify-content: center; text-align: center; flex-wrap: wrap; }
-  .masthead-actions { align-self: auto; align-items: center; }
+  .masthead-actions { align-items: center; }
   .brand-name { font-size: 1.6rem; }
 }
 .wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
