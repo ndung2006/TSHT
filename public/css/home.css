@@ -107,15 +107,16 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
 /* Khoi Tin noi bat kieu hero (mau Tuyen Quang TV, ti le cot do tu anh
    mau: trai ~21% / giua ~53% / phai ~24%): cot trai the anh rong + tieu
-   de ben duoi, cao bang cot giua, cuon doc; giua hero lon (nut < >) +
+   de ben duoi, chi hien dung 3 tin (the co dinh 205px, khung 639px),
+   tin con lai cuon doc xuong xem them; giua hero lon (nut < >) +
    link tin tieu diem dang text phia duoi; phai hop Ban doc quan tam. */
 .hero-block { display: grid; grid-template-columns: 1fr 2.5fr 1.15fr; gap: 1rem; align-items: stretch; }
-.hero-left { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; overflow-y: auto; padding-right: 0.25rem; scrollbar-width: thin; }
+.hero-left { display: flex; flex-direction: column; gap: 12px; height: 639px; overflow-y: auto; padding-right: 0.25rem; scrollbar-width: thin; }
 .hero-left::-webkit-scrollbar { width: 6px; }
 .hero-left::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-.hero-left-row { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; padding: 0.5rem; border: 0; border-left: 3px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.hero-left-row img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #f2f2f2; }
-.hero-left-row span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
+.hero-left-row { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 8px; border: 0; border-left: 3px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.hero-left-row img { width: 100%; height: 120px; object-fit: cover; background: #f2f2f2; }
+.hero-left-row span { font-size: 15px; line-height: 21px; height: 63px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
 .hero-left-row.active { background: #fff1f1; border-left-color: #c00; }
 .hero-center h3 a { color: inherit; text-decoration: none; }
 .hero-links { margin-top: 0.75rem; border-top: 1px solid #eee; }
@@ -135,7 +136,7 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .hero-side-row span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
 @media (max-width: 900px) {
   .hero-block { grid-template-columns: 1fr; }
-  .hero-left { max-height: 320px; }
+  .hero-left { height: auto; max-height: 320px; }
 }
 .news-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #f2f2f2; }
 .news-card h3 { margin: 0.4rem 0 0.2rem; font-size: 1rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
