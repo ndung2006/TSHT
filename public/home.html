@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TSHT — Tòa soạn hội tụ</title>
-<meta name="description" content="TSHT — Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
+<title>Tòa soạn hội tụ</title>
+<meta name="description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <link rel="canonical" href="https://tsht.vtctech.xyz/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="TSHT — Tòa soạn hội tụ">
-<meta property="og:description" content="TSHT — Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
+<meta property="og:title" content="Tòa soạn hội tụ">
+<meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261101-2"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261102-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -21,27 +21,24 @@
      và tin tức (chuyên mục + bài viết từ CMS Tin bài, qua /api/v2/news).
      Video, thời tiết và mạng xã hội CHƯA có nên chỉ hiện trạng thái chờ,
      không bịa. -->
-<div class="utility">
-  <nav class="utility-links" aria-label="Liên kết chính">
-    <a href="/truyen-hinh">TRUYỀN HÌNH</a>
-    <a href="/phat-thanh">PHÁT THANH</a>
-    <a href="/bao-in">BÁO IN</a>
-    <a href="/nen-tang-so">NỀN TẢNG SỐ</a>
-    <a href="/su-kien">SỰ KIỆN</a>
-    <a href="/tuong-thuat">TƯỜNG THUẬT</a>
-  </nav>
-  <div class="utility-right">
-    <span class="lang-note" title="Bản tiếng Anh chưa có">ENGLISH</span>
-    <a href="/admin.html">ĐĂNG NHẬP</a>
-  </div>
+<div class="topline">
+  <span data-topline-date></span>
+  <span id="topline-contact" class="topline-contact" hidden></span>
 </div>
 
 <header class="masthead">
-  <img id="masthead-logo" src="/icons/vtc-tsht/logo-vtc-tsht-light.svg" alt="VTC TSHT" width="167" height="64">
-  <p class="wordmark-sub">TÒA SOẠN HỘI TỤ</p>
-  <!-- Lien he header do CMS Quan ly giao dien dat (an khi chua dat) -->
-  <p id="masthead-contact" class="masthead-contact" hidden></p>
+  <a href="/" class="brand"><img id="brand-logo" class="brand-logo" alt="" hidden><span class="brand-name">TÒA SOẠN HỘI TỤ</span></a>
+  <nav class="masthead-actions" aria-label="Tiện ích">
+    <a href="/#news-latest">🔔 Tin mới</a>
+    <a href="/bao-in">📖 Báo in</a>
+    <span class="lang-note" title="Bản tiếng Anh chưa có">🌐 ENGLISH</span>
+    <a href="/admin.html">👤 Đăng nhập</a>
+  </nav>
 </header>
+
+
+
+
 
 <nav class="catnav" aria-label="Chuyên mục">
   <a href="/" class="home-link" aria-label="Trang chủ">⌂</a>
@@ -145,7 +142,7 @@
     <div class="card">
       <h2>VIDEO MỚI</h2>
       <p>Chưa có video.</p>
-      <p class="note">TSHT hiện chưa có video nào, nên khối này chưa liệt kê video — không dùng tiêu đề hay ảnh video bịa sẵn.</p>
+      <p class="note">Hiện chưa có video nào, nên khối này chưa liệt kê video — không dùng tiêu đề hay ảnh video bịa sẵn.</p>
     </div>
   </section>
   <!-- Quang cao web_home_media_right 301x238 — Ben phai muc "Da Phuong
@@ -176,16 +173,20 @@
     <p id="footer-desc"></p>
     <p id="footer-copyright"></p>
   </div>
-  <p><strong>TSHT — Tòa soạn hội tụ</strong></p>
+  <p><strong>Tòa soạn hội tụ</strong></p>
   <nav aria-label="Liên kết chân trang">
     <a href="/bao-in">Báo in</a> ·
     <a href="/truyen-hinh">Truyền hình</a> ·
     <a href="/phat-thanh">Phát thanh</a> ·
     <a href="/lich-phat-song">Lịch phát sóng</a> ·
+    <a href="/nen-tang-so">Nền tảng số</a> ·
+    <a href="/su-kien">Sự kiện</a> ·
+    <a href="/tuong-thuat">Tường thuật</a> ·
     <a href="/admin.html">CMS</a>
   </nav>
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261031-1"></script>
-<script src="/js/home.js?v=20261101-2"></script>
+<script src="/js/home.js?v=20261102-1"></script>
+<script src="/js/header.js?v=20261102-1"></script>
 </body></html>

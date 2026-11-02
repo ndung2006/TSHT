@@ -312,19 +312,8 @@
         loadNewsBlock("/api/v2/news?category=" + encodeURIComponent(s.slug) + "&limit=4", grid.id, "Chưa có tin bài.");
       });
     }
-    var hd = si.header || {};
-    if (hd.image) {
-      var logo = document.getElementById("masthead-logo");
-      if (logo) logo.src = hd.image;
-    }
-    var parts = [];
-    if (hd.phone) parts.push("<a href=\"tel:" + esc(String(hd.phone).replace(/\s+/g, "")) + "\">" + esc(hd.phone) + "</a>");
-    if (hd.email) parts.push("<a href=\"mailto:" + esc(hd.email) + "\">" + esc(hd.email) + "</a>");
-    [["facebook", "Facebook"], ["youtube", "Youtube"], ["tiktok", "TikTok"], ["zalo", "Zalo"]].forEach(function (p) {
-      if (hd[p[0]]) parts.push("<a href=\"" + esc(hd[p[0]]) + "\" target=\"_blank\" rel=\"noopener\">" + p[1] + "</a>");
-    });
-    var contact = document.getElementById("masthead-contact");
-    if (contact && parts.length) { contact.innerHTML = parts.join(" · "); contact.hidden = false; }
+    // Topline (ngay + hotline/mang xa hoi + anh logo) do header.js dam
+    // nhan tren moi trang, khong lam o day nua.
     var ft = si.footer || {};
     if (ft.logo || ft.description || ft.copyright) {
       var fc = document.getElementById("footer-custom");

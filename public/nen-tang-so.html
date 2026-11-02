@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nền tảng số</title>
-<link rel="stylesheet" href="/css/home.css?v=20261101-2">
+<link rel="stylesheet" href="/css/home.css?v=20261102-1">
 <style>
   .platforms { max-width: 1180px; margin: 0 auto; padding: 1rem; }
   .platforms h1 { font-size: 1.4rem; margin: 0.5rem 0; }
@@ -23,20 +23,22 @@
 <link rel="manifest" href="/site.webmanifest">
 </head>
 <body id="top">
-<div class="utility">
-  <nav class="utility-links" aria-label="Liên kết chính">
-    <a href="/truyen-hinh">TRUYỀN HÌNH</a>
-    <a href="/phat-thanh">PHÁT THANH</a>
-    <a href="/bao-in">BÁO IN</a>
-    <a href="/nen-tang-so">NỀN TẢNG SỐ</a>
-    <a href="/su-kien">SỰ KIỆN</a>
-    <a href="/tuong-thuat">TƯỜNG THUẬT</a>
-  </nav>
-  <div class="utility-right">
-    <span class="lang-note" title="Bản tiếng Anh chưa có">ENGLISH</span>
-    <a href="/admin.html">ĐĂNG NHẬP</a>
-  </div>
+<div class="topline">
+  <span data-topline-date></span>
+  <span id="topline-contact" class="topline-contact" hidden></span>
 </div>
+
+<header class="masthead">
+  <a href="/" class="brand"><img id="brand-logo" class="brand-logo" alt="" hidden><span class="brand-name">TÒA SOẠN HỘI TỤ</span></a>
+  <nav class="masthead-actions" aria-label="Tiện ích">
+    <a href="/#news-latest">🔔 Tin mới</a>
+    <a href="/bao-in">📖 Báo in</a>
+    <span class="lang-note" title="Bản tiếng Anh chưa có">🌐 ENGLISH</span>
+    <a href="/admin.html">👤 Đăng nhập</a>
+  </nav>
+</header>
+
+
 <main class="platforms">
   <h1>Nền tảng số</h1>
   <p class="lead">Video ngắn của đài: nội dung của chính cổng này hiển thị trước, sau đó là các video đã đưa lên Facebook, TikTok, YouTube. Kết nối thật với Facebook/TikTok làm sau; trước mắt mỗi thẻ ghi rõ video đang ở nền tảng nào.</p>
@@ -94,4 +96,5 @@
   });
 })();
 </script>
+<script src="/js/header.js?v=20261102-1"></script>
 </body></html>
