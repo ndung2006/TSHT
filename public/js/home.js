@@ -544,4 +544,19 @@
 
   loadSchedule("tv", "live-tv", "card-tv", false);
   loadSchedule("radio", "live-radio", "card-radio", true);
+
+  // Giu vach do chi thi cuon dung vi tri khi khung doi kich thuoc
+  // (xoay dien thoai, co gian cua so): tinh lai tu DOM hien tai thay vi
+  // dung so do tu lan render truoc. Vach cao co dinh 48px, khong co dan.
+  window.addEventListener("resize", function () {
+    document.querySelectorAll(".hero-left").forEach(function (list) {
+      var wrap = list.parentElement;
+      var track = wrap ? wrap.querySelector(".hero-scroll") : null;
+      var thumb = wrap ? wrap.querySelector(".hero-scroll i") : null;
+      if (!thumb) return;
+      var max = list.scrollHeight - list.clientHeight;
+      if (track) track.style.display = max > 0 ? "" : "none";
+      thumb.style.top = (max > 0 ? (list.scrollTop / max) * (list.clientHeight - 48) : 0) + "px";
+    });
+  });
 })();

@@ -145,6 +145,8 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .hero-side-row span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
 @media (max-width: 900px) {
   .hero-block { grid-template-columns: 1fr; }
+  /* Mobile: tin lon (hero-center) len dau tien, danh sach cuon xuong duoi. */
+  .hero-center { order: -1; }
   .hero-left { height: auto; max-height: 320px; }
 }
 .news-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #f2f2f2; }
