@@ -60,6 +60,9 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 /* Quan ly giao dien: day hot link duoi nav + lien he header + footer tuy
    chinh + khoi chuyen muc trang chu (chi hien khi CMS da dat). */
 .hotlink-strip { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 0.5rem 1rem; font-size: 0.9rem; }
+/* Thuoc tinh hidden thua display:flex neu khong co dong nay, nen dai
+   hot-link rong van hien thanh dai vang mong du CMS chua dat link. */
+.hotlink-strip[hidden] { display: none; }
 .hotlink-strip a { color: #333; text-decoration: none; font-weight: 700; }
 .hotlink-strip a:hover { color: #c00; }
 .masthead-contact { margin: 0.35rem 0 0; font-size: 0.9rem; color: #555; }
