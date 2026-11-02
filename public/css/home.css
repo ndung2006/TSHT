@@ -9,7 +9,7 @@ a { color: #0b4fa6; }
 .masthead { text-align: center; padding: 1.2rem 1rem 0.8rem; }
 /* Header kieu DBP: hang tren (ngay + hotline/mang xa hoi), hang logo
    (ten toa soan trai, nut tien ich phai). */
-.topline { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
+.topline { display: flex; justify-content: flex-end; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
 /* Thanh tren cung (khoi phuc theo mau cu): chuyen trang trai, ENGLISH /
    KET NOI / Dang nhap / Dang ky phai. */
 .utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: nowrap; }

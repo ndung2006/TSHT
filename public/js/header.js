@@ -20,12 +20,8 @@
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (si) {
       var hd = (si && si.header) || {};
-      // Topline chi giu Hotline; mang xa hoi chuyen len thanh tren cung
-      // (muc KET NOI) de khong trung lap.
-      if (contactEl && hd.phone) {
-        contactEl.innerHTML = "<a href=\"tel:" + esc(String(hd.phone).replace(/\s+/g, "")) + "\">Hotline: " + esc(hd.phone) + "</a>";
-        contactEl.hidden = false;
-      }
+      // Topline chi hien ngay thang, can phai; Hotline khong hien nua
+      // (so dien thoai van giu trong cai dat CMS, chi khong render ra portal).
       var socialEl = document.getElementById("utility-social");
       if (socialEl) {
         var socials = [];
