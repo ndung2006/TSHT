@@ -3,7 +3,7 @@
     <h2 class="mb-1 font-semibold">Favicon</h2>
     <p class="mb-4 text-sm text-neutral-400">Icon hiển thị trên tab trình duyệt của portal. Khi chưa đặt ảnh thì portal dùng favicon mặc định hiện nay.</p>
     <div class="flex flex-col gap-4">
-      <div><label class="field-label">Icon Favicon *</label><ImagePicker v-model="form.image" ratio="16/9" /></div>
+      <div><label class="field-label">Icon Favicon *</label><ImagePicker v-model="form.image" ratio="16/9" fit="contain" /></div>
       <div><label class="field-label">Tên Icon</label><InputText v-model="form.name" class="w-full" placeholder="vd: favicon" /></div>
       <div><label class="field-label">Mô Tả *</label><InputText v-model="form.description" class="w-full" placeholder="vd: favicon cổng TSHT" /></div>
       <div><Button v-if="can('site_interface:update')" label="Lưu" icon="pi pi-check" @click="save" /></div>

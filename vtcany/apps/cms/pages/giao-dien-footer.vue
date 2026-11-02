@@ -3,7 +3,7 @@
     <h2 class="mb-1 font-semibold">Footer</h2>
     <p class="mb-4 text-sm text-neutral-400">Logo, mô tả và thông tin bản quyền hiển thị ở chân trang portal. Để trống thì portal giữ chân trang mặc định hiện nay.</p>
     <div class="flex flex-col gap-4">
-      <div><label class="field-label">Ảnh Footer (ảnh logo)</label><ImagePicker v-model="form.logo" ratio="16/9" /></div>
+      <div><label class="field-label">Ảnh Footer (ảnh logo)</label><ImagePicker v-model="form.logo" ratio="16/9" fit="contain" /></div>
       <div><label class="field-label">Mô tả</label><Editor v-model="form.description" editor-style="height: 240px" /></div>
       <div><label class="field-label">Thông tin bản quyền</label><Textarea v-model="form.copyright" rows="4" class="w-full" placeholder="vd: Giấy phép hoạt động số ...; © Bản quyền thuộc về ..." /></div>
       <div><Button v-if="can('site_interface:update')" label="Lưu" icon="pi pi-check" @click="save" /></div>
