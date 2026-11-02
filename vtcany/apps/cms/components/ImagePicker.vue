@@ -1,7 +1,8 @@
 <template>
-  <div>
-    <!-- Khung xem truoc (an khi compact) -->
-    <div v-if="!compact" :class="['bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden flex items-center justify-center relative', aspectClass]">
+  <div class="min-w-0">
+    <!-- Khung xem truoc (an khi compact). Gioi han rong/cao de anh banner
+         rong khong choan het trang va day form xuong duoi. -->
+    <div v-if="!compact" :class="['bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden flex items-center justify-center relative w-full max-w-[480px] max-h-[360px]', aspectClass]">
       <img v-if="url" :src="previewUrl" :class="['absolute inset-0 w-full h-full', fit === 'contain' ? 'object-contain bg-white' : 'object-cover']" alt="anh" />
       <span v-else class="text-xs text-neutral-400 px-2 text-center">Chưa có ảnh<br />({{ ratioLabel }})</span>
       <span v-if="url" class="absolute right-1.5 top-1.5 flex gap-1.5">

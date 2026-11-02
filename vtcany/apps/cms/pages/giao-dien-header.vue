@@ -1,7 +1,7 @@
 <template>
   <div class="surface-card p-4">
     <h2 class="mb-1 font-semibold">Header</h2>
-    <p class="mb-4 text-sm text-neutral-400">Ảnh và liên hệ hiển thị ở đầu trang portal. Để trống mục nào thì portal giữ mặc định ở mục đó (logo VTC TSHT + dòng “TÒA SOẠN HỘI TỤ” khi chưa đặt ảnh header).</p>
+    <p class="mb-4 text-sm text-neutral-400">Ảnh và liên hệ hiển thị ở đầu trang portal. Để trống ảnh thì portal chỉ hiện tên “TÒA SOẠN HỘI TỤ”; đặt ảnh thì chỉ hiện ảnh logo, tên tự ẩn.</p>
     <div class="flex flex-col gap-4">
       <div><label class="field-label">Ảnh header *</label><ImagePicker v-model="form.image" ratio="16/9" /></div>
       <div><label class="field-label">Email</label><InputText v-model="form.email" class="w-full" placeholder="vd: toasoan@tsht.vn" /></div>

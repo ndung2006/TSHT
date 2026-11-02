@@ -10,6 +10,14 @@ a { color: #0b4fa6; }
 /* Header kieu DBP: hang tren (ngay + hotline/mang xa hoi), hang logo
    (ten toa soan trai, nut tien ich phai). */
 .topline { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
+/* Thanh tren cung (khoi phuc theo mau cu): chuyen trang trai, ENGLISH /
+   KET NOI / Dang nhap / Dang ky phai. */
+.utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: wrap; }
+.utilitybar-links, .utilitybar-right { display: flex; gap: 0.4rem 1rem; align-items: center; flex-wrap: wrap; }
+.utilitybar a { color: #333; text-decoration: none; font-weight: 600; }
+.utilitybar a:hover { color: #c00; }
+.utility-social a { color: #333; text-decoration: none; font-weight: 600; }
+.utility-social a:hover { color: #c00; }
 .topline-contact a { color: #333; text-decoration: none; font-weight: 600; }
 .topline-contact a:hover { color: #c00; }
 header.masthead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem; flex-wrap: wrap; text-align: left; }
@@ -142,7 +150,7 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
    trong khung 1180px can giua nhu main.wrap, khong tran full man hinh.
    home.css co box-sizing: border-box toan cuc nen padding khong lam
    vo khung. */
-.topline, .utility, .masthead, .catnav, .hotlink-strip, .cat-note, .footer, .catnav-mega {
+.utilitybar, .topline, .utility, .masthead, .catnav, .hotlink-strip, .cat-note, .footer, .catnav-mega {
   max-width: 1180px;
   margin-left: auto;
   margin-right: auto;

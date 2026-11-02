@@ -20,15 +20,19 @@
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (si) {
       var hd = (si && si.header) || {};
-      if (contactEl) {
-        var phone = hd.phone ? "<a href=\"tel:" + esc(String(hd.phone).replace(/\s+/g, "")) + "\">Hotline: " + esc(hd.phone) + "</a>" : "";
+      // Topline chi giu Hotline; mang xa hoi chuyen len thanh tren cung
+      // (muc KET NOI) de khong trung lap.
+      if (contactEl && hd.phone) {
+        contactEl.innerHTML = "<a href=\"tel:" + esc(String(hd.phone).replace(/\s+/g, "")) + "\">Hotline: " + esc(hd.phone) + "</a>";
+        contactEl.hidden = false;
+      }
+      var socialEl = document.getElementById("utility-social");
+      if (socialEl) {
         var socials = [];
         [["facebook", "Facebook"], ["youtube", "Youtube"], ["tiktok", "TikTok"], ["zalo", "Zalo"]].forEach(function (p) {
           if (hd[p[0]]) socials.push("<a href=\"" + esc(hd[p[0]]) + "\" target=\"_blank\" rel=\"noopener\">" + p[1] + "</a>");
         });
-        var html = phone;
-        if (socials.length) html += (html ? " | Theo dõi Tòa soạn hội tụ qua " : "Theo dõi Tòa soạn hội tụ qua ") + socials.join(" · ");
-        if (html) { contactEl.innerHTML = html; contactEl.hidden = false; }
+        if (socials.length) { socialEl.innerHTML = "KẾT NỐI " + socials.join(" · "); socialEl.hidden = false; }
       }
       // Co logo that thi chi hien logo, an chu ten (kieu khoi logo cua
       // DBP); logo loi thi quay ve hien chu de khong co khoi trong.
