@@ -125,7 +125,14 @@
                 box.scrollTop = Math.max(0, Math.min(box.scrollTop + delta, maxScroll));
               }
             } else if (typeof currentRow.scrollIntoView === "function") {
-              currentRow.scrollIntoView({ block: "center" });
+              // Mobile: lich khong co cuon noi bo nen nhanh nay von cuon
+              // ca trang toi dong dang phat. Bo qua tren mobile: trang
+              // mo len phai dung o khoi phat truc tuyen truoc, nguoi
+              // dung tu cuon xuong lich khi can (dong dang phat van
+              // duoc to sang binh thuong).
+              if (!(typeof global.matchMedia === "function" && global.matchMedia("(max-width: 800px)").matches)) {
+                currentRow.scrollIntoView({ block: "center" });
+              }
             }
           }
         } else {
@@ -137,6 +144,24 @@
     }
     return liveItem;
   }
+
+  // Mobile: mo trang truyen-hinh/phat-thanh thi nhay thang toi khoi
+  // phat truc tuyen (player) truoc, thay vi dung o dau trang (header/
+  // nav). Chi khi khong co hash (link #... giu hanh vi mac dinh) va
+  // trang chua duoc cuon (mo moi, khong phai khoi phuc vi tri cu).
+  // Chay o DOMContentLoaded de header.js (nap sau file nay) kip ap
+  // logo tu cache truoc khi tinh vi tri khoi phat.
+  document.addEventListener("DOMContentLoaded", function () {
+    try {
+      if (global.location && global.location.hash) return;
+      if (global.scrollY) return;
+      if (typeof global.matchMedia === "function" && !global.matchMedia("(max-width: 800px)").matches) return;
+      var sec = document.querySelector(".live-section");
+      if (!sec) return;
+      if (typeof sec.scrollIntoView === "function") sec.scrollIntoView({ block: "start" });
+      else if (global.scrollTo) global.scrollTo(0, sec.offsetTop);
+    } catch (e) { /* khong chan trang neu co loi */ }
+  });
 
   global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule };
 })(window);
