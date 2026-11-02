@@ -66,6 +66,13 @@ body.reader-page{height:100vh;height:100dvh;display:flex;flex-direction:column;o
   .toolbar.tq-toolbar button{padding:4px 5px;font-size:14px;min-width:0;white-space:nowrap}
   .toolbar.tq-toolbar span{white-space:nowrap}
   .toolbar.tq-toolbar input{width:40px}
+  /* Rieng dien thoai: chan cam ung toi canvas cua PageFlip de tat
+     lat goc/keo/vuot — dien thoai chi lat bang nut. PC (>700px)
+     khong co quy tac nay nen bam goc/keo goc van lat nhu cu. Nut
+     canh va thanh cong cu nam NGOAI #flip-book nen khong bi chan;
+     pinch 2 ngon van chay vi handler pinch gan tren flipWrap (cha
+     cua #flip-book), nhan su kien truoc khi toi canvas. */
+  #flip-book{pointer-events:none}
 }
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}

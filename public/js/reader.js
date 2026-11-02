@@ -21,7 +21,7 @@ const isNew = !!newMatch;
 // da co anh trang. Gan ?v= theo ban reader (doi moi lan sua reader)
 // de edge coi la URL moi va tra JSON moi ngay. Proxy TSHT chi xet
 // pathname nen query nay khong anh huong logic server.
-const READER_BUILD = "20261102-2";
+const READER_BUILD = "20261102-3";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
 const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}?v=${READER_BUILD}` : `/api/v1/issues/${issueId}`);
@@ -225,13 +225,13 @@ function initFlip() {
     minWidth: 300, maxWidth: 1000, minHeight: 424, maxHeight: 1414,
     showCover: true, // F8: cover + last page single, NO padding page
     flippingTime: 800, usePortrait: portrait, drawShadow: true,
-    // Chi chuyen trang bang nut (nut canh 2 ben, thanh cong cu, phim,
-    // anh nho, o nhap so trang): tat hoan toan cu chi cua PageFlip
-    // (bam goc, keo goc, vuot). useMouseEvents:false khong gan
-    // handler chuot/cam ung nao nen sach chi lat qua API. KHONG dung
-    // disableFlipByClick o day: tuy chon do chi chan bam giua trang,
-    // bam goc van lat (nguoc voi yeu cau).
-    useMouseEvents: false,
+    // Cu chi PageFlip BAT (PC: bam goc, keo goc, vuot deu lat trang
+    // nhu cu). Rieng dien thoai (<=700px) thi CSS chan: style.css dat
+    // #flip-book{pointer-events:none} trong @media(max-width:700px)
+    // nen cam ung khong toi duoc canvas cua PageFlip, dien thoai chi
+    // lat bang nut. KHONG dung disableFlipByClick: tuy chon do chi
+    // chan bam giua trang, bam goc van lat.
+    useMouseEvents: true,
   });
   flip.loadFromImages(issue.pages.map((p) => p.flip));
   // Bao dam tuyet doi: bat ky duong lat nao (nut, phim, thumbnail, click
