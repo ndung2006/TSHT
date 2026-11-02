@@ -1,7 +1,6 @@
-// Header kieu DBP (dung chung moi trang): ngay hien tai ben trai hang
-// tren; hotline + mang xa hoi ben phai + anh logo (neu CMS dat) lay tu
-// cai dat Quan ly giao dien. Khong co du lieu thi chi hien ngay, khong
-// hien khoi lien he trong.
+// Header kieu DBP (dung chung moi trang): ngay hien tai nam trong hang
+// ten, ben phai cung cum Tin moi; mang xa hoi o thanh tren cung (muc
+// KET NOI) + anh logo (neu CMS dat) lay tu cai dat Quan ly giao dien.
 (function () {
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
