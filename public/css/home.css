@@ -44,6 +44,11 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
   header.masthead { justify-content: center; text-align: center; flex-wrap: wrap; }
   .masthead-actions { align-items: center; }
   .brand-name { font-size: 1.6rem; }
+  /* Mobile: logo co theo chieu ngang khung (cao tu dong theo ti le,
+     toi da 118px) thay vi co dinh cao 118px khien anh banner rong tran
+     hai ben man hinh. */
+  .brand { width: 100%; justify-content: center; }
+  .brand-logo { width: 100%; height: auto; max-height: 118px; object-fit: contain; }
 }
 .wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
 .wordmark-sub { margin: 0.2rem 0 0; font-weight: 700; letter-spacing: 0.15em; color: #333; }
