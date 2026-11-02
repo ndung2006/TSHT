@@ -251,7 +251,15 @@
     if (newLeft) {
       newLeft.scrollTop = prevScroll;
       var active = newLeft.querySelector(".hero-left-row.active");
-      if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
+      if (active) {
+        // Chi cuon trong khung danh sach, khong cuon trang: scrollIntoView
+        // cuon ca toan trang khi the dang ngoai viewport (tren mobile the
+        // dang chon nam duoi hero) nen bam < > bi nhay xuong bai ben duoi.
+        var rowTop = active.offsetTop - newLeft.offsetTop;
+        var rowBottom = rowTop + active.offsetHeight;
+        if (rowTop < newLeft.scrollTop) newLeft.scrollTop = rowTop;
+        else if (rowBottom > newLeft.scrollTop + newLeft.clientHeight) newLeft.scrollTop = rowBottom - newLeft.clientHeight;
+      }
     }
     // Vach do ngan chi thi vi tri cuon (kieu TQTV: ranh an, chi hien
     // doan do ngan chay theo): thanh cuon goc da an han nen moi trinh
