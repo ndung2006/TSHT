@@ -15,6 +15,23 @@
   var logoEl = document.getElementById("brand-logo");
   var nameEl = document.querySelector(".brand .brand-name");
   if (!contactEl && !logoEl) return;
+  // Nho logo lan truoc (chi URL anh cong khai, khong phai du lieu rieng):
+  // hien ngay khi mo trang, khoi chop chu ten trong luc cho API.
+  var logoCacheKey = "tsht_header_image";
+  function cacheGet() { try { return window.localStorage.getItem(logoCacheKey) || ""; } catch (e) { return ""; } }
+  function cacheSet(v) { try { if (v) window.localStorage.setItem(logoCacheKey, v); else window.localStorage.removeItem(logoCacheKey); } catch (e) { /* bo qua khi khong co storage */ } }
+  function showName() { if (logoEl) logoEl.hidden = true; if (nameEl) nameEl.hidden = false; cacheSet(""); }
+  function showLogo(url) {
+    if (!logoEl || !url) return false;
+    logoEl.alt = "Tòa soạn hội tụ";
+    logoEl.onerror = function () { showName(); };
+    if (logoEl.getAttribute("src") !== url) logoEl.src = url;
+    logoEl.hidden = false;
+    if (nameEl) nameEl.hidden = true;
+    return true;
+  }
+  var cachedLogo = cacheGet();
+  var showingCached = cachedLogo ? showLogo(cachedLogo) : false;
   fetch("/api/v2/site-interface")
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (si) {
@@ -31,14 +48,18 @@
         if (socials.length) { socialEl.innerHTML = "KẾT NỐI " + socials.join(" "); socialEl.hidden = false; }
       }
       // Co logo that thi chi hien logo, an chu ten (kieu khoi logo cua
-      // DBP); logo loi thi quay ve hien chu de khong co khoi trong.
+      // DBP); API xac nhan/cap nhat lai sau lan hien tu cache.
       if (logoEl && hd.image) {
-        logoEl.alt = "Tòa soạn hội tụ";
-        logoEl.onerror = function () { logoEl.hidden = true; if (nameEl) nameEl.hidden = false; };
-        logoEl.src = hd.image;
-        logoEl.hidden = false;
-        if (nameEl) nameEl.hidden = true;
+        showLogo(hd.image);
+        cacheSet(hd.image);
+      } else if (logoEl) {
+        // CMS khong dat logo: hien chu ten, xoa cache cu.
+        showName();
       }
     })
-    .catch(function () { /* giu ngay, an lien he khi tai loi */ });
+    .catch(function () {
+      // Tai loi: neu khong co logo cache dang hien thi hien chu ten de
+      // khoi trong hang ten; co cache thi giu logo cu cho lan sau sua.
+      if (!showingCached) showName();
+    });
 })();
