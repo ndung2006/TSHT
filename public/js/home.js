@@ -316,7 +316,7 @@
       else loadFallback();
     }).catch(loadFallback);
   }
-  loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin nổi bật.");
+  loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
   loadZoneBlock("tin-moi-nhat", "news-latest", "/api/v2/news?limit=8", "Chưa có tin bài.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (menu, hot link, khoi
   // trang chu, header, footer, favicon). Lay 1 lan, dung chung cho nav +
