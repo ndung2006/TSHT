@@ -52,7 +52,7 @@
     img.setAttribute("src", item.imagePath || "");
     img.setAttribute("alt", item.name || "");
     img.setAttribute("loading", "lazy");
-    if (PLACEMENT_SIZES[placement]) { img.style.display = "block"; img.style.maxWidth = "100%"; }
+    if (PLACEMENT_SIZES[placement]) { img.style.display = "block"; img.style.width = "100%"; img.style.maxWidth = "100%"; }
     if (isSafeLink(item.linkUrl)) {
       var a = doc.createElement("a");
       a.setAttribute("href", item.linkUrl.trim());
@@ -93,14 +93,18 @@
           var size = PLACEMENT_SIZES[placement];
           if (size) {
             var parentW = el.parentElement ? el.parentElement.clientWidth : 0;
-            el.style.maxWidth = (parentW > 0 ? Math.min(size.w, parentW) : size.w) + "px";
             if (RIGHT_SLOTS[placement]) {
+              el.style.maxWidth = (parentW > 0 ? Math.min(size.w, parentW) : size.w) + "px";
               el.style.marginLeft = "auto";
               el.style.marginRight = "0";
               el.style.textAlign = "right";
             } else {
-              el.style.marginLeft = "auto";
-              el.style.marginRight = "auto";
+              // Slot ngang (banner): choang het chieu rong cua khung de mep
+              // trai/phai cua quang cao trung mep khung header va tin bai,
+              // thay vi co dinh 1200px roi can giua gay lech mep.
+              el.style.maxWidth = (parentW > 0 ? parentW : size.w) + "px";
+              el.style.marginLeft = "0";
+              el.style.marginRight = "0";
             }
           }
           el.hidden = false;

@@ -74,6 +74,13 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 #home-sections section { margin-bottom: 1.5rem; }
 .catnav-icons { margin-left: auto; color: #fff; }
 .wrap { max-width: 1264px; margin: 0 auto; padding: 1rem; }
+/* Can le mep trai/phai: khi man hinh du rong de khung 1264px co le
+   dem toi thieu 16px moi ben (viewport >= 1296px), bo padding ngang cua
+   .wrap de mep noi dung (banner, hero, luoi tin) trung khop mep khung
+   cua header/nav; man hinh hep hon giu padding de chu khong sat mep. */
+@media (min-width: 1296px) {
+  .wrap { padding-left: 0; padding-right: 0; }
+}
 .section-title { border-left: 4px solid #c00; padding-left: 0.5rem; }
 .live-strip { background: #0b1235; color: #fff; padding: 1rem; margin-bottom: 1.5rem; }
 .live-strip h2 { margin: 0 0 0.5rem; }
