@@ -215,6 +215,13 @@
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></button>";
   }
+  function heroLinks(zoneItems, heroIdx) {
+    var links = zoneItems.filter(function (it, idx) { return idx !== heroIdx; }).slice(0, 3);
+    if (!links.length) return "";
+    return "<div class=\"hero-links\">" + links.map(function (it) {
+      return "<a href=\"" + esc(it.url) + "\">" + esc(it.title) + "</a>";
+    }).join("") + "</div>";
+  }
   function renderHeroBlock(el, zoneItems, sideItems, heroIdx) {
     var hero = zoneItems[heroIdx];
     var prevLeft = el.querySelector(".hero-left");
@@ -234,6 +241,7 @@
         (hero.sapo ? "<p class=\"news-sapo\">" + esc(hero.sapo) + "</p>" : "") +
         "<p class=\"news-meta\">" + esc(hero.category ? hero.category.name : "") +
         (hero.publishAt ? " · " + esc(String(hero.publishAt).slice(0, 10)) : "") + "</p>" +
+        heroLinks(zoneItems, heroIdx) +
       "</div>" +
       "<aside class=\"hero-right\"><h3>Bạn đọc quan tâm</h3>" +
         (sideItems.length ? sideItems.map(heroSideRow).join("") : "<p>Chưa có tin.</p>") +
