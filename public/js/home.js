@@ -215,14 +215,16 @@
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></button>";
   }
-  function heroLinks(zoneItems, heroIdx) {
-    var links = zoneItems.filter(function (it, idx) { return idx !== heroIdx; }).slice(0, 3);
+  // Link duoi tin lon: chi tu bai tick Tieu diem rieng (khong lay tu
+  // zone, khong lay tu bai Noi bat), tru tin lon dang hien, toi da 3.
+  function heroLinks(spotItems, heroUrl) {
+    var links = (spotItems || []).filter(function (it) { return it.url && it.url !== heroUrl; }).slice(0, 3);
     if (!links.length) return "";
     return "<div class=\"hero-links\">" + links.map(function (it) {
       return "<a href=\"" + esc(it.url) + "\">" + esc(it.title) + "</a>";
     }).join("") + "</div>";
   }
-  function renderHeroBlock(el, zoneItems, sideItems, heroIdx) {
+  function renderHeroBlock(el, zoneItems, sideItems, heroIdx, spotItems) {
     var hero = zoneItems[heroIdx];
     var prevLeft = el.querySelector(".hero-left");
     var prevScroll = prevLeft ? prevLeft.scrollTop : 0;
@@ -241,7 +243,7 @@
         (hero.sapo ? "<p class=\"news-sapo\">" + esc(hero.sapo) + "</p>" : "") +
         "<p class=\"news-meta\">" + esc(hero.category ? hero.category.name : "") +
         (hero.publishAt ? " · " + esc(String(hero.publishAt).slice(0, 10)) : "") + "</p>" +
-        heroLinks(zoneItems, heroIdx) +
+        heroLinks(spotItems, hero.url) +
       "</div>" +
       "<aside class=\"hero-right\"><h3>Bạn đọc quan tâm</h3>" +
         (sideItems.length ? sideItems.map(heroSideRow).join("") : "<p>Chưa có tin.</p>") +
@@ -278,25 +280,34 @@
     syncHeroScroll();
     el.querySelectorAll(".hero-left-row").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        renderHeroBlock(el, zoneItems, sideItems, parseInt(btn.getAttribute("data-idx"), 10) || 0);
+        renderHeroBlock(el, zoneItems, sideItems, parseInt(btn.getAttribute("data-idx"), 10) || 0, spotItems);
       });
     });
     var prev = el.querySelector(".hero-prev");
     var next = el.querySelector(".hero-next");
     if (prev) prev.addEventListener("click", function () {
-      renderHeroBlock(el, zoneItems, sideItems, (heroIdx - 1 + zoneItems.length) % zoneItems.length);
+      renderHeroBlock(el, zoneItems, sideItems, (heroIdx - 1 + zoneItems.length) % zoneItems.length, spotItems);
     });
     if (next) next.addEventListener("click", function () {
-      renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length);
+      renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length, spotItems);
     });
   }
-  // Khoi Tin tieu diem duoi hero: cung nguon zone tieu diem nhu hero,
-  // hien dang luoi (trang chu hay lap lai tin top o nhieu khoi nhu bao
-  // thuong lam, khong phai loi trung du lieu).
+  // Khoi Tin tieu diem duoi hero: chi tu bai tick Tieu diem rieng
+  // (moi nhat truoc, toi da 4), khong lay tu zone, khong lay tu bai
+  // Noi bat. Rong -> an ca luoi lan tieu de "Tin tieu diem" (tieu de
+  // la HTML tinh nen phai an bang JS), khong fallback.
   function renderTieudiem(items) {
     var grid = document.getElementById("news-tieudiem");
     if (!grid) return;
-    grid.innerHTML = items.length ? items.map(newsCard).join("") : "<p>Chưa có tin tiêu điểm.</p>";
+    var title = document.getElementById("news-tieudiem-title");
+    if (!items.length) {
+      grid.style.display = "none";
+      if (title) title.style.display = "none";
+      return;
+    }
+    grid.style.display = "";
+    if (title) title.style.display = "";
+    grid.innerHTML = items.slice(0, 4).map(newsCard).join("");
   }
   function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
     var el = document.getElementById(elId);
@@ -308,13 +319,19 @@
     }
     function show(zoneItems) {
       if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); return; }
-      renderTieudiem(zoneItems);
-      fetchItems("/api/v2/news?limit=12").then(function (latest) {
-        var seen = {};
-        zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
-        var side = latest.filter(function (it) { return it.url && !seen[it.url]; }).slice(0, 5);
-        renderHeroBlock(el, zoneItems, side, 0);
-      }).catch(function () { renderHeroBlock(el, zoneItems, [], 0); });
+      // Bai Tieu diem rieng (spotlight=1): luoi toi da 4 + link toi da
+      // 3 tru hero -> limit 4 la du trong moi truong hop (hero co
+      // trong danh sach hay khong). Loi tai -> coi nhu rong (an khoi).
+      function renderWithSpot(spotItems) {
+        renderTieudiem(spotItems);
+        fetchItems("/api/v2/news?limit=12").then(function (latest) {
+          var seen = {};
+          zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
+          var side = latest.filter(function (it) { return it.url && !seen[it.url]; }).slice(0, 5);
+          renderHeroBlock(el, zoneItems, side, 0, spotItems);
+        }).catch(function () { renderHeroBlock(el, zoneItems, [], 0, spotItems); });
+      }
+      fetchItems("/api/v2/news?spotlight=1&limit=4").then(renderWithSpot, function () { renderWithSpot([]); });
     }
     function loadFallback() {
       fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); });

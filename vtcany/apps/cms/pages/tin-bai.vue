@@ -63,6 +63,9 @@
         <Column header="Nổi bật" style="width:6rem">
           <template #body="{ data }"><Tag :value="data.isFeatured ? 'Có' : 'Không'" :severity="data.isFeatured ? 'success' : 'secondary'" /></template>
         </Column>
+        <Column header="Tiêu điểm" style="width:6rem">
+          <template #body="{ data }"><Tag :value="data.isSpotlight ? 'Có' : 'Không'" :severity="data.isSpotlight ? 'success' : 'secondary'" /></template>
+        </Column>
         <Column header="Thao tác" style="min-width:20rem">
           <template #body="{ data }">
             <Button v-if="can('articles:update')" label="Sửa" size="small" text @click="openEdit(data)" />
@@ -195,7 +198,7 @@
                 <label for="feat">Tin nổi bật (lên khối Tin nổi bật ở trang chủ)</label>
               </div>
               <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
-                <label for="spot">Tiêu điểm (lên cột Tiêu điểm)</label>
+                <label for="spot">Tiêu điểm (lên khối Tin tiêu điểm ở trang chủ)</label>
               </div>
               <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" />
                 <label for="photo">Tin ảnh</label>

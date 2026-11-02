@@ -544,7 +544,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- Tin bai he moi qua proxy (chi bai da xuat ban) ----
-    // GET /api/v2/news?page&limit&category&q&featured — danh sach bai
+    // GET /api/v2/news?page&limit&category&q&featured&spotlight — danh sach bai
     // da xuat ban cua he moi (backend tu loc publishAt <= now).
     // GET /api/v2/news/:slug — chi tiet + related cung chuyen muc.
     // GET /api/v2/news-categories — cay chuyen muc hien.
@@ -570,7 +570,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && u.pathname === "/api/v2/news") {
       const bq = new URLSearchParams();
-      for (const k of ["page", "limit", "category", "q", "featured"]) {
+      for (const k of ["page", "limit", "category", "q", "featured", "spotlight"]) {
         const v = u.searchParams.get(k);
         if (v) bq.set(k, v);
       }

@@ -761,12 +761,15 @@ export class NewsService {
     return { status: 'published', publishAt: { lte: now } };
   }
 
-  async listPublic(params: { category?: string; q?: string; featured?: string; page?: number; limit?: number }) {
+  async listPublic(params: { category?: string; q?: string; featured?: string; spotlight?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const now = new Date();
     const where: any = this.visibleWhere(now);
     if (params.featured === '1') where.isFeatured = true;
+    // Goi Tieu diem rieng: chi bai da xuat ban + tick Tieu diem, moi
+    // nhat truoc (orderBy publishAt desc chung). Mirror filter featured.
+    if (params.spotlight === '1') where.isSpotlight = true;
     if (params.category) {
       const cat = await this.prisma.newsCategory.findUnique({ where: { slug: params.category } });
       if (!cat) return { data: [], total: 0, page, limit };
