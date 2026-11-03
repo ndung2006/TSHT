@@ -119,7 +119,7 @@
             :loading="loadingFiles" placeholder="Chọn từ thư viện Tập tin" class="w-full mt-2" />
           <InputText v-model="form.videoFileId" class="w-full mt-1" placeholder="...hoặc nhập ID file thủ công" />
           <div class="mt-3">
-            <MediaUploader @done="onUploadDone" />
+            <MediaUploader @done="onUploadDone" @attached="onUploadAttached" />
           </div>
         </div>
       </div>
@@ -212,6 +212,13 @@ function onUploadDone(uploadId: string) {
   form.value.videoFileId = uploadId;
   loadDoneFiles();
   toast.add({ severity: 'success', summary: 'Upload xong', detail: 'Đã gắn file video vừa tải lên vào short.', life: 3000 });
+}
+// Gan ngay khi upload xong (transcode co the chua xong): neu chi cho 'done'
+// thi luu som se luu videoFileId rong, ban ghi mat lien ket file va mai
+// khong phat duoc du transcode da xong.
+function onUploadAttached(uploadId: string) {
+  form.value.videoFileId = uploadId;
+  toast.add({ severity: 'success', summary: 'Đã gắn file vừa tải lên', detail: 'Đang chờ cắt xong thì phát được.', life: 3000 });
 }
 
 // Xem truoc video ngay trong form (chi voi short da luu - can id de goi API play).
