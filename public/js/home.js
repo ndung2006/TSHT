@@ -570,6 +570,43 @@
   loadSchedule("tv", "live-tv", "card-tv", false);
   loadSchedule("radio", "live-radio", "card-radio", true);
 
+  // Nut tim kiem tren catnav (2026-11-03): truoc day 🔍 chi la span
+  // trang tri, bam khong mo o nhap. Nay la nut that: bam mo o nhap
+  // duoi nav; Enter/"Tim" goi /api/v2/news?q= (API cong khai san co)
+  // va hien toi da 8 ket qua dang link ve trang doc; Escape hoac bam
+  // ra ngoai thi dong. Khong them trang ket qua rieng.
+  (function initCatnavSearch() {
+    var btn = document.querySelector(".catnav-search-btn");
+    var panel = document.getElementById("catnav-search");
+    if (!btn || !panel) return;
+    var form = panel.querySelector(".catnav-search-form");
+    var input = form ? form.querySelector("input") : null;
+    var results = panel.querySelector(".catnav-search-results");
+    function open() { panel.hidden = false; btn.setAttribute("aria-expanded", "true"); if (input) input.focus(); }
+    function close() { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+    btn.addEventListener("click", function () { if (panel.hidden) open(); else close(); });
+    document.addEventListener("click", function (ev) {
+      if (!panel.hidden && ev.target.closest && !ev.target.closest("#catnav-search") && !ev.target.closest(".catnav-search-btn")) close();
+    });
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") close(); });
+    if (form) form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var q = input ? input.value.trim() : "";
+      if (!q) { if (results) results.innerHTML = "<p class=\"catnav-search-note\">Nhập từ khóa rồi bấm Tìm.</p>"; return; }
+      if (results) results.innerHTML = "<p class=\"catnav-search-note\">Đang tìm…</p>";
+      fetch("/api/v2/news?q=" + encodeURIComponent(q) + "&limit=8")
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) {
+          var items = (d && d.items) || [];
+          if (!items.length) { results.innerHTML = "<p class=\"catnav-search-note\">Không tìm thấy tin bài nào cho \"" + esc(q) + "\".</p>"; return; }
+          results.innerHTML = items.map(function (it) {
+            return "<a href=\"" + esc(it.url || "#") + "\">" + esc(it.title || "") + "</a>";
+          }).join("");
+        })
+        .catch(function () { if (results) results.innerHTML = "<p class=\"catnav-search-note\">Không tải được kết quả tìm kiếm.</p>"; });
+    });
+  })();
+
   // Giu vach do chi thi cuon dung vi tri khi khung doi kich thuoc
   // (xoay dien thoai, co gian cua so): tinh lai tu DOM hien tai thay vi
   // dung so do tu lan render truoc. Vach cao co dinh 48px, khong co dan.

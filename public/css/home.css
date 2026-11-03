@@ -204,6 +204,17 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
    bang day du cay chuyen muc, nam trong khung 1264px ngay duoi nav.
    Panel an mac dinh (thuoc tinh hidden); chi hien khi JS bo hidden. */
 .catnav-menu-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
+/* O tim kiem duoi nav (nut 🔍 mo ra): thanh trang kieu bang mega menu,
+   o nhap + ket qua dang link ve trang doc. */
+.catnav-search-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
+.catnav-search { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem; }
+.catnav-search-form { display: flex; gap: 0.5rem; max-width: 640px; }
+.catnav-search-form input { flex: 1; min-width: 0; font: inherit; font-size: 1rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
+.catnav-search-form button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; }
+.catnav-search-results { margin-top: 0.5rem; display: flex; flex-direction: column; max-width: 640px; }
+.catnav-search-results a { color: #222; text-decoration: none; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
+.catnav-search-results a:hover { color: #c00; }
+.catnav-search-results .catnav-search-note { color: #666; font-size: 0.95rem; padding: 0.4rem 0; }
 .catnav-mega { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem 1.25rem; }
 .catnav-mega .mega-close { background: transparent; border: 0; color: #c00; font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem 0.25rem 0; }
 .catnav-mega .mega-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem 1rem; margin-top: 0.5rem; }

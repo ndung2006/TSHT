@@ -11,7 +11,13 @@ const labels = (groups) => groups.map((g) => g.label);
 test('toan quyen (*) thay du 4 workspace va toan bo menu', () => {
   const groups = visibleMenu(['*']);
   assert.deepEqual(labels(groups), WORKSPACES.map((w) => w.label));
-  assert.equal(routes(groups).length, 31);
+  // Tong menu tang tu 31 (thoi phase1b, commit 241c2a6) len 43 do 12
+  // muc moi ve sau: Quang cao toa soan, Nhuan but, Thong ke nhuan but,
+  // Chuyen muc Video, Bai bao in, Quy trinh duyet, va 6 trang con Quan
+  // ly giao dien (Menu/Trang chu/Hot Link/Header/Footer/Favicon). Da
+  // doi chieu: 43 route khong trung nhau va deu co file pages/*.vue
+  // tuong ung, khong co muc rac — nen sua expected, khong sua code menu.
+  assert.equal(routes(groups).length, 43);
 });
 
 test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong gate quyen', () => {

@@ -168,4 +168,82 @@
     startLive();
     loadSchedule();
   }).catch(function () { showMsg("Không tải được danh sách kênh. Vui lòng tải lại trang."); });
+  // Nav dong kieu trang chu (2026-11-03): truoc day .catnav cua trang
+  // TV la link tinh, tat ca tro ve "/". Nay xay lai tu cung nguon nhu
+  // home.js (/api/v2/news-categories + menu CMS Quan ly giao dien):
+  // muc cha tren thanh nav, dropdown muc con (hover/focus, cam ung bam
+  // mui ten). Link tinh trong tv.html chi lam fallback truoc khi JS chay.
+  (function loadTvCatnav() {
+    var nav = document.querySelector(".catnav");
+    if (!nav) return;
+    fetch("/api/v2/news-categories")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var cats = (d && d.data) || [];
+        if (!cats.length) return null;
+        return fetch("/api/v2/site-interface")
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+          .catch(function () { return null; })
+          .then(function (si) { return { cats: cats, si: si }; });
+      })
+      .then(function (pair) {
+        if (!pair) return;
+        var displayCats = (pair.si && pair.si.menu && pair.si.menu.length) ? pair.si.menu : pair.cats;
+        var icons = nav.querySelector(".catnav-icons");
+        nav.querySelectorAll("a[data-cat]").forEach(function (a) { a.remove(); });
+        displayCats.forEach(function (c) {
+          var item = document.createElement("div");
+          item.className = "catnav-item";
+          var a = document.createElement("a");
+          a.href = "/chuyen-muc/" + encodeURIComponent(c.slug);
+          a.textContent = c.name;
+          item.appendChild(a);
+          var kids = (c.children || []).filter(function (k) { return k && k.slug; });
+          if (kids.length) {
+            var caret = document.createElement("button");
+            caret.type = "button";
+            caret.className = "catnav-caret";
+            caret.setAttribute("aria-label", "Hiện mục con của " + c.name);
+            caret.setAttribute("aria-expanded", "false");
+            caret.textContent = "▾";
+            caret.addEventListener("click", function (ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              var open = item.classList.toggle("open");
+              caret.setAttribute("aria-expanded", open ? "true" : "false");
+            });
+            item.appendChild(caret);
+            var drop = document.createElement("div");
+            drop.className = "catnav-drop";
+            kids.forEach(function (k) {
+              var ka = document.createElement("a");
+              ka.href = "/chuyen-muc/" + encodeURIComponent(k.slug);
+              ka.textContent = k.name;
+              drop.appendChild(ka);
+            });
+            item.appendChild(drop);
+          }
+          if (icons) nav.insertBefore(item, icons); else nav.appendChild(item);
+        });
+        document.addEventListener("click", function (ev) {
+          if (!ev.target.closest || !ev.target.closest(".catnav-item")) {
+            nav.querySelectorAll(".catnav-item.open").forEach(function (it) {
+              it.classList.remove("open");
+              var cb = it.querySelector(".catnav-caret");
+              if (cb) cb.setAttribute("aria-expanded", "false");
+            });
+          }
+        });
+        document.addEventListener("keydown", function (ev) {
+          if (ev.key === "Escape") {
+            nav.querySelectorAll(".catnav-item.open").forEach(function (it) {
+              it.classList.remove("open");
+              var cb = it.querySelector(".catnav-caret");
+              if (cb) cb.setAttribute("aria-expanded", "false");
+            });
+          }
+        });
+      })
+      .catch(function () { /* giu nav tinh khi tai loi */ });
+  })();
 })();

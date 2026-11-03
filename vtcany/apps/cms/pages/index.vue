@@ -95,14 +95,19 @@ onMounted(async () => {
   try {
     const [v, c, b, a] = await Promise.all([
       api.get<any>('/videos', { page: 1, limit: 5 }),
-      api.get<any>('/admin/categories'),
+      // O "Danh muc" dem cay chuyen muc tin bai (tab Tin bai o trang
+      // Danh muc, /admin/news-categories) — khong phai bang Category
+      // catalog (/admin/categories) vi cay tin bai moi la "danh muc"
+      // ma nguoi dung doi chieu (59 muc kieu Dien Bien). Goi nay catch
+      // rieng de 403/thieu quyen articles:view khong lam mat cac o khac.
+      api.get<any>('/admin/news-categories').catch(() => null),
       api.get<any>('/admin/layout-blocks'),
       api.get<any[]>('/audit-logs', { limit: 5 }),
     ]);
     videos.value = v.data || [];
     audits.value = Array.isArray(a) ? a : [];
     stats.value[0].value = v.meta?.total ?? (v.data || []).length;
-    stats.value[1].value = (c.data || []).length;
+    stats.value[1].value = c ? (Array.isArray(c) ? c.length : (c.data || []).length) : stats.value[1].value;
     stats.value[2].value = (b.data || []).length;
     stats.value[3].value = audits.value.length;
   } catch { /* giữ placeholder khi API lỗi */ }

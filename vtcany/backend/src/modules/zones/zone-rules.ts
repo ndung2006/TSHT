@@ -2,10 +2,12 @@
 // de test truc tiep bang node --test, theo mau workspaces.ts).
 //
 // Vung hien thi trang chu TSHT (layout that, khong lay so cua bao khac):
-// - 'tieu-diem'    -> khoi "Tin noi bat" trang chu, 4 slot (hien home.js
+// - 'tieu-diem'    -> khoi "Tieu diem" trang chu, 4 slot (hien home.js
 //                    goi /api/v2/news?featured=1&limit=4).
 // - 'tin-moi-nhat' -> khoi "Tin moi nhat" trang chu, 8 slot (hien home.js
 //                    goi /api/v2/news?limit=8).
+// Ten hien thi cua vung 'tieu-diem' dong bo voi o tick "Tieu diem"
+// trong form bai viet (tin-bai.vue): chi doi nhan hien thi, khong doi key.
 // Khoi "Noi bat" hero o dau trang chu la so bao in moi nhat, khong phai
 // tin bai, nen khong thuoc quan ly zone o goi nay. Khoi chuyen muc rieng
 // (moi chuyen muc mot khoi) la viec mo rong sau 1A, chua lam o goi nay.
@@ -23,7 +25,7 @@ export const ZONE_DEFS: ZoneDef[] = [
   {
     key: 'tieu-diem',
     name: 'Tiêu điểm',
-    description: 'Khối Tin nổi bật trên trang chủ',
+    description: 'Khối Tiêu điểm trên trang chủ',
     slotLimit: 4,
     sortOrder: 1,
   },

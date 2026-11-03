@@ -8,7 +8,7 @@
 <meta property="og:title" content="Tòa soạn hội tụ">
 <meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261103-7"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261103-8"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -60,8 +60,18 @@
   <a href="#" data-cat="QUỐC TẾ">QUỐC TẾ</a>
   <a href="#" data-cat="PHÁP LUẬT">PHÁP LUẬT</a>
   <a href="#" data-cat="MULTIMEDIA">MULTIMEDIA</a>
-  <span class="catnav-icons"><button type="button" class="catnav-menu-btn" aria-expanded="false" aria-controls="catnav-mega" aria-label="Mở toàn bộ chuyên mục">☰</button><span aria-hidden="true"> 🔍</span></span>
+  <span class="catnav-icons"><button type="button" class="catnav-menu-btn" aria-expanded="false" aria-controls="catnav-mega" aria-label="Mở toàn bộ chuyên mục">☰</button><button type="button" class="catnav-search-btn" aria-expanded="false" aria-controls="catnav-search" aria-label="Mở tìm kiếm">🔍</button></span>
 </nav>
+<!-- O tim kiem: nut 🔍 tren nav mo ra (truoc day chi la span trang tri,
+     bam khong mo o nhap); nhap tu khoa + Enter de tim tin bai qua
+     /api/v2/news?q=, hien ket qua dang link (logic o home.js). An mac dinh. -->
+<div id="catnav-search" class="catnav-search" hidden>
+  <form class="catnav-search-form" role="search">
+    <input type="search" name="q" placeholder="Tìm tin bài…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
+    <button type="submit">Tìm</button>
+  </form>
+  <div class="catnav-search-results" aria-live="polite"></div>
+</div>
 <!-- Bang day du chuyen muc kieu bao dien tu: nut ☰ tren nav mo ra;
      noi dung do home.js xay tu cay chuyen muc day du (khong chi menu
      CMS da chon). An mac dinh. -->
@@ -233,7 +243,7 @@
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261102-1"></script>
-<script src="/js/home.js?v=20261102-8"></script>
+<script src="/js/home.js?v=20261103-9"></script>
 <script src="/js/header.js?v=20261102-7"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-6"></script>
