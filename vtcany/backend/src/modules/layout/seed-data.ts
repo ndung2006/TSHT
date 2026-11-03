@@ -73,7 +73,6 @@ export interface SampleCategoryDef {
   appliesTo: string[];
 }
 export const SAMPLE_CATEGORIES: SampleCategoryDef[] = [
-  { id: 'cat-mau-kickoff-the-thao', name: 'KICK-OFF Thể thao (mẫu)', slug: 'mau-kickoff-the-thao', appliesTo: ['video'] },
   { id: 'cat-mau-phim-bo', name: 'Phim bộ (mẫu)', slug: 'mau-phim-bo', appliesTo: ['phim'] },
   { id: 'cat-mau-short', name: 'Short (mẫu)', slug: 'mau-short', appliesTo: ['short'] },
 ];
@@ -87,9 +86,6 @@ export interface SampleItemDef {
   categorySlug: string;
 }
 export const SAMPLE_ITEMS: SampleItemDef[] = [
-  { id: 'vi-mau-kickoff-1', entity: 'videos', title: 'KICK-OFF Thể thao | 05/10/2026', thumbnail: `${SAMPLES}/sample-video-1.jpg`, categorySlug: 'mau-kickoff-the-thao' },
-  { id: 'vi-mau-kickoff-2', entity: 'videos', title: 'KICK-OFF Thể thao | 04/10/2026', thumbnail: `${SAMPLES}/sample-video-2.jpg`, categorySlug: 'mau-kickoff-the-thao' },
-  { id: 'vi-mau-kickoff-3', entity: 'videos', title: 'KICK-OFF Thể thao | 03/10/2026', thumbnail: `${SAMPLES}/sample-video-3.jpg`, categorySlug: 'mau-kickoff-the-thao' },
   { id: 'mo-mau-phimbo-1', entity: 'movies', title: 'Thâm Tình', thumbnail: `${SAMPLES}/sample-movie-1.jpg`, posterUrl: `${SAMPLES}/sample-movie-1.jpg`, categorySlug: 'mau-phim-bo' },
   { id: 'mo-mau-phimbo-2', entity: 'movies', title: 'Sóng Gió', thumbnail: `${SAMPLES}/sample-movie-2.jpg`, posterUrl: `${SAMPLES}/sample-movie-2.jpg`, categorySlug: 'mau-phim-bo' },
   { id: 'mo-mau-phimbo-3', entity: 'movies', title: 'Nắng Mới', thumbnail: `${SAMPLES}/sample-movie-3.jpg`, posterUrl: `${SAMPLES}/sample-movie-3.jpg`, categorySlug: 'mau-phim-bo' },
