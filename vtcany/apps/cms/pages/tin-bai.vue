@@ -234,6 +234,7 @@
         <Button v-if="editing && can('print_articles:create')" label="Chuyển sang báo in" severity="secondary"
           :loading="convertingPrint" @click="convertToPrint" />
         <Button label="Hủy" text @click="dlg = false" />
+        <Button label="Preview" severity="secondary" @click="openPreviewFromEdit" />
         <Button :label="editing ? 'Lưu' : 'Tạo'" :loading="saving" @click="save"
           :disabled="!form.title.trim() || form.sapo.length > 500" />
       </template>
@@ -386,6 +387,7 @@
       </div>
       <template #footer>
         <Button label="Đóng" text @click="reviewDlg = false" />
+        <Button label="Preview" severity="secondary" @click="openPreviewFromReview" />
         <Button v-if="reviewItem && can('articles:update') && reviewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="reviewSubmit" />
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="reviewApprove" />
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="reviewReturn" />
@@ -393,6 +395,10 @@
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'published'" label="Gỡ xuống" severity="warn" @click="reviewUnpublish" />
       </template>
     </Dialog>
+
+    <!-- Preview bai (component dung chung, giong bai-bao-in.vue) -->
+    <ArticlePreviewDialog v-model:visible="previewDlg" :title="previewData.title" :sapo="previewData.sapo"
+      :cover-path="previewData.coverPath" :body="previewData.body" :category-name="previewData.categoryName" />
   </div>
 </template>
 
@@ -779,16 +785,58 @@ async function convertToPrint() {
     toast.add({ severity: 'success', summary: 'Đã tạo bài báo in', detail: `"${r?.title || ''}" đang ở trạng thái nháp trong mục Bài báo in`, life: 4000 });
   } catch (e: any) {
     const status = e?.response?.status || e?.status;
-    const d = e?.data || {};
-    if (status === 409 && (d.publicId || d.slug)) {
-      printDupItem.value = d;
+    if (status === 409) {
+      // 409 tu endpoint from-news chi co 1 nghia: da co bai bao in (xem
+      // fromNews: chi throw Conflict cho truong hop trung). Nhung body 409
+      // ve toi frontend chi con { error: { code, message } } vi
+      // ApiExceptionFilter luoc mat slug/publicId/title bai cu, nen dieu
+      // kien cu (d.publicId || d.slug) luon sai va roi ve toast chung.
+      // Lay lai bai cu qua list: tim dong co sourceNewsPublicId trung bai
+      // goc; neu khong tim thay thi van mo dialog voi tieu de bai goc
+      // (bai bao in copy nguyen tieu de luc chuyen) thay vi toast chung.
+      try {
+        const list = await api.get<any>('/admin/print-articles', { limit: 100 });
+        const found = (list?.data || []).find((x: any) => x?.sourceNewsPublicId === editing.value?.publicId);
+        printDupItem.value = found || { title: editing.value?.title || '', slug: editing.value?.slug || '' };
+      } catch {
+        printDupItem.value = { title: editing.value?.title || '', slug: editing.value?.slug || '' };
+      }
       printDupDlg.value = true;
       return;
     }
+    const d = e?.data || {};
     toast.add({ severity: 'error', summary: 'Lỗi', detail: d?.message || e?.response?.data?.message || e?.message || 'Chuyển sang báo in thất bại', life: 3000 });
   } finally {
     convertingPrint.value = false;
   }
+}
+
+// --- Preview bai (component dung chung, giong bai-bao-in.vue) ---
+// Khong can gate quyen rieng: nut Preview nam trong dialog Xem duyet (da
+// gate view) va dialog Sua/Them (da gate create/update). Preview o dialog
+// Sua doc theo noi dung DANG NHAP, ke ca khi chua luu.
+const previewDlg = ref(false);
+const previewData = ref({ title: '', sapo: '', coverPath: '', body: '', categoryName: '' });
+function openPreviewFromReview() {
+  if (!reviewItem.value) return;
+  previewData.value = {
+    title: reviewItem.value.title || '',
+    sapo: reviewItem.value.sapo || '',
+    coverPath: reviewItem.value.coverPath || '',
+    body: reviewItem.value.body || '',
+    categoryName: reviewItem.value.category?.name || '',
+  };
+  previewDlg.value = true;
+}
+function openPreviewFromEdit() {
+  previewData.value = {
+    title: form.value.title,
+    sapo: form.value.sapo,
+    coverPath: form.value.coverPath,
+    body: form.value.body,
+    categoryName: catOptions.value.find((o) => o.value === form.value.categoryId)?.label || '',
+  };
+  previewDlg.value = true;
 }
 // --- Chen anh tu thu vien media (Dot 1a) ---
 // PrimeVue Editor phat event @load kem Quill instance. Chen them 1 nut
