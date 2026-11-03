@@ -256,7 +256,7 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .mm-sched-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .mm-sched-head h3 { margin: 0; color: #fff; font-size: 0.95rem; }
 .mm-sched-date { background: #d91b1b; color: #fff; border: 0; border-radius: 6px; padding: 0.35rem 0.5rem; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-.mm-sched-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.35) transparent; margin-top: 0.6rem; }
+.mm-sched-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.35) transparent; margin-top: 0.6rem; max-height: 430px; /* fallback khi JS chua chay: chan gian toan danh sach; JS dong bo chinh xac theo cot Player se ghi de inline */ }
 .mm-sched-empty { color: #cfe0ff; font-size: 0.9rem; margin: 0.5rem 0; }
 .mm-row { display: flex; align-items: flex-start; gap: 0.6rem; width: 100%; padding: 0.45rem 0.5rem; border: 0; border-bottom: 1px solid rgba(255,255,255,0.08); background: transparent; color: #fff; font: inherit; text-align: left; cursor: default; }
 button.mm-row { cursor: pointer; }

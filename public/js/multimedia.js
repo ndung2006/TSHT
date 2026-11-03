@@ -169,18 +169,36 @@
     }
     dateSel.innerHTML = html;
   }
+  // Khoa chieu cao khung lich bang dung cot Player tren desktop.
+  // Ly do phai do bang JS: grid auto-row gian theo noi dung day du
+  // cua danh sach du co flex:1 + overflow (flex khong cat duoc kich
+  // thuoc content cua grid item khi track la auto) — dung anh live
+  // 2026-11-03 10:01: cot lich keo dai tu 05:20 den toi, de trong
+  // khoang lon duoi Player. Do truc tiep offsetHeight cot Player
+  // roi gan max-height cho list; ResizeObserver giu dung khi badge /
+  // thong bao doi chieu cao hoac cua so resize. Mobile (<=900px)
+  // de CSS lo (max-height 360px), khong dong bo.
+  var playerBox = root.querySelector(".mm-player"), schedHead = root.querySelector(".mm-sched-head");
+  function syncSchedHeight() {
+    if (!schedList || !playerBox || !schedHead) return;
+    if (window.matchMedia && !window.matchMedia("(min-width: 901px)").matches) { schedList.style.maxHeight = ""; return; }
+    var avail = playerBox.offsetHeight - schedHead.offsetHeight - 10; // tru margin-top 0.6rem cua list
+    schedList.style.maxHeight = Math.max(120, avail) + "px";
+  }
   function scrollListToLive() {
     if (!schedList) return;
     // Chi cuon khung lich, tuyet doi khong cuon trang (bai hoc hero).
     if (schedList.scrollHeight <= schedList.clientHeight + 10) return;
     var rows = schedList.querySelectorAll(".mm-row");
-    var idx = -1, currentRow = null;
-    for (var i = 0; i < rows.length; i++) { if (rows[i].classList.contains("is-now")) { idx = i; currentRow = rows[i]; break; } }
+    var currentRow = null;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].classList.contains("is-now")) { currentRow = rows[i]; break; } }
     if (!currentRow) return;
+    // Dua dong dang phat ve chinh giua vung nhin cua khung lich khi
+    // mo trang (thay vi chi hien 2 dong phia tren nhu truoc).
     var maxScroll = schedList.scrollHeight - schedList.clientHeight;
-    if (idx <= 1) { schedList.scrollTop = 0; return; }
-    var delta = rows[idx - 2].getBoundingClientRect().top - schedList.getBoundingClientRect().top;
-    schedList.scrollTop = Math.max(0, Math.min(schedList.scrollTop + delta, maxScroll));
+    var delta = currentRow.getBoundingClientRect().top - schedList.getBoundingClientRect().top;
+    var target = schedList.scrollTop + delta - (schedList.clientHeight - currentRow.offsetHeight) / 2;
+    schedList.scrollTop = Math.max(0, Math.min(target, maxScroll));
   }
   function renderSchedule() {
     if (!schedList) return;
@@ -231,6 +249,9 @@
         });
       })(rows[j]);
     }
+    // Khoa chieu cao truoc roi moi cuon: tam nhin dung thi diem giua
+    // moi tinh dung.
+    syncSchedHeight();
     // Chi tu cuon ve dong dang phat khi dang xem live ngay hom nay;
     // dang xem lai / xem video thi khong giat khung lich.
     if (date === today && mode === "live") scrollListToLive();
@@ -372,6 +393,13 @@
     audioEl.addEventListener("play", function () { if (radioArt) radioArt.classList.add("playing"); });
     audioEl.addEventListener("pause", function () { if (radioArt) radioArt.classList.remove("playing"); });
   }
+  // Theo doi chieu cao cot Player de khoa khung lich theo dung (ke
+  // ca khi badge doi chu hoac thong bao hien/an); chi dong bo, khong
+  // tu cuon lai khi resize de khoi giat vi tri nguoi dang xem lich.
+  if (window.ResizeObserver && playerBox) {
+    new ResizeObserver(function () { syncSchedHeight(); }).observe(playerBox);
+  }
+  syncSchedHeight();
   buildDateOptions();
   fetch("/api/v1/channels")
     .then(function (r) { return r.json(); })
