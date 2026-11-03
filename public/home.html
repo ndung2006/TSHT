@@ -8,7 +8,7 @@
 <meta property="og:title" content="Tòa soạn hội tụ">
 <meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261102-22"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261103-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -83,6 +83,43 @@
     <div id="news-featured">Đang tải…</div>
     <h2 class="section-title" id="news-tieudiem-title">Tin tiêu điểm</h2>
     <div id="news-tieudiem" class="news-grid">Đang tải tin tiêu điểm…</div>
+    <!-- Khoi Da phuong tien: Truyen hinh / Phat thanh / Lich phat song / Video noi bat.
+         Noi API that (kenh, lich, video thu vien); khong mock cung.
+         Logic o public/js/multimedia.js, kieu o .mm-* trong home.css. -->
+    <section id="multimedia" class="mm-section" aria-label="Đa phương tiện">
+      <div class="mm-top">
+        <div class="mm-channels">
+          <div id="mm-channels-tv"></div>
+          <div id="mm-channels-radio"></div>
+          <div id="mm-apps"></div>
+        </div>
+        <div class="mm-player">
+          <div class="mm-media">
+            <video id="mm-video" controls playsinline preload="metadata"></video>
+            <div id="mm-radio-art" class="mm-radio-art" style="display:none">
+              <div class="mm-eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+              <p id="mm-radio-name" class="mm-radio-name"></p>
+              <p class="mm-radio-hint">Đang phát trực tiếp</p>
+            </div>
+            <audio id="mm-audio" controls preload="metadata" style="display:none"></audio>
+          </div>
+          <div class="mm-badge">
+            <span class="mm-live-dot" aria-hidden="true"></span>
+            <span id="mm-badge-text" class="mm-badge-text"></span>
+            <button type="button" id="mm-live-btn" class="mm-live-btn" style="display:none">● LIVE</button>
+          </div>
+          <p id="mm-msg" class="mm-msg" style="display:none"></p>
+        </div>
+        <div class="mm-sched">
+          <div class="mm-sched-head">
+            <h3><span aria-hidden="true">📅</span> LỊCH PHÁT SÓNG</h3>
+            <select id="mm-sched-date" class="mm-sched-date" aria-label="Chọn ngày xem lịch"></select>
+          </div>
+          <div id="mm-sched-list" class="mm-sched-list"></div>
+        </div>
+      </div>
+      <div id="mm-videos" class="mm-videos"></div>
+    </section>
     <h2 class="section-title">Tin mới nhất</h2>
     <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
   </section>
@@ -198,4 +235,8 @@
 <script src="/js/ads.js?v=20261102-1"></script>
 <script src="/js/home.js?v=20261102-8"></script>
 <script src="/js/header.js?v=20261102-7"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="/js/stream-player.js?v=20261026-6"></script>
+<script src="/js/live-epg.js?v=20261102-1"></script>
+<script src="/js/multimedia.js?v=20261103-1"></script>
 </body></html>

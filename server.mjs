@@ -165,6 +165,8 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/liveblogs" ||
       /^\/api\/v2\/liveblogs\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/ads" ||
+      u.pathname === "/api/v2/catalog-videos" ||
+      /^\/api\/v2\/vod\/(video|short|episode)\/[0-9a-f]{24}\/play$/.test(u.pathname) ||
       /^\/api\/v2\/media\/[A-Za-z0-9_-]{1,64}\/mp4$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
     )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
@@ -744,6 +746,47 @@ const server = http.createServer(async (req, res) => {
       const d = ext.data || {};
       const items = (d.data || []).map((it) => adDisplayItem(it, resolveVtcanyImageUrl)).filter(Boolean);
       return json(res, 200, { items, total: d.total || 0 }, { "Cache-Control": "no-store" });
+    }
+
+    // ---- Khoi Da phuong tien trang chu: video thu vien + link phat VOD ----
+    // GET /api/v2/catalog-videos?limit= — video da xuat ban tu backend
+    // (proxy map truong hien thi + loc: chi giu video co publishedAt
+    // va khong phai bai test [P1]/[P2], vi list cong khai cua backend
+    // van tra ca mau seed chua xuat ban). Lay du 24 roi loc + cat ve limit
+    // yeu cau de bai test khong lam thieu slot. Hien tai chua co video
+    // thoi su that nen khoi tra items rong, khong mock cung.
+    // GET /api/v2/vod/:kind/:id/play — link phat VOD co ky han (15 phut)
+    // tu backend; browser khong goi thang backend. Backend tra 404
+    // (not_published / vod_not_ready) thi proxy giu nguyen 404 de FE
+    // bao dung ly do thay vi loi chung.
+    if (req.method === "GET" && u.pathname === "/api/v2/catalog-videos") {
+      const limit = Math.max(1, Math.min(24, Number(u.searchParams.get("limit") || 4) || 4));
+      const ext = await fetchVtcanyEpaperJson(`/catalog/videos?limit=24`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach video");
+      const d = ext.data || {};
+      const items = (d.data || [])
+        // Chi video that su da xuat ban: co ngay publishedAt + khong
+        // phai bai test [P1]/[P2]. List cong khai cua backend van tra
+        // ca mau seed KICK-OFF (chua co publishedAt, play bao
+        // not_published) nen phai loc them o day, neu khong the video
+        // se hien noi dung mau + bam vao la loi.
+        .filter((it) => it && it.title && it.publishedAt && !/^\[P[12]\]/i.test(String(it.title).trim()))
+        .slice(0, limit)
+        .map((it) => ({
+          publicId: it.publicId || it.public_id, title: it.title,
+          thumbnail: (it.thumbnail || it.poster) ? resolveVtcanyImageUrl(it.thumbnail || it.poster) : "",
+          duration: it.duration || null,
+        }));
+      return json(res, 200, { items, total: d.total || items.length }, { "Cache-Control": "no-store" });
+    }
+    const vodPlayMatch = u.pathname.match(/^\/api\/v2\/vod\/(video|short|episode)\/([0-9a-f]{24})\/play$/);
+    if (req.method === "GET" && vodPlayMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/vod/${vodPlayMatch[1]}/${vodPlayMatch[2]}/play`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong lay duoc link phat video");
+      const hp = ext.data && ext.data.hls_path;
+      if (!hp) return err(res, 502, "video chua san sang");
+      const url = /^https?:\/\//i.test(hp) ? hp : resolveVtcanyImageUrl(hp);
+      return json(res, 200, { url, title: (ext.data && ext.data.title) || "" }, { "Cache-Control": "no-store" });
     }
 
     // ---- SEO Goi 1D: robots.txt + sitemap.xml dong ----
