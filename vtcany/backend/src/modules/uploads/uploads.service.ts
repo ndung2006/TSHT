@@ -365,7 +365,16 @@ export class UploadsService implements OnModuleInit {
   }
 
   markDone(id: string): UploadRecord {
-    return this.transition(id, 'processing', 'done');
+    // Chap nhan ca 'uploaded': ban ghi da finalize xong nhung chua kip (hoac
+    // khong) chuyen sang 'processing' — xem pendingTranscode() — van duoc
+    // worker transcode xong va bao done hop le, khong phai loi transition.
+    const rec = this.get(id);
+    if (rec.status !== 'processing' && rec.status !== 'uploaded') {
+      throw new Error(`invalid transition ${rec.status} -> done`);
+    }
+    rec.status = 'done';
+    this.persist(rec);
+    return rec;
   }
 
   markError(id: string): UploadRecord {
@@ -376,10 +385,15 @@ export class UploadsService implements OnModuleInit {
   }
 
   // Worker poll job dang cho transcode (kem localPath de worker doc tai cho).
+  // Lay ca 'processing' lan 'uploaded': 'uploaded' nghia la chunk da gop xong,
+  // file san sang transcode — chi khac 'processing' o cho buoc danh dau
+  // processing sau complete() chua kip (hoac khong) luu xuong DB (persist
+  // fire-and-forget + restart), nen neu chi lay 'processing' thi cac ban ghi
+  // nay ket vinh vien ma worker khong bao gio thay.
   pendingTranscode(): Array<UploadRecord & { localPath: string }> {
     const root = this.storageRoot();
     return [...this.records.values()]
-      .filter((r) => r.status === 'processing')
+      .filter((r) => r.status === 'processing' || r.status === 'uploaded')
       .map((r) => ({ ...r, localPath: finalPath(root, r.id, r.filename) }));
   }
 
