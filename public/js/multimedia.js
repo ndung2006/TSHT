@@ -301,31 +301,14 @@
     function group(list, box, kindLabel) {
       if (!box) return;
       if (!list.length) { box.innerHTML = ""; return; }
-      var html = "<h3>" + kindLabel + "</h3>";
-      for (var i = 0; i < list.length; i++) {
-        var ch = list[i];
-        // Logo kenh tu CMS (catalog backend kem theo API kenh). Co
-        // logo thi hien anh, anh loi thi roi ve monogram chu; chua
-        // dat logo thi giu the chu nhu truoc.
-        var mark = ch.logo
-          ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch.logo) + "\" alt=\"\" onerror=\"this.parentNode.classList.remove('has-logo');this.parentNode.textContent='" + esc(monoOf(ch)) + "'\">"
-          : esc(monoOf(ch));
-        html += "<button type=\"button\" class=\"mm-ch" + (current && current.name === ch.name ? " selected" : "") + "\" data-name=\"" + esc(ch.name) + "\" aria-label=\"" + esc(labelOf(ch)) + "\">" +
-          "<span class=\"mm-ch-mark" + (ch.logo ? " has-logo" : "") + "\">" + mark + "</span>" +
-          "<span class=\"mm-ch-name\">" + glyphOf(ch) + " " + esc(labelOf(ch)) + "</span></button>";
-      }
-      box.innerHTML = html;
-      var btns = box.querySelectorAll(".mm-ch");
-      for (var j = 0; j < btns.length; j++) {
-        (function (btn) {
-          btn.addEventListener("click", function () {
-            var name = btn.getAttribute("data-name");
-            var hit = null;
-            for (var k = 0; k < channels.length; k++) { if (channels[k].name === name) { hit = channels[k]; break; } }
-            if (hit) selectChannel(hit);
-          });
-        })(btns[j]);
-      }
+      // Khong con o ten kenh + logo: chinh dong tieu de loai kenh
+      // (TRUYEN HINH / PHAT THANH) lam nut chon kenh. Hien moi loai
+      // chi co 1 kenh nen nut chon kenh dau tien cua nhom.
+      var selected = false;
+      for (var s = 0; s < list.length; s++) { if (current && current.name === list[s].name) { selected = true; break; } }
+      box.innerHTML = "<button type=\"button\" class=\"mm-ch-head" + (selected ? " selected" : "") + "\">" + kindLabel + "</button>";
+      var head = box.querySelector(".mm-ch-head");
+      head.addEventListener("click", function () { selectChannel(list[0]); });
     }
     var tvs = [], radios = [];
     for (var i = 0; i < channels.length; i++) {
