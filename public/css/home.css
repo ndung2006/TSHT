@@ -226,6 +226,12 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .mm-top { display: grid; grid-template-columns: 2fr 6fr 4fr; gap: 1rem; align-items: stretch; }
 .mm-channels { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .mm-channels h3, .mm-sched-head h3 { margin: 0 0 0.5rem; font-size: 0.85rem; letter-spacing: 0.06em; color: #9db4d6; }
+.mm-channels h3.selected { color: #fff; }
+.mm-channels h3.selected::after { content: "▶"; font-size: 0.7rem; margin-left: 0.5rem; }
+.mm-ch-logos { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.mm-ch-logo-btn { background: none; border: 0; padding: 0; border-radius: 5px; cursor: pointer; }
+.mm-ch-logo-btn:hover { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
+.mm-ch-logo-btn.selected { outline: 2px solid #fff; outline-offset: 2px; }
 .mm-ch-head { display: flex; align-items: center; gap: 0.5rem; width: 100%; background: none; border: 0; padding: 0; margin: 0 0 0.5rem; font: inherit; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; color: #9db4d6; text-align: left; cursor: pointer; }
 .mm-ch-head-text { flex: 1; }
 .mm-ch-head:hover { color: #fff; }

@@ -306,17 +306,32 @@
       // chi co 1 kenh nen nut chon kenh dau tien cua nhom.
       var selected = false;
       for (var s = 0; s < list.length; s++) { if (current && current.name === list[s].name) { selected = true; break; } }
-      // Logo kenh quay lai, nam ben trai dong tieu de; van khong
-      // co ten kenh dang tile. Anh loi thi roi ve monogram chu.
-      var ch0 = list[0];
-      var mark = ch0.logo
-        ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch0.logo) + "\" alt=\"\" onerror=\"this.parentNode.classList.remove('has-logo');this.parentNode.textContent='" + esc(monoOf(ch0)) + "'\">"
-        : esc(monoOf(ch0));
-      box.innerHTML = "<button type=\"button\" class=\"mm-ch-head" + (selected ? " selected" : "") + "\">" +
-        "<span class=\"mm-ch-mark" + (ch0.logo ? " has-logo" : "") + "\">" + mark + "</span>" +
-        "<span class=\"mm-ch-head-text\">" + kindLabel + "</span></button>";
-      var head = box.querySelector(".mm-ch-head");
-      head.addEventListener("click", function () { selectChannel(list[0]); });
+      // Tieu de loai kenh chi la nhan; logo tung kenh xep thanh
+      // hang ben duoi, moi logo la 1 nut chon kenh — sau nay them
+      // kenh cung loai thi xep tiep vao hang nay. Anh loi thi roi
+      // ve monogram chu.
+      var html = "<h3" + (selected ? " class=\"selected\"" : "") + ">" + kindLabel + "</h3><div class=\"mm-ch-logos\">";
+      for (var i = 0; i < list.length; i++) {
+        var ch = list[i];
+        var mark = ch.logo
+          ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch.logo) + "\" alt=\"\" onerror=\"this.parentNode.classList.remove('has-logo');this.parentNode.textContent='" + esc(monoOf(ch)) + "'\">"
+          : esc(monoOf(ch));
+        html += "<button type=\"button\" class=\"mm-ch-logo-btn" + (current && current.name === ch.name ? " selected" : "") + "\" data-name=\"" + esc(ch.name) + "\" aria-label=\"" + esc(labelOf(ch)) + "\" title=\"" + esc(labelOf(ch)) + "\">" +
+          "<span class=\"mm-ch-mark" + (ch.logo ? " has-logo" : "") + "\">" + mark + "</span></button>";
+      }
+      html += "</div>";
+      box.innerHTML = html;
+      var btns = box.querySelectorAll(".mm-ch-logo-btn");
+      for (var j = 0; j < btns.length; j++) {
+        (function (btn) {
+          btn.addEventListener("click", function () {
+            var name = btn.getAttribute("data-name");
+            var hit = null;
+            for (var k = 0; k < channels.length; k++) { if (channels[k].name === name) { hit = channels[k]; break; } }
+            if (hit) selectChannel(hit);
+          });
+        })(btns[j]);
+      }
     }
     var tvs = [], radios = [];
     for (var i = 0; i < channels.length; i++) {
