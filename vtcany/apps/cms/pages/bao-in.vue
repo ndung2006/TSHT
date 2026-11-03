@@ -64,7 +64,7 @@
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Số trang tự đếm khi chọn file PDF (vẫn sửa tay được nếu cần).
         Số đã xuất bản không đổi được số báo; đổi loại số không đổi số báo, slug và URL.
-        Quy trình duyệt số nháp: Gửi duyệt → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) → TBT (Tổng Biên tập, duyệt bước cuối = xuất bản);
+        Quy trình duyệt số nháp: Gửi duyệt → {{ epaperChain }} (duyệt bước cuối = xuất bản);
         trả lại phải ghi lý do. Số bị trả lại về nháp dùng nút Thay file để đổi PDF rồi gửi duyệt lại (chỉ số nháp mới thay file trực tiếp được; số đang chờ duyệt và số đã xuất bản không thay kiểu này). Tài khoản toàn quyền vẫn xuất bản trực tiếp từ nháp được.</p>
       <input ref="replaceInput" type="file" accept="application/pdf" class="hidden" @change="onReplaceFilePicked" />
     </div>
@@ -149,6 +149,18 @@
       </template>
     </Dialog>
 
+    <!-- Duyet khan (chi buoc co allowEmergency) -->
+    <Dialog v-model:visible="emgDlg" modal header="Duyệt khẩn" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Duyệt khẩn sẽ kết thúc luồng duyệt ngay tại bước này và xuất bản số <b>{{ emgTarget?.issueNumber }}</b> — lượt duyệt được ghi log là ngoại lệ.</p>
+        <Textarea v-model="emgReason" rows="3" class="w-full" placeholder="Lý do duyệt khẩn *" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="emgDlg = false" />
+        <Button label="Duyệt khẩn" severity="danger" :disabled="!emgReason.trim()" @click="confirmEmergencyApprove" />
+      </template>
+    </Dialog>
+
     <!-- Lich su duyet theo buoc -->
     <Dialog v-model:visible="histDlg" modal header="Lịch sử duyệt" class="w-full max-w-2xl">
       <div v-if="histTarget" class="flex flex-col gap-2">
@@ -219,6 +231,8 @@
           severity="info" @click="reviewSubmit" />
         <Button v-if="reviewItem && reviewItem.status === 'pending_review' && can('epaper:publish')" label="Duyệt"
           severity="success" @click="reviewApprove" />
+        <Button v-if="reviewItem && reviewItem.status === 'pending_review' && can('epaper:publish') && reviewEmergencyAllowed" label="Duyệt khẩn"
+          severity="danger" @click="openEmergencyApprove(reviewItem)" />
         <Button v-if="reviewItem && reviewItem.status === 'pending_review' && can('epaper:publish')" label="Trả lại"
           severity="warn" @click="reviewReturn" />
       </template>
@@ -515,6 +529,32 @@ async function confirmExceptionApprove() {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+  }
+}
+// Chuoi duyet lay dong tu API quy trinh (fallback text cu khi API loi).
+const epaperWorkflow = ref<any>(null);
+const { load: loadWorkflow, labelsChain, stepAllowsEmergency } = useWorkflowConfig();
+loadWorkflow('epaper').then((d) => { if (d) epaperWorkflow.value = d; });
+const epaperChain = computed(() => (epaperWorkflow.value ? labelsChain(epaperWorkflow.value) : 'MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) → TBT (Tổng Biên tập)'));
+const reviewEmergencyAllowed = computed(() => !!reviewItem.value && reviewItem.value.status === 'pending_review' && stepAllowsEmergency(epaperWorkflow.value, reviewItem.value.workflowStep || 0));
+const emgDlg = ref(false);
+const emgTarget = ref<any>(null);
+const emgReason = ref('');
+function openEmergencyApprove(it: any) {
+  emgTarget.value = it;
+  emgReason.value = '';
+  emgDlg.value = true;
+}
+async function confirmEmergencyApprove() {
+  if (!emgTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/epaper/${emgTarget.value.publicId}/approve`, { emergency: true, emergencyReason: emgReason.value.trim() });
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt khẩn và xuất bản' : 'Đã duyệt khẩn', life: 2500 });
+    emgDlg.value = false;
+    reviewDlg.value = false;
+    load(meta.value.page);
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.error?.message || e?.data?.message || e?.message || 'Duyệt khẩn thất bại', life: 3000 });
   }
 }
 const returnDlg = ref(false);

@@ -265,6 +265,7 @@ const titles: Record<string, string> = {
   '/cai-dat': 'Cài đặt hệ thống',
   '/nhat-ky': 'Nhật ký hoạt động',
   '/roles': 'Quản lý quyền',
+  '/quy-trinh-duyet': 'Quy trình duyệt',
   '/admins': 'Quản trị viên',
   '/phong-ban': 'Phòng ban',
 };

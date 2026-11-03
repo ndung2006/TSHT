@@ -94,8 +94,7 @@
         </Column>
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Bài đặt giờ xuất bản tương lai hiển thị "Chờ xuất bản" và tự
-        hiện công khai khi tới giờ (không cần chạy thêm tác vụ). Quy trình duyệt: Gửi duyệt → TP (Trưởng phòng)
-        → PBĐT (Phó Ban điện tử) → BBT (Ban biên tập) → XB (Xuất bản, duyệt bước cuối = xuất bản). Mỗi bước
+        hiện công khai khi tới giờ (không cần chạy thêm tác vụ). Quy trình duyệt: Gửi duyệt → {{ newsChainLabels }} (duyệt bước cuối = xuất bản). Mỗi bước
         chỉ Role trùng tên bước hoặc tài khoản toàn quyền mới duyệt được; bài nháp chỉ toàn quyền mới xuất bản
         trực tiếp được. Tên Role trong CMS phải giữ nguyên viết tắt (khóa chặn bước).</p>
     </div>
@@ -214,7 +213,7 @@
             </div>
           </div>
           <div v-else class="flex flex-col gap-2">
-            <p v-if="!editing" class="text-xs text-neutral-400">Bài mới chưa có lịch sử duyệt. Chuỗi duyệt: PV (tác giả) → TP → PBĐT → BBT → XB (duyệt bước cuối = xuất bản).</p>
+            <p v-if="!editing" class="text-xs text-neutral-400">Bài mới chưa có lịch sử duyệt. Chuỗi duyệt: {{ newsChainRoles }} (duyệt bước cuối = xuất bản).</p>
             <p v-else class="text-sm text-neutral-400">{{ statusText(editing) }}</p>
             <template v-if="editing">
             <div v-for="row in workflowRows" :key="row.key" class="flex gap-3 rounded-lg border border-neutral-800 p-2">
@@ -308,6 +307,18 @@
       </template>
     </Dialog>
 
+    <!-- Duyet khan (chi buoc co allowEmergency) -->
+    <Dialog v-model:visible="emgDlg" modal header="Duyệt khẩn" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Duyệt khẩn sẽ kết thúc luồng duyệt ngay tại bước này và xuất bản bài "{{ emgTarget?.title }}" — lượt duyệt được ghi log là ngoại lệ. Chỉ dùng khi thật sự cần xuất bản gấp.</p>
+        <Textarea v-model="emgReason" rows="3" class="w-full" placeholder="Lý do duyệt khẩn *" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="emgDlg = false" />
+        <Button label="Duyệt khẩn" severity="danger" :disabled="!emgReason.trim()" @click="confirmEmergencyApprove" />
+      </template>
+    </Dialog>
+
     <!-- Lich su duyet -->
     <Dialog v-model:visible="histDlg" modal :header="`Lịch sử duyệt — ${histTarget?.title || ''}`" class="w-full max-w-2xl">
       <DataTable :value="histItems" size="small">
@@ -390,6 +401,7 @@
         <Button label="Preview" severity="secondary" @click="openPreviewFromReview" />
         <Button v-if="reviewItem && can('articles:update') && reviewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="reviewSubmit" />
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="reviewApprove" />
+        <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review' && reviewEmergencyAllowed" label="Duyệt khẩn" severity="danger" @click="openEmergencyApprove(reviewItem)" />
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="reviewReturn" />
         <Button v-if="reviewItem && can('articles:publish') && ((reviewItem.status === 'draft' && isFullAdmin) || reviewItem.status === 'unpublished')" label="Xuất bản" severity="success" @click="reviewPublish" />
         <Button v-if="reviewItem && can('articles:publish') && reviewItem.status === 'published'" label="Gỡ xuống" severity="warn" @click="reviewUnpublish" />
@@ -698,22 +710,33 @@ function splitList(s: string) {
   return s.split(',').map((x) => x.trim()).filter(Boolean);
 }
 // --- Panel phai cua dialog Sua bai: tab Thong tin / Quy trinh ---
-// Quy trinh hien chuoi duyet tin bai (PV tac gia -> TP -> PBDT -> BBT ->
-// XB), giong backend news-workflow.ts: workflowStep 0 = ngoai quy trinh
-// (nhap/da xuat ban/ha xuat ban), k (1..4) = dang cho duyet buoc k.
-// Lich su chi xet tu sau lan tra lai gan nhat (bai bi tra ve chay lai tu dau).
+// Danh sach buoc lay dong tu API quy trinh (trang "Quy trinh duyet");
+// neu API chua tra thi dung fallback giong chuoi cu (PV -> TP -> PBDT ->
+// BBT -> XB). workflowStep 0 = ngoai quy trinh, k (1..N) = dang cho duyet
+// buoc k. Lich su chi xet tu sau lan tra lai gan nhat.
 const editTab = ref(0);
 const editApprovals = ref<any[]>([]);
-const WORKFLOW_PANEL_STEPS = [
+const WORKFLOW_PANEL_FALLBACK = [
   { key: 'pv', num: 0, label: 'PV — Phóng viên (tác giả)' },
   { key: 'tp', num: 1, label: 'TP — Trưởng phòng' },
   { key: 'pbdt', num: 2, label: 'PBĐT — Phó Ban điện tử' },
   { key: 'bbt', num: 3, label: 'BBT — Ban biên tập' },
   { key: 'xb', num: 4, label: 'XB — Xuất bản' },
 ];
+const workflowPanelSteps = ref(WORKFLOW_PANEL_FALLBACK);
+const newsWorkflow = ref<any>(null);
+const { load: loadWorkflow, labelsChain, rolesChain, panelSteps, stepAllowsEmergency } = useWorkflowConfig();
+loadWorkflow('news').then((d) => {
+  if (!d) return;
+  newsWorkflow.value = d;
+  workflowPanelSteps.value = panelSteps(d);
+});
+const newsChainLabels = computed(() => (newsWorkflow.value ? labelsChain(newsWorkflow.value) : 'TP (Trưởng phòng) → PBĐT (Phó Ban điện tử) → BBT (Ban biên tập) → XB (Xuất bản)'));
+const newsChainRoles = computed(() => (newsWorkflow.value ? rolesChain(newsWorkflow.value) : 'PV (tác giả) → TP → PBĐT → BBT → XB'));
+const reviewEmergencyAllowed = computed(() => !!reviewItem.value && reviewItem.value.status === 'pending_review' && stepAllowsEmergency(newsWorkflow.value, reviewItem.value.workflowStep || 0));
 const workflowRows = computed(() => {
   const it: any = editing.value;
-  const base = WORKFLOW_PANEL_STEPS.map((s) => ({ ...s, state: 'todo', stateText: 'Chờ', actor: '', time: '' }));
+  const base = workflowPanelSteps.value.map((s) => ({ ...s, state: 'todo', stateText: 'Chờ', actor: '', time: '' }));
   if (!it) return base;
   const status = it.status;
   const finished = status === 'published' || status === 'unpublished';
@@ -724,7 +747,7 @@ const workflowRows = computed(() => {
   const approveByStep = new Map<number, any>();
   for (const a of run) if (a.action === 'approve' && typeof a.step === 'number') approveByStep.set(a.step, a);
   const who = (a: any) => [a?.actorName, a?.actorRole].filter(Boolean).join(' · ');
-  return WORKFLOW_PANEL_STEPS.map((s) => {
+  return workflowPanelSteps.value.map((s) => {
     if (s.num === 0) {
       if (finished || submit) return { ...s, state: 'done', stateText: 'Đã gửi duyệt', actor: submit ? who(submit) : '', time: submit?.createdAt || '' };
       return { ...s, state: 'current', stateText: 'Đang soạn', actor: '', time: '' };
@@ -1129,6 +1152,26 @@ async function confirmExceptionApprove() {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+  }
+}
+const emgDlg = ref(false);
+const emgTarget = ref<any>(null);
+const emgReason = ref('');
+function openEmergencyApprove(it: any) {
+  emgTarget.value = it;
+  emgReason.value = '';
+  emgDlg.value = true;
+}
+async function confirmEmergencyApprove() {
+  if (!emgTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/news/${emgTarget.value.publicId}/approve`, { emergency: true, emergencyReason: emgReason.value.trim() });
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt khẩn và xuất bản' : 'Đã duyệt khẩn', life: 2500 });
+    emgDlg.value = false;
+    load(meta.value.page);
+    if (reviewItem.value && reviewItem.value.publicId === emgTarget.value.publicId) await refreshReview();
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.error?.message || e?.data?.message || e?.message || 'Duyệt khẩn thất bại', life: 3000 });
   }
 }
 const returnDlg = ref(false);

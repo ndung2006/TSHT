@@ -57,8 +57,7 @@
       </DataTable>
       <p class="mt-2 text-xs text-neutral-500">Bài báo in là bản sao nội dung của bài báo điện tử, chuyển sang đây
         (nút “Chuyển sang báo in” trong trang Tin bài) để duyệt LẠI theo quy trình báo in:
-        KTV → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) →
-        TBT (Tổng Biên tập, duyệt bước cuối = đã duyệt, chờ dàn trang). Trả lại phải ghi lý do.
+        {{ printChain }} (duyệt bước cuối = đã duyệt, chờ dàn trang). Trả lại phải ghi lý do.
         Bài báo in KHÔNG xuất bản công khai lên web — TBT duyệt xong là nguyên liệu cho tổ dàn trang
         ghép vào số báo. Chỉ bài nháp mới xóa được, chỉ bài nháp mới sửa được.
         Ngoài chuyển đổi từ bài báo điện tử, có thể tạo bài báo in bằng tay bằng nút
@@ -82,6 +81,7 @@
         <Button label="Preview" severity="secondary" @click="openPreviewFromView" />
         <Button v-if="viewItem && can('print_articles:update') && viewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="viewSubmit" />
         <Button v-if="viewItem && can('print_articles:publish') && viewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="viewApprove" />
+        <Button v-if="viewItem && can('print_articles:publish') && viewItem.status === 'pending_review' && viewEmergencyAllowed" label="Duyệt khẩn" severity="danger" @click="openEmergencyApprove(viewItem)" />
         <Button v-if="viewItem && can('print_articles:publish') && viewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="viewReturn" />
       </template>
     </Dialog>
@@ -107,6 +107,18 @@
       <template #footer>
         <Button label="Hủy" text @click="excDlg = false" />
         <Button label="Duyệt với ngoại lệ tin nóng" severity="warn" @click="confirmExceptionApprove" />
+      </template>
+    </Dialog>
+
+    <!-- Duyet khan (chi buoc co allowEmergency) -->
+    <Dialog v-model:visible="emgDlg" modal header="Duyệt khẩn" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Duyệt khẩn sẽ kết thúc luồng duyệt ngay tại bước này và chuyển bài “{{ emgTarget?.title }}” sang đã duyệt, chờ dàn trang — lượt duyệt được ghi log là ngoại lệ.</p>
+        <Textarea v-model="emgReason" rows="3" class="w-full" placeholder="Lý do duyệt khẩn *" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="emgDlg = false" />
+        <Button label="Duyệt khẩn" severity="danger" :disabled="!emgReason.trim()" @click="confirmEmergencyApprove" />
       </template>
     </Dialog>
 
@@ -415,6 +427,38 @@ async function confirmExceptionApprove() {
     load(meta.value.page);
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+  }
+}
+// Chuoi duyet lay dong tu API quy trinh (fallback text cu khi API loi).
+const printWorkflow = ref<any>(null);
+const { load: loadWorkflow, labelsChain, stepAllowsEmergency } = useWorkflowConfig();
+loadWorkflow('print-article').then((d) => { if (d) printWorkflow.value = d; });
+const printChain = computed(() => {
+  if (!printWorkflow.value) return 'KTV → MD (Duyệt Mo-rát) → T.PP (Trưởng/Phó phòng, Thư ký tòa soạn) → P.TBT (Phó Tổng Biên tập) → TBT (Tổng Biên tập)';
+  const parts = [printWorkflow.value.authorLabel, labelsChain(printWorkflow.value)].filter(Boolean);
+  return parts.join(' → ');
+});
+const viewEmergencyAllowed = computed(() => !!viewItem.value && viewItem.value.status === 'pending_review' && stepAllowsEmergency(printWorkflow.value, viewItem.value.workflowStep || 0));
+const emgDlg = ref(false);
+const emgTarget = ref<any>(null);
+const emgReason = ref('');
+function openEmergencyApprove(it: any) {
+  emgTarget.value = it;
+  emgReason.value = '';
+  emgDlg.value = true;
+}
+async function confirmEmergencyApprove() {
+  if (!emgTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/print-articles/${emgTarget.value.publicId}/approve`, { emergency: true, emergencyReason: emgReason.value.trim() });
+    toast.add({ severity: 'success', summary: r?.status === 'approved' ? 'Đã duyệt khẩn, chờ dàn trang' : 'Đã duyệt khẩn', life: 2500 });
+    emgDlg.value = false;
+    load(meta.value.page);
+    if (viewItem.value && viewItem.value.publicId === emgTarget.value.publicId) {
+      viewItem.value = items.value.find((x: any) => x.publicId === emgTarget.value.publicId) || viewItem.value;
+    }
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.error?.message || e?.data?.message || e?.message || 'Duyệt khẩn thất bại', life: 3000 });
   }
 }
 const returnDlg = ref(false);

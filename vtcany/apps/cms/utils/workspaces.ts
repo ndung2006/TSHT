@@ -82,6 +82,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/cai-dat', label: 'Cài đặt', icon: 'pi-cog', workspace: 'admin', module: 'settings' },
   { to: '/nhat-ky', label: 'Nhật ký', icon: 'pi-history', workspace: 'admin', module: 'audit' },
   { to: '/roles', label: 'Quản lý quyền', icon: 'pi-shield', workspace: 'admin', module: 'roles' },
+  { to: '/quy-trinh-duyet', label: 'Quy trình duyệt', icon: 'pi-list-check', workspace: 'admin', module: 'workflows' },
   { to: '/admins', label: 'Quản trị viên', icon: 'pi-user-edit', workspace: 'admin', module: 'admins' },
   { to: '/phong-ban', label: 'Phòng ban', icon: 'pi-sitemap', workspace: 'admin', module: 'departments' },
 ];
