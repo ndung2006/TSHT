@@ -43,33 +43,33 @@ CREATE TABLE "workflow_steps" (
 CREATE UNIQUE INDEX "workflow_steps_definition_id_key_key" ON "workflow_steps"("definition_id", "key");
 CREATE INDEX "workflow_steps_definition_id_sort_order_idx" ON "workflow_steps"("definition_id", "sort_order");
 
-INSERT INTO "workflow_definitions" ("id", "module_key", "label", "author_role", "author_label", "enabled") VALUES
-  ('wf-epaper', 'epaper', 'Báo in', 'KTV', 'KTV — Kỹ thuật viên (Chế bản/Dàn trang)', true),
-  ('wf-news', 'news', 'Báo điện tử', 'PV', 'PV — Phóng viên (tác giả)', true),
-  ('wf-print-article', 'print-article', 'Bài báo in', 'KTV', 'KTV — Kỹ thuật viên (Chế bản/Dàn trang)', true),
-  ('wf-events', 'events', 'Sự kiện tòa soạn', 'QLSK', 'QLSK', true),
-  ('wf-liveblog', 'liveblog', 'Tường thuật trực tiếp', 'PVTT', 'PVTT', true),
-  ('wf-ads', 'ads', 'Quảng cáo tòa soạn', 'QL-QC', 'QL-QC', true),
-  ('wf-royalties', 'royalties', 'Nhuận bút', 'TP', 'TP', true),
-  ('wf-video', 'video', 'Video/Truyền hình/Phát thanh', NULL, NULL, false)
+INSERT INTO "workflow_definitions" ("id", "module_key", "label", "author_role", "author_label", "enabled", "updated_at") VALUES
+  ('wf-epaper', 'epaper', 'Báo in', 'KTV', 'KTV — Kỹ thuật viên (Chế bản/Dàn trang)', true, CURRENT_TIMESTAMP),
+  ('wf-news', 'news', 'Báo điện tử', 'PV', 'PV — Phóng viên (tác giả)', true, CURRENT_TIMESTAMP),
+  ('wf-print-article', 'print-article', 'Bài báo in', 'KTV', 'KTV — Kỹ thuật viên (Chế bản/Dàn trang)', true, CURRENT_TIMESTAMP),
+  ('wf-events', 'events', 'Sự kiện tòa soạn', 'QLSK', 'QLSK', true, CURRENT_TIMESTAMP),
+  ('wf-liveblog', 'liveblog', 'Tường thuật trực tiếp', 'PVTT', 'PVTT', true, CURRENT_TIMESTAMP),
+  ('wf-ads', 'ads', 'Quảng cáo tòa soạn', 'QL-QC', 'QL-QC', true, CURRENT_TIMESTAMP),
+  ('wf-royalties', 'royalties', 'Nhuận bút', 'TP', 'TP', true, CURRENT_TIMESTAMP),
+  ('wf-video', 'video', 'Video/Truyền hình/Phát thanh', NULL, NULL, false, CURRENT_TIMESTAMP)
 ON CONFLICT ("module_key") DO NOTHING;
 
-INSERT INTO "workflow_steps" ("id", "definition_id", "key", "label", "role_name", "sort_order", "return_to", "allow_emergency") VALUES
-  ('wf-epaper-md', 'wf-epaper', 'md', 'MD — Duyệt Mo-rát', 'MD', 0, 'creator', false),
-  ('wf-epaper-tpp', 'wf-epaper', 'tpp', 'T.PP — Trưởng/Phó phòng (Thư ký tòa soạn)', 'T.PP', 1, 'creator', false),
-  ('wf-epaper-ptbt', 'wf-epaper', 'ptbt', 'P.TBT — Phó Tổng Biên tập', 'P.TBT', 2, 'creator', false),
-  ('wf-epaper-tbt', 'wf-epaper', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 3, 'creator', false),
-  ('wf-news-tp', 'wf-news', 'tp', 'TP — Trưởng phòng', 'TP', 0, 'creator', false),
-  ('wf-news-pbdt', 'wf-news', 'pbdt', 'PBĐT — Phó Ban điện tử', 'PBĐT', 1, 'creator', false),
-  ('wf-news-bbt', 'wf-news', 'bbt', 'BBT — Ban biên tập', 'BBT', 2, 'creator', false),
-  ('wf-news-xb', 'wf-news', 'xb', 'XB — Xuất bản', 'XB', 3, 'creator', false),
-  ('wf-print-article-md', 'wf-print-article', 'md', 'MD — Duyệt Mo-rát', 'MD', 0, 'creator', false),
-  ('wf-print-article-tpp', 'wf-print-article', 'tpp', 'T.PP — Trưởng/Phó phòng (Thư ký tòa soạn)', 'T.PP', 1, 'creator', false),
-  ('wf-print-article-ptbt', 'wf-print-article', 'ptbt', 'P.TBT — Phó Tổng Biên tập', 'P.TBT', 2, 'creator', false),
-  ('wf-print-article-tbt', 'wf-print-article', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 3, 'creator', false),
-  ('wf-events-tbt', 'wf-events', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false),
-  ('wf-liveblog-pttt', 'wf-liveblog', 'pttt', 'PTTT — Phó phòng tường thuật', 'PTTT', 0, 'creator', false),
-  ('wf-ads-tbt', 'wf-ads', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false),
-  ('wf-royalties-bbt', 'wf-royalties', 'bbt', 'BBT — Ban Biên tập', 'BBT', 0, 'creator', false),
-  ('wf-video-tbt', 'wf-video', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false)
+INSERT INTO "workflow_steps" ("id", "definition_id", "key", "label", "role_name", "sort_order", "return_to", "allow_emergency", "updated_at") VALUES
+  ('wf-epaper-md', 'wf-epaper', 'md', 'MD — Duyệt Mo-rát', 'MD', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-epaper-tpp', 'wf-epaper', 'tpp', 'T.PP — Trưởng/Phó phòng (Thư ký tòa soạn)', 'T.PP', 1, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-epaper-ptbt', 'wf-epaper', 'ptbt', 'P.TBT — Phó Tổng Biên tập', 'P.TBT', 2, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-epaper-tbt', 'wf-epaper', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 3, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-news-tp', 'wf-news', 'tp', 'TP — Trưởng phòng', 'TP', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-news-pbdt', 'wf-news', 'pbdt', 'PBĐT — Phó Ban điện tử', 'PBĐT', 1, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-news-bbt', 'wf-news', 'bbt', 'BBT — Ban biên tập', 'BBT', 2, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-news-xb', 'wf-news', 'xb', 'XB — Xuất bản', 'XB', 3, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-print-article-md', 'wf-print-article', 'md', 'MD — Duyệt Mo-rát', 'MD', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-print-article-tpp', 'wf-print-article', 'tpp', 'T.PP — Trưởng/Phó phòng (Thư ký tòa soạn)', 'T.PP', 1, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-print-article-ptbt', 'wf-print-article', 'ptbt', 'P.TBT — Phó Tổng Biên tập', 'P.TBT', 2, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-print-article-tbt', 'wf-print-article', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 3, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-events-tbt', 'wf-events', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-liveblog-pttt', 'wf-liveblog', 'pttt', 'PTTT — Phó phòng tường thuật', 'PTTT', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-ads-tbt', 'wf-ads', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-royalties-bbt', 'wf-royalties', 'bbt', 'BBT — Ban Biên tập', 'BBT', 0, 'creator', false, CURRENT_TIMESTAMP),
+  ('wf-video-tbt', 'wf-video', 'tbt', 'TBT — Tổng Biên tập', 'TBT', 0, 'creator', false, CURRENT_TIMESTAMP)
 ON CONFLICT ("definition_id", "key") DO NOTHING;
