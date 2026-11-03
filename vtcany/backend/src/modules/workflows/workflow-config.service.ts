@@ -115,8 +115,20 @@ export class WorkflowConfigService implements OnModuleInit {
   private cached(key: string): CachedDefinition {
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const fb = (WORKFLOW_FALLBACKS as Record<string, CachedDefinition | undefined>)[key];
-    if (fb) return fb;
+    // FallbackDefinition khong co field `source` (co them moduleKey/profile)
+    // nen khong cast truc tiep ca map sang CachedDefinition duoc (TS2352):
+    // dung entry fallback de dung 1 CachedDefinition voi source 'fallback'.
+    const fb = isWorkflowModuleKey(key) ? WORKFLOW_FALLBACKS[key] : undefined;
+    if (fb) {
+      return {
+        label: fb.label,
+        authorRole: fb.authorRole,
+        authorLabel: fb.authorLabel,
+        enabled: fb.enabled,
+        steps: fb.steps,
+        source: 'fallback',
+      };
+    }
     throw new NotFoundException('phan he quy trinh khong ton tai');
   }
 
