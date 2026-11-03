@@ -71,7 +71,7 @@ const quickLinks = [
   { to: '/phim', label: 'Phim', icon: 'pi-video' },
   { to: '/short', label: 'Short', icon: 'pi-bolt' },
   { to: '/tap-tin', label: 'Tập tin', icon: 'pi-folder-open' },
-  { to: '/the-loai', label: 'Thể loại', icon: 'pi-tags' },
+  { to: '/the-loai', label: 'Thể loại phim', icon: 'pi-tags' },
   { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user' },
   { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list' },
   { to: '/bai-viet', label: 'Bài viết', icon: 'pi-file-edit' },
