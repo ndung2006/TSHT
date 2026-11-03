@@ -136,6 +136,18 @@
       </template>
     </Dialog>
 
+    <!-- Duyet khan (chi buoc co allowEmergency, giong tin-bai.vue) -->
+    <Dialog v-model:visible="emgDlg" modal header="Duyệt khẩn" class="w-full max-w-lg">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm">Duyệt khẩn sẽ kết thúc luồng duyệt ngay tại bước này và xuất bản buổi tường thuật "{{ emgTarget?.title }}" — lượt duyệt được ghi log là ngoại lệ. Chỉ dùng khi thật sự cần xuất bản gấp.</p>
+        <Textarea v-model="emgReason" rows="3" class="w-full" placeholder="Lý do duyệt khẩn *" />
+      </div>
+      <template #footer>
+        <Button label="Hủy" text @click="emgDlg = false" />
+        <Button label="Duyệt khẩn" severity="danger" :disabled="!emgReason.trim()" @click="confirmEmergencyApprove" />
+      </template>
+    </Dialog>
+
     <!-- Lich su duyet -->
     <Dialog v-model:visible="histDlg" modal :header="`Lịch sử duyệt — ${histTarget?.title || ''}`" class="w-full max-w-2xl">
       <DataTable :value="histItems" size="small">
@@ -195,6 +207,7 @@
         <Button label="Đóng" text @click="reviewDlg = false" />
         <Button v-if="reviewItem && can('liveblog:update') && reviewItem.status === 'draft'" label="Gửi duyệt" severity="info" @click="reviewSubmit" />
         <Button v-if="reviewItem && can('liveblog:publish') && reviewItem.status === 'pending_review'" label="Duyệt" severity="success" @click="reviewApprove" />
+        <Button v-if="reviewItem && can('liveblog:publish') && reviewItem.status === 'pending_review' && reviewEmergencyAllowed" label="Duyệt khẩn" severity="danger" @click="openEmergencyApprove(reviewItem)" />
         <Button v-if="reviewItem && can('liveblog:publish') && reviewItem.status === 'pending_review'" label="Trả lại" severity="warn" @click="reviewReturn" />
         <Button v-if="reviewItem && can('liveblog:publish') && ((reviewItem.status === 'draft' && isFullAdmin) || reviewItem.status === 'unpublished')" label="Xuất bản" severity="success" @click="reviewPublish" />
         <Button v-if="reviewItem && can('liveblog:publish') && reviewItem.status === 'published'" label="Gỡ xuống" severity="warn" @click="reviewUnpublish" />
@@ -210,6 +223,11 @@ useHead({ title: 'Tường thuật trực tiếp - VTC ANY CMS' });
 const { can, permissions } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
+
+// Cau hinh quy trinh duyet dong (cho nut Duyet khan, giong tin-bai.vue).
+const { load: loadWorkflow, stepAllowsEmergency } = useWorkflowConfig();
+const workflowConfig = ref<any>(null);
+loadWorkflow('liveblog').then((d) => { if (d) workflowConfig.value = d; });
 
 const isFullAdmin = computed(() => permissions.value.includes('*'));
 
@@ -476,6 +494,27 @@ async function confirmExceptionApprove() {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
   }
 }
+// --- Duyet khan (giong tin-bai.vue): chi buoc co allowEmergency moi goi duoc ---
+const emgDlg = ref(false);
+const emgTarget = ref<any>(null);
+const emgReason = ref('');
+function openEmergencyApprove(it: any) {
+  emgTarget.value = it;
+  emgReason.value = '';
+  emgDlg.value = true;
+}
+async function confirmEmergencyApprove() {
+  if (!emgTarget.value) return;
+  try {
+    const r = await api.post<any>(`/admin/liveblogs/${emgTarget.value.publicId}/approve`, { emergency: true, emergencyReason: emgReason.value.trim() });
+    toast.add({ severity: 'success', summary: r?.status === 'published' ? 'Đã duyệt khẩn và xuất bản' : 'Đã duyệt khẩn', life: 2500 });
+    emgDlg.value = false;
+    load(meta.value.page);
+    if (reviewItem.value && reviewItem.value.publicId === emgTarget.value.publicId) await refreshReview();
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.error?.message || e?.data?.message || e?.message || 'Duyệt khẩn thất bại', life: 3000 });
+  }
+}
 const returnDlg = ref(false);
 const returnTarget = ref<any>(null);
 const returnReason = ref('');
@@ -537,6 +576,8 @@ const reviewSodBlocked = computed(() => {
   const me = currentUserId();
   return !!(prev && me && prev === me);
 });
+/** Chi buoc duyet hien tai co allowEmergency=true moi hien nut Duyet khan (fail-closed khi chua tai duoc cau hinh). */
+const reviewEmergencyAllowed = computed(() => !!reviewItem.value && reviewItem.value.status === 'pending_review' && stepAllowsEmergency(workflowConfig.value, reviewItem.value.workflowStep || 0));
 async function openReview(it: any) {
   reviewItem.value = it;
   reviewTab.value = 0;
