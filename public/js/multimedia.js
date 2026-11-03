@@ -306,7 +306,15 @@
       // chi co 1 kenh nen nut chon kenh dau tien cua nhom.
       var selected = false;
       for (var s = 0; s < list.length; s++) { if (current && current.name === list[s].name) { selected = true; break; } }
-      box.innerHTML = "<button type=\"button\" class=\"mm-ch-head" + (selected ? " selected" : "") + "\">" + kindLabel + "</button>";
+      // Logo kenh quay lai, nam ben trai dong tieu de; van khong
+      // co ten kenh dang tile. Anh loi thi roi ve monogram chu.
+      var ch0 = list[0];
+      var mark = ch0.logo
+        ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch0.logo) + "\" alt=\"\" onerror=\"this.parentNode.classList.remove('has-logo');this.parentNode.textContent='" + esc(monoOf(ch0)) + "'\">"
+        : esc(monoOf(ch0));
+      box.innerHTML = "<button type=\"button\" class=\"mm-ch-head" + (selected ? " selected" : "") + "\">" +
+        "<span class=\"mm-ch-mark" + (ch0.logo ? " has-logo" : "") + "\">" + mark + "</span>" +
+        "<span class=\"mm-ch-head-text\">" + kindLabel + "</span></button>";
       var head = box.querySelector(".mm-ch-head");
       head.addEventListener("click", function () { selectChannel(list[0]); });
     }
