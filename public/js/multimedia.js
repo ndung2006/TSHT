@@ -119,8 +119,11 @@
     else fallback();
   }
   function backToLive() {
-    renderSchedule();
+    // Thu tu quan trong: startLive() xoa replayingKey truoc, roi moi
+    // ve lai lich — nguoc lai dong vua xem van giu nhan "Dang xem"
+    // (quirk thay tren live sau khi bam nut LIVE).
     startLive();
+    renderSchedule();
     if (selectedDate === saigonToday() && lastItems) {
       var live = null;
       for (var i = 0; i < lastItems.length; i++) { if (statusOf(lastItems[i], selectedDate) === "LIVE") { live = lastItems[i]; break; } }
