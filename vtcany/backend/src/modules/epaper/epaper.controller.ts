@@ -177,7 +177,7 @@ export class EpaperController {
   @Post(':publicId/approve')
   async approve(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
     const id = await this.identity(req);
-    const row = await this.epaper.approveStep(publicId, id.actorId, id.actorRole, id.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '' });
+    const row = await this.epaper.approveStep(publicId, id.actorId, id.actorRole, id.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '', emergency: !!body?.emergency, emergencyReason: body?.emergencyReason || '' });
     this.auditSafe(req, 'epaper.workflow.approve', row.publicId);
     return row;
   }

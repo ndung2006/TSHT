@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  ROYALTY_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, canUnlock, checkSeparationOfDuties, stepLabel, transition,
+  WORKFLOW_ACTION_LABELS, canUnlock, checkSeparationOfDuties,
 } from './royalties-workflow';
+import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import {
   articleTotal, authorPoints, equalShares, normalizeScores, validateScores, validateShares,
   AuthorShare, ComponentScores,
@@ -21,7 +22,7 @@ export interface RoyaltyInput {
 
 @Injectable()
 export class RoyaltiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly wf: WorkflowConfigService) {}
 
   private scoresOf(row: any): ComponentScores {
     return {
@@ -88,8 +89,8 @@ export class RoyaltiesService {
       articleTotal: articleTotal(scores),
       status: row.status,
       workflowStep: row.workflowStep ?? 0,
-      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
-      workflowTotalSteps: ROYALTY_WORKFLOW_STEPS.length,
+      workflowStepLabel: this.wf.stepLabel('royalties', row.workflowStep ?? 0),
+      workflowTotalSteps: this.wf.totalSteps('royalties'),
       lastApproval: (row as any).lastApproval || null,
       updatedBy: row.updatedBy,
       updatedByRole: row.updatedByRole,
@@ -129,9 +130,9 @@ export class RoyaltiesService {
     return { scores, shares };
   }
 
-  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'unlock') {
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'emergency-approve' | 'unlock') {
     try {
-      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+      return this.wf.transition('royalties', { status: row.status, step: row.workflowStep ?? 0 }, action);
     } catch (e: any) {
       throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
     }
@@ -140,7 +141,7 @@ export class RoyaltiesService {
   private async writeApproval(royaltyId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.articleRoyaltyApproval.create({
       data: {
-        royaltyId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment,
+        royaltyId, step, stepLabel: this.wf.stepLabel('royalties', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null,
       },
     });
@@ -249,11 +250,11 @@ export class RoyaltiesService {
     return this.toArticleItem(article);
   }
 
-  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
+  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string; emergency?: boolean; emergencyReason?: string }) {
     const row = await this.royaltyOrThrow(publicId);
     const step = row.workflowStep ?? 0;
-    if (!canApproveStep(actor.roleName, isFullAdmin, step)) {
-      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${ROYALTY_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    if (!this.wf.canApprove('royalties', actor.roleName, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('royalties', step) || '?'}) chi vai ${this.wf.steps('royalties')[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
     }
     // Tach nhiem vu (SoD): nguoi de xuat khong tu duyet — ap dung ca
     // toan quyen; ngoai le tin nong phai co co + ly do va duoc ghi log.
@@ -264,13 +265,25 @@ export class RoyaltiesService {
     if (!sod.allowed) {
       throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot ban cham; dung ngoai le tin nong neu can');
     }
-    const next = this.applyTransition(row, 'approve');
+    // Duyet khan: chi buoc co allowEmergency=true moi duoc chon; duyet
+    // khan ket thuc luong ngay (xuat ban / approved), ghi lich su ngoai le
+    // kem ly do khan bat buoc. Tach nhiem vu van ap dung nhu duyet thuong.
+    let next;
+    let emergencyReason: string | null = null;
+    if (opts?.emergency) {
+      emergencyReason = (opts.emergencyReason || '').trim();
+      if (!emergencyReason) throw new BadRequestException('duyet khan bat buoc co ly do');
+      if (!this.wf.stepAllowsEmergency('royalties', step)) throw new ForbiddenException('buoc nay khong cho phep duyet khan');
+      next = this.applyTransition(row, 'emergency-approve');
+    } else {
+      next = this.applyTransition(row, 'approve');
+    }
     const wasFinal = next.status === 'approved';
     const updated = await this.prisma.articleRoyalty.update({
       where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
     });
     await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null,
-      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
+      (sod.isException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
     if (wasFinal) {
       // Duyet xong = khoa diem (ghi rieng dong 'publish' cho lich su).
       await this.writeApproval(row.id, 0, actor.id, actor.roleName, 'publish', null);
@@ -298,7 +311,7 @@ export class RoyaltiesService {
     if (!reason || !String(reason).trim()) throw new BadRequestException('mo khoa bat buoc co ly do');
     const row = await this.royaltyOrThrow(publicId);
     if (!canUnlock(actor.roleName, isFullAdmin)) {
-      throw new ForbiddenException(`chi vai ${ROYALTY_WORKFLOW_STEPS[0].roleName} hoac toan quyen moi mo khoa duoc`);
+      throw new ForbiddenException(`chi vai ${this.wf.steps('royalties')[0].roleName} hoac toan quyen moi mo khoa duoc`);
     }
     const next = this.applyTransition(row, 'unlock');
     const updated = await this.prisma.articleRoyalty.update({

@@ -4,11 +4,12 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 import { PrintArticleController } from './print-article.controller';
 import { PrintArticleService } from './print-article.service';
 
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuthModule, PrismaModule, WorkflowsModule],
   controllers: [PrintArticleController],
   providers: [PrintArticleService],
   exports: [PrintArticleService],

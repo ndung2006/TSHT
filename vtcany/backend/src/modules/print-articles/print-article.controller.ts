@@ -118,7 +118,7 @@ export class PrintArticleController {
   @Post(':publicId/approve')
   async approve(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
     const a = await this.actor(req);
-    return this.printArticles.approveStep(publicId, a, a.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '' });
+    return this.printArticles.approveStep(publicId, a, a.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '', emergency: !!body?.emergency, emergencyReason: body?.emergencyReason || '' });
   }
 
   @RequirePerms('print_articles:publish')

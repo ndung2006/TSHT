@@ -10,12 +10,13 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { slugify, type Actor } from '../news/news.service';
 import {
-  PRINT_ARTICLE_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
+  WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './print-article-workflow';
+import { WorkflowConfigService } from '../workflows/workflow-config.service';
 
 @Injectable()
 export class PrintArticleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly wf: WorkflowConfigService) {}
 
   private newPublicId(): string {
     return randomBytes(12).toString('hex');
@@ -92,8 +93,8 @@ export class PrintArticleService {
       sourceNewsSlug: row.sourceNewsSlug,
       status: row.status,
       workflowStep: row.workflowStep ?? 0,
-      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
-      workflowTotalSteps: PRINT_ARTICLE_WORKFLOW_STEPS.length,
+      workflowStepLabel: this.wf.stepLabel('print-article', row.workflowStep ?? 0),
+      workflowTotalSteps: this.wf.totalSteps('print-article'),
       lastApproval: (row as any).lastApproval || null,
       updatedBy: row.updatedBy,
       updatedByRole: row.updatedByRole,
@@ -126,9 +127,9 @@ export class PrintArticleService {
     return rows.map((r) => ({ ...r, lastApproval: firstByArticle.has(r.id) ? this.toApproval(firstByArticle.get(r.id), names) : null }));
   }
 
-  private applyTransition(row: any, action: 'submit' | 'approve' | 'return') {
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'emergency-approve') {
     try {
-      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+      return this.wf.transition('print-article', { status: row.status, step: row.workflowStep ?? 0 }, action);
     } catch (e: any) {
       throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
     }
@@ -136,7 +137,7 @@ export class PrintArticleService {
 
   private async writeApproval(articleId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.printArticleApproval.create({
-      data: { articleId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment,
+      data: { articleId, step, stepLabel: this.wf.stepLabel('print-article', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
   }
@@ -303,11 +304,11 @@ export class PrintArticleService {
     return this.toItem(updated, cats);
   }
 
-  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
+  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string; emergency?: boolean; emergencyReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
-    if (!canApproveStep(actor.roleName, isFullAdmin, step)) {
-      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${PRINT_ARTICLE_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    if (!this.wf.canApprove('print-article', actor.roleName, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('print-article', step) || '?'}) chi vai ${this.wf.steps('print-article')[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
     }
     // Tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau
     // cua cung mot bai. Ap dung cho ca toan quyen — truong hop ngoai le
@@ -319,12 +320,24 @@ export class PrintArticleService {
     if (!sod.allowed) {
       throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot bai; dung ngoai le tin nong neu can');
     }
-    const next = this.applyTransition(row, 'approve');
+    // Duyet khan: chi buoc co allowEmergency=true moi duoc chon; duyet
+    // khan ket thuc luong ngay (xuat ban / approved), ghi lich su ngoai le
+    // kem ly do khan bat buoc. Tach nhiem vu van ap dung nhu duyet thuong.
+    let next;
+    let emergencyReason: string | null = null;
+    if (opts?.emergency) {
+      emergencyReason = (opts.emergencyReason || '').trim();
+      if (!emergencyReason) throw new BadRequestException('duyet khan bat buoc co ly do');
+      if (!this.wf.stepAllowsEmergency('print-article', step)) throw new ForbiddenException('buoc nay khong cho phep duyet khan');
+      next = this.applyTransition(row, 'emergency-approve');
+    } else {
+      next = this.applyTransition(row, 'approve');
+    }
     const updated = await this.prisma.printArticle.update({
       where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
     });
     await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null,
-      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
+      (sod.isException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
     const cats = await this.resolveCategories([updated.categoryId]);
     return this.toItem(updated, cats);
   }

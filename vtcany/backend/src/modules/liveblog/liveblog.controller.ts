@@ -116,7 +116,7 @@ export class LiveblogController {
   @Post(':publicId/approve')
   async approve(@Param('publicId') publicId: string, @Body() body: any, @Req() req: any) {
     const a = await this.actor(req);
-    return this.liveblog.approveStep(publicId, a, a.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '' });
+    return this.liveblog.approveStep(publicId, a, a.isFullAdmin, { breakingNews: !!body?.breakingNews, breakingNewsReason: body?.breakingNewsReason || '', emergency: !!body?.emergency, emergencyReason: body?.emergencyReason || '' });
   }
 
   @RequirePerms('liveblog:publish')

@@ -20,6 +20,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
+import { RolesService } from '../auth/roles.service';
+import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import { AuditService } from '../audit/audit.service';
 import { EpgService } from '../content/epg.service';
 import { parseEpgFile, buildEpgTemplateXlsx } from '../content/epg-file';
@@ -43,6 +45,8 @@ export class CatalogController {
     private epg: EpgService,
     private uploads: UploadsService,
     private vod: VodService,
+    private roles: RolesService,
+    private workflows: WorkflowConfigService,
   ) {}
 
   private actor(req: any) {
@@ -309,6 +313,21 @@ export class CatalogController {
   @Post(':entity/:id/publish')
   async publish(@Param('entity') entity: string, @Param('id') id: string, @Req() req: any) {
     try {
+      // Cong duyet video: chi khi admin bat luong duyet video (mac dinh
+      // TAT). Khi bat, xuat ban video/short doi vai duyet buoc cuoi cua
+      // quy trinh video (seed: TBT) hoac toan quyen; khi tat thi giu
+      // nguyen hanh vi cu (khong them chan). Go xuong (unpublish) khong
+      // qua luong duyet, giu nguyen gate catalog:write hien tai.
+      if ((entity === 'videos' || entity === 'shorts') && this.workflows.enabled('video')) {
+        const steps = this.workflows.steps('video');
+        const finalRole = steps[steps.length - 1]?.roleName || null;
+        const ident = await this.roles.adminIdentity(req.user?.sub || '');
+        const ok = !!ident?.isFullAdmin ||
+          (!!ident?.roleName && !!finalRole && ident.roleName.toLowerCase() === finalRole.toLowerCase());
+        if (!ok) {
+          throw new HttpException({ error: { code: 'forbidden', message: `video dang chay quy trinh duyet, chi vai ${finalRole || '?'} hoac toan quyen moi xuat ban duoc` } }, HttpStatus.FORBIDDEN);
+        }
+      }
       const item = await this.catalog.setPublished(entity, id, true);
       this.log(req, 'publish', entity, id);
       return item;

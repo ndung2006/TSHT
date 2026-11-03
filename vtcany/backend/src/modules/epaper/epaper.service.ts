@@ -7,8 +7,9 @@ import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs';
 import { join } from 'path';
 import { checkPatch, generatePublicId, isIssueType, issueSlug, issueUrl, parsePublishDate } from './epaper.utils';
 import {
-  EPAPER_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
+  WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './epaper-workflow';
+import { WorkflowConfigService } from '../workflows/workflow-config.service';
 
 // Dich vu so bao in (E-paper) cho CMS VTCANY, thuoc repo TSHT.
 // Muc tieu: nhap lieu so bao moi, khong phai trinh doc cong khai — doc cong
@@ -17,7 +18,7 @@ import {
 // tao/cap nhat; khong bao gio tu dem gia. TODO: dem tu dong khi co pdf parser.
 @Injectable()
 export class EpaperService {
-  constructor(private prisma: PrismaService, private uploads: UploadsService) {}
+  constructor(private prisma: PrismaService, private uploads: UploadsService, private wf: WorkflowConfigService) {}
 
   // --- Anh trang render san phia server (Hybrid, thay cho PDF.js ve toan
   // bo o muc fit) ---
@@ -142,8 +143,8 @@ export class EpaperService {
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
       // Quy trinh duyet (xem epaper-workflow.ts). lastApproval do list() gan them.
       workflowStep: row.workflowStep ?? 0,
-      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
-      workflowTotalSteps: EPAPER_WORKFLOW_STEPS.length,
+      workflowStepLabel: this.wf.stepLabel('epaper', row.workflowStep ?? 0),
+      workflowTotalSteps: this.wf.totalSteps('epaper'),
       lastApproval: (row as any).lastApproval || null,
     };
   }
@@ -181,7 +182,7 @@ export class EpaperService {
   private async writeApproval(issueId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.epaperIssueApproval.create({
       data: {
-        issueId, step, stepLabel: stepLabel(step),
+        issueId, step, stepLabel: this.wf.stepLabel('epaper', step),
         actorId: actorId || null, actorRole: actorRole || null,
         action, comment: comment || null,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null,
@@ -388,9 +389,9 @@ export class EpaperService {
     return row;
   }
 
-  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'publish-direct' | 'unpublish') {
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'emergency-approve' | 'publish-direct' | 'unpublish') {
     try {
-      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+      return this.wf.transition('epaper', { status: row.status, step: row.workflowStep ?? 0 }, action);
     } catch (e: any) {
       throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
     }
@@ -406,11 +407,11 @@ export class EpaperService {
     return this.toItem(updated);
   }
 
-  async approveStep(publicId: string, actorId: string | null, actorRole: string | null, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
+  async approveStep(publicId: string, actorId: string | null, actorRole: string | null, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string; emergency?: boolean; emergencyReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
-    if (!canApproveStep(actorRole, isFullAdmin, step)) {
-      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${EPAPER_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    if (!this.wf.canApprove('epaper', actorRole, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('epaper', step) || '?'}) chi vai ${this.wf.steps('epaper')[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
     }
     // Tach nhiem vu (Dot 1b): nguoi xu ly buoc truoc khong duoc duyet buoc
     // sau cua cung mot so. Ap dung cho ca toan quyen — truong hop ngoai le
@@ -422,7 +423,19 @@ export class EpaperService {
     if (!sod.allowed) {
       throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot so; dung ngoai le tin nong neu can');
     }
-    const next = this.applyTransition(row, 'approve');
+    // Duyet khan: chi buoc co allowEmergency=true moi duoc chon; duyet
+    // khan ket thuc luong ngay (xuat ban / approved), ghi lich su ngoai le
+    // kem ly do khan bat buoc. Tach nhiem vu van ap dung nhu duyet thuong.
+    let next;
+    let emergencyReason: string | null = null;
+    if (opts?.emergency) {
+      emergencyReason = (opts.emergencyReason || '').trim();
+      if (!emergencyReason) throw new BadRequestException('duyet khan bat buoc co ly do');
+      if (!this.wf.stepAllowsEmergency('epaper', step)) throw new ForbiddenException('buoc nay khong cho phep duyet khan');
+      next = this.applyTransition(row, 'emergency-approve');
+    } else {
+      next = this.applyTransition(row, 'approve');
+    }
     const wasFinal = next.status === 'published';
     const before = await this.snapshot(row.id);
     const updated = await this.prisma.epaperIssue.update({
@@ -430,7 +443,7 @@ export class EpaperService {
       data: { status: next.status, workflowStep: next.step, publishedAt: wasFinal ? new Date() : row.publishedAt },
     });
     await this.writeApproval(row.id, step, actorId, actorRole, 'approve', null,
-      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
+      (sod.isException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
     if (wasFinal) {
       await this.writeRevision(row.id, actorId, 'xuat ban', before);
       await this.writeApproval(row.id, 0, actorId, actorRole, 'publish', null);
@@ -469,10 +482,10 @@ export class EpaperService {
     if (publish && row.status === 'pending_review') {
       // So dang cho duyet khong xuat ban tat: phai duyet het cac buoc
       // (approve buoc cuoi tu xuat ban) hoac toan quyen duyet tat.
-      if (!isFullAdmin && (row.workflowStep ?? 0) !== EPAPER_WORKFLOW_STEPS.length) {
-        throw new ConflictException(`so dang cho duyet buoc ${row.workflowStep}/${EPAPER_WORKFLOW_STEPS.length}, phai duyet xong moi xuat ban duoc`);
+      if (!isFullAdmin && (row.workflowStep ?? 0) !== this.wf.totalSteps('epaper')) {
+        throw new ConflictException(`so dang cho duyet buoc ${row.workflowStep}/${this.wf.totalSteps('epaper')}, phai duyet xong moi xuat ban duoc`);
       }
-      if (!isFullAdmin && !canApproveStep(actorRole, false, row.workflowStep ?? 0)) {
+      if (!isFullAdmin && !this.wf.canApprove('epaper', actorRole, false, row.workflowStep ?? 0)) {
         throw new ForbiddenException('chi vai duyet buoc cuoi hoac toan quyen moi xuat ban so dang cho duyet');
       }
     }

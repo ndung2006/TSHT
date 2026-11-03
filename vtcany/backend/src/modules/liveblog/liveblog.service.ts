@@ -2,8 +2,9 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  LIVEBLOG_WORKFLOW_STEPS, WORKFLOW_ACTION_LABELS, canApproveStep, checkSeparationOfDuties, stepLabel, transition,
+  WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './liveblog-workflow';
+import { WorkflowConfigService } from '../workflows/workflow-config.service';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -42,7 +43,7 @@ export interface EntryInput {
 
 @Injectable()
 export class LiveblogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly wf: WorkflowConfigService) {}
 
   private newPublicId(): string {
     return randomBytes(12).toString('hex');
@@ -71,8 +72,8 @@ export class LiveblogService {
       status: row.status,
       // Quy trinh duyet (xem liveblog-workflow.ts). lastApproval do listAdmin gan them.
       workflowStep: row.workflowStep ?? 0,
-      workflowStepLabel: stepLabel(row.workflowStep ?? 0),
-      workflowTotalSteps: LIVEBLOG_WORKFLOW_STEPS.length,
+      workflowStepLabel: this.wf.stepLabel('liveblog', row.workflowStep ?? 0),
+      workflowTotalSteps: this.wf.totalSteps('liveblog'),
       lastApproval: (row as any).lastApproval || null,
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
       updatedBy: row.updatedBy,
@@ -132,9 +133,9 @@ export class LiveblogService {
     return rows.map((r) => ({ ...r, lastApproval: firstByLiveblog.has(r.id) ? this.toApproval(firstByLiveblog.get(r.id)) : null }));
   }
 
-  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'publish-direct' | 'unpublish') {
+  private applyTransition(row: any, action: 'submit' | 'approve' | 'return' | 'emergency-approve' | 'publish-direct' | 'unpublish') {
     try {
-      return transition({ status: row.status, step: row.workflowStep ?? 0 }, action);
+      return this.wf.transition('liveblog', { status: row.status, step: row.workflowStep ?? 0 }, action);
     } catch (e: any) {
       throw new ConflictException(e?.message || 'trang thai quy trinh khong hop le');
     }
@@ -142,7 +143,7 @@ export class LiveblogService {
 
   private async writeApproval(liveblogId: string, step: number, actorId: string | null, actorRole: string | null, action: string, comment: string | null, extra?: { isException?: boolean; exceptionReason?: string | null }) {
     await this.prisma.liveblogApproval.create({
-      data: { liveblogId, step, stepLabel: stepLabel(step), actorId, actorRole, action, comment,
+      data: { liveblogId, step, stepLabel: this.wf.stepLabel('liveblog', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
   }
@@ -355,11 +356,11 @@ export class LiveblogService {
     return this.toItem(updated);
   }
 
-  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string }) {
+  async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string; emergency?: boolean; emergencyReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
-    if (!canApproveStep(actor.roleName, isFullAdmin, step)) {
-      throw new ForbiddenException(`buoc duyet hien tai (${stepLabel(step) || '?'}) chi vai ${LIVEBLOG_WORKFLOW_STEPS[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+    if (!this.wf.canApprove('liveblog', actor.roleName, isFullAdmin, step)) {
+      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('liveblog', step) || '?'}) chi vai ${this.wf.steps('liveblog')[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
     }
     // Tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc hien tai
     // cua cung mot liveblog. Ap dung cho ca toan quyen — ngoai le tin
@@ -371,14 +372,26 @@ export class LiveblogService {
     if (!sod.allowed) {
       throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot liveblog; dung ngoai le tin nong neu can');
     }
-    const next = this.applyTransition(row, 'approve');
+    // Duyet khan: chi buoc co allowEmergency=true moi duoc chon; duyet
+    // khan ket thuc luong ngay (xuat ban / approved), ghi lich su ngoai le
+    // kem ly do khan bat buoc. Tach nhiem vu van ap dung nhu duyet thuong.
+    let next;
+    let emergencyReason: string | null = null;
+    if (opts?.emergency) {
+      emergencyReason = (opts.emergencyReason || '').trim();
+      if (!emergencyReason) throw new BadRequestException('duyet khan bat buoc co ly do');
+      if (!this.wf.stepAllowsEmergency('liveblog', step)) throw new ForbiddenException('buoc nay khong cho phep duyet khan');
+      next = this.applyTransition(row, 'emergency-approve');
+    } else {
+      next = this.applyTransition(row, 'approve');
+    }
     const wasFinal = next.status === 'published';
     const updated = await this.prisma.liveblog.update({
       where: { id: row.id },
       data: { status: next.status, workflowStep: next.step, publishAt: wasFinal ? (row.publishAt || new Date()) : row.publishAt },
     });
     await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null,
-      sod.isException ? { isException: true, exceptionReason: (opts?.breakingNewsReason || '').trim() || null } : undefined);
+      (sod.isException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
     if (wasFinal) {
       await this.writeApproval(row.id, 0, actor.id, actor.roleName, 'publish', null);
     }
@@ -417,10 +430,10 @@ export class LiveblogService {
     if (publish && row.status === 'published') return this.toItem(row);
     if (!publish && row.status !== 'published') return this.toItem(row);
     if (publish && row.status === 'pending_review') {
-      if (!isFullAdmin && (row.workflowStep ?? 0) !== LIVEBLOG_WORKFLOW_STEPS.length) {
-        throw new ConflictException(`liveblog dang cho duyet buoc ${row.workflowStep}/${LIVEBLOG_WORKFLOW_STEPS.length}, phai duyet xong moi xuat ban duoc`);
+      if (!isFullAdmin && (row.workflowStep ?? 0) !== this.wf.totalSteps('liveblog')) {
+        throw new ConflictException(`liveblog dang cho duyet buoc ${row.workflowStep}/${this.wf.totalSteps('liveblog')}, phai duyet xong moi xuat ban duoc`);
       }
-      if (!isFullAdmin && !canApproveStep(actor.roleName, false, row.workflowStep ?? 0)) {
+      if (!isFullAdmin && !this.wf.canApprove('liveblog', actor.roleName, false, row.workflowStep ?? 0)) {
         throw new ForbiddenException('chi vai duyet buoc cuoi hoac toan quyen moi xuat ban liveblog dang cho duyet');
       }
     }

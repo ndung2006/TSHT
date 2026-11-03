@@ -10,9 +10,10 @@ import { ContentModule } from '../content/content.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AdminModule } from '../admin/admin.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [AuthModule, AuditModule, ContentModule, UploadsModule, PrismaModule, AdminModule],
+  imports: [AuthModule, AuditModule, ContentModule, UploadsModule, PrismaModule, AdminModule, WorkflowsModule],
   controllers: [CatalogController, VodController, PublicCatalogController],
   providers: [CatalogService, VodService],
   exports: [CatalogService, VodService],

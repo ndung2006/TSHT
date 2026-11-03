@@ -6,9 +6,10 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [AuthModule, AuditModule, UploadsModule, PrismaModule],
+  imports: [AuthModule, AuditModule, UploadsModule, PrismaModule, WorkflowsModule],
   controllers: [EpaperController, EpaperPublicController],
   providers: [EpaperService],
   exports: [EpaperService],
