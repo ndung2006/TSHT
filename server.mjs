@@ -253,13 +253,19 @@ const server = http.createServer(async (req, res) => {
           fetchVtcanyGroups().catch(() => ({ ok: false })),
         ]);
         if (ext.ok) {
+          // Khop theo ten KHONG DAU, KHONG KHOANG TRANG: ten hien thi
+          // trong CMS co the la 'Tuyen Quang'/'Tuyên Quang' dep (co dau,
+          // co khoang trang) trong khi khoa vtcaio la TUYENQUANG;
+          // chuan hoa ca 2 ve de ten dep van khop dung kenh. Luu y:
+          // chu Đ khong bi tach dau nen khong gay khop nham voi D.
+          const normKey = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
           let byName = null;
           if (cat && cat.ok && Array.isArray(cat.items)) {
             byName = new Map();
-            for (const c of cat.items) if (c && c.name) byName.set(String(c.name).toUpperCase(), c);
+            for (const c of cat.items) if (c && c.name) byName.set(normKey(c.name), c);
           }
           const items = ext.items.map((it) => {
-            const m = byName ? byName.get(String(it.name || "").toUpperCase()) : null;
+            const m = byName ? byName.get(normKey(it.name)) : null;
             if (!m) return it;
             return {
               ...it,
