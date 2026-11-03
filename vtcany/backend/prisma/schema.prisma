@@ -134,6 +134,13 @@ model MediaAsset {
   sizeBytes   BigInt?  @map("size_bytes")
   contentType String?  @map("content_type")
   videoId     String?  @map("video_id")
+  // Thoi luong giay do worker probe (null = chua biet) — tu dien duration
+  // h:mm:ss cho CatalogItem khi transcode xong.
+  durationSec Int?     @map("duration_seconds")
+  // Dem lan thu transcode duong poll + lich hen thu lai (backoff).
+  // attempts NOT NULL DEFAULT 0 nen dong cu duoc backfill an toan.
+  attempts    Int      @default(0)
+  nextRetryAt DateTime? @map("next_retry_at")
   // Thu muc LOGIC cua Thu vien media (Goi 2D-1): chi la truong phan loai
   // trong DB, KHONG di chuyen file vat ly (URL da nhung trong bai da xuat
   // ban phai nguyen ven). Null = chua phan loai.

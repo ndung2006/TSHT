@@ -167,7 +167,7 @@ const api = useApi();
 const toast = useToast();
 const { items, meta, loading, load, onPage, saveItem, confirmDelete } = useCatalog('videos');
 const { files: vodFiles, loadingFiles, loadDoneFiles, fileLabel, playUrl } = useVodFiles();
-const files = computed(() => vodFiles.value.map((f) => ({ id: f.id, label: fileLabel(f), posterUrl: f.posterUrl || '' })));
+const files = computed(() => vodFiles.value.map((f) => ({ id: f.id, label: fileLabel(f), posterUrl: f.posterUrl || '', durationSec: f.durationSec ?? null })));
 const selectedFileLabel = computed(() => files.value.find((f) => f.id === form.value.videoFileId)?.label || '');
 
 const categories = ref<any[]>([]);
@@ -338,6 +338,25 @@ function autoThumbFromFile() {
   if (f?.posterUrl) form.value.thumbnail = f.posterUrl;
 }
 
+// Duration tu dong (mirror backend formatDurationHms): file da transcode
+// xong thi co durationSec (worker probe); tu dien khi form chua co duration,
+// khong ghi de gia tri nguoi dung nhap tay. Chi ap dung khi gan file DA CO
+// duration — file moi gan dang cho transcode thi backend se dien vao
+// CatalogItem khi webhook 'done' ve (neu luc luu duration van trong).
+function formatHms(total: number) {
+  const s = Math.max(0, Math.floor(total || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+function autoDurationFromFile() {
+  if (form.value.duration) return;
+  const f = files.value.find((x) => x.id === form.value.videoFileId);
+  const s = f?.durationSec;
+  if (typeof s === 'number' && s > 0) form.value.duration = formatHms(Math.round(s));
+}
+
 // Chup khung hinh dang phat lam thumbnail: tai anh len thu vien roi gan form.
 const previewRef = ref<any>(null);
 const capturing = ref(false);
@@ -361,8 +380,8 @@ async function captureThumb() {
   } finally { capturing.value = false; }
 }
 
-watch(() => form.value.videoFileId, () => { previewUrl.value = ''; previewErr.value = ''; autoThumbFromFile(); });
-watch(files, autoThumbFromFile);
+watch(() => form.value.videoFileId, () => { previewUrl.value = ''; previewErr.value = ''; autoThumbFromFile(); autoDurationFromFile(); });
+watch(files, () => { autoThumbFromFile(); autoDurationFromFile(); });
 watch(dlg, (open) => { if (!open) { previewUrl.value = ''; previewErr.value = ''; } });
 
 async function showPlay(row: any) {

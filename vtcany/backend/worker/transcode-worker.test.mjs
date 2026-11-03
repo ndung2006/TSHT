@@ -13,6 +13,10 @@ import {
   shouldPostProgress,
   posterSeekSec,
   shortError,
+  MAX_TRANSCODE_ATTEMPTS,
+  retryDelaySec,
+  shouldDeadLetter,
+  formatDurationHms,
 } from './transcode-worker.mjs';
 
 describe('upload id + paths (phai khop backend)', () => {
@@ -82,5 +86,47 @@ describe('poster seek + error shortening', () => {
     assert.equal(shortError('line1\nline2  \n'), 'line2');
     assert.equal(shortError(''), 'ffmpeg failed');
     assert.equal(shortError('x'.repeat(300)).length, 200);
+  });
+});
+
+describe('retry backoff + dead-letter (mirror backend retry-policy.ts)', () => {
+  it('exposes MAX attempts = 5', () => {
+    assert.equal(MAX_TRANSCODE_ATTEMPTS, 5);
+  });
+
+  it('exponential backoff 30s x 2^(n-1), capped at 1h', () => {
+    assert.equal(retryDelaySec(1), 30);
+    assert.equal(retryDelaySec(2), 60);
+    assert.equal(retryDelaySec(3), 120);
+    assert.equal(retryDelaySec(4), 240);
+    assert.equal(retryDelaySec(5), 480);
+    assert.equal(retryDelaySec(8), 3600);
+    assert.equal(retryDelaySec(100), 3600);
+    assert.equal(retryDelaySec(0), 30);
+  });
+
+  it('dead-letters exactly at MAX attempts', () => {
+    assert.equal(shouldDeadLetter(4), false);
+    assert.equal(shouldDeadLetter(5), true);
+    assert.equal(shouldDeadLetter(6), true);
+  });
+});
+
+describe('duration format h:mm:ss', () => {
+  it('formats the brief example + edges', () => {
+    assert.equal(formatDurationHms(3661), '1:01:01');
+    assert.equal(formatDurationHms(90), '0:01:30');
+    assert.equal(formatDurationHms(0), '0:00:00');
+    assert.equal(formatDurationHms(59), '0:00:59');
+    assert.equal(formatDurationHms(3600), '1:00:00');
+    assert.equal(formatDurationHms(86399), '23:59:59');
+    assert.equal(formatDurationHms(90.7), '0:01:30');
+  });
+
+  it('returns null for invalid input', () => {
+    assert.equal(formatDurationHms(-5), null);
+    assert.equal(formatDurationHms(NaN), null);
+    assert.equal(formatDurationHms(Infinity), null);
+    assert.equal(formatDurationHms(null), null);
   });
 });

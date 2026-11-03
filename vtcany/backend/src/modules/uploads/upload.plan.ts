@@ -10,6 +10,14 @@ export interface UploadRecord {
   progress?: number; // % tien trinh transcode do worker bao ve (in-memory, chi khi processing)
   chunks: number;
   createdAt: number;
+  /** Tong thoi luong giay do worker probe (null = chua biet; persist xuong media_assets). */
+  durationSec?: number | null;
+  /** So lan worker claim job (tang o webhook 'attempt'; persist xuong media_assets). */
+  attempts: number;
+  /** Ms epoch: job chi vao queue lai sau thoi diem nay (backoff; persist xuong media_assets). */
+  nextRetryAt?: number | null;
+  /** Ly do loi/dead-letter hien thi (persist xuong media_assets.error). */
+  error?: string;
 }
 
 export const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB/chunk theo blueprint
@@ -33,6 +41,7 @@ export function planUpload(filename: string, sizeBytes: number, contentType: str
     status: 'pending',
     chunks: chunkCount(sizeBytes),
     createdAt: Date.now(),
+    attempts: 0,
   };
 }
 

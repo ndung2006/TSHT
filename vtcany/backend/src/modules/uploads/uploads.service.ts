@@ -9,6 +9,13 @@ import { Readable } from 'stream';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, planImage, planUpload } from './upload.plan';
+import {
+  applyClaim,
+  applyRetry,
+  formatDurationHms,
+  isQueueEligible,
+  shouldFillCatalogDuration,
+} from './retry-policy';
 import { chunkExists, finalPath, rawDir, storageRootDefault, writeChunk } from './local-store';
 import { enqueueTranscode } from './transcode-queue';
 import { PLAYLIST_TTL_SEC, SEGMENT_TTL_SEC, isValidUploadId, signMedia } from './media-sign';
@@ -75,6 +82,10 @@ export class UploadsService implements OnModuleInit {
           status: (r.status as UploadStatus) || 'pending',
           chunks: chunkCount(Number(r.sizeBytes || 0)),
           createdAt: r.createdAt.getTime(),
+          durationSec: r.durationSec ?? null,
+          attempts: r.attempts ?? 0,
+          nextRetryAt: r.nextRetryAt ? r.nextRetryAt.getTime() : null,
+          error: r.error ?? undefined,
         };
         this.records.set(rec.id, rec);
         if (rec.status === 'done' && rec.videoId) {
@@ -96,6 +107,10 @@ export class UploadsService implements OnModuleInit {
       contentType: rec.contentType,
       status: rec.status,
       videoId: rec.videoId || null,
+      durationSec: rec.durationSec ?? null,
+      attempts: rec.attempts ?? 0,
+      nextRetryAt: rec.nextRetryAt ? new Date(rec.nextRetryAt) : null,
+      error: rec.error ?? null,
     };
     void this.prisma.mediaAsset
       .upsert({ where: { id: rec.id }, create: { id: rec.id, ...data }, update: data })
@@ -364,7 +379,7 @@ export class UploadsService implements OnModuleInit {
     return rec;
   }
 
-  markDone(id: string): UploadRecord {
+  markDone(id: string, durationSec?: unknown): UploadRecord {
     // Chap nhan ca 'uploaded': ban ghi da finalize xong nhung chua kip (hoac
     // khong) chuyen sang 'processing' — xem pendingTranscode() — van duoc
     // worker transcode xong va bao done hop le, khong phai loi transition.
@@ -372,14 +387,48 @@ export class UploadsService implements OnModuleInit {
     if (rec.status !== 'processing' && rec.status !== 'uploaded') {
       throw new Error(`invalid transition ${rec.status} -> done`);
     }
+    // Duration do worker probe gui kem webhook 'done'. Chi nhan so giay
+    // duong hop le; gia tri rac/null thi giu nguyen (khong xoa duration cu).
+    const d = Number(durationSec);
+    if (Number.isFinite(d) && d > 0) rec.durationSec = Math.round(d);
     rec.status = 'done';
+    rec.nextRetryAt = null;
     this.persist(rec);
     return rec;
   }
 
-  markError(id: string): UploadRecord {
+  markError(id: string, message?: string): UploadRecord {
     const rec = this.get(id);
     rec.status = 'error';
+    const m = (message || '').trim();
+    if (m) rec.error = m.length > 500 ? m.slice(0, 500) : m;
+    rec.nextRetryAt = null;
+    this.persist(rec);
+    return rec;
+  }
+
+  // Worker claim job truoc khi chay ffmpeg: tang attempts ngay de ke ca
+  // worker chet sau claim thi lan thu do van duoc dem. Claim tren record
+  // khong o processing/uploaded (done/error/pending, vd worker cu) la stale
+  // -> bo qua, khong tang dem.
+  claimAttempt(id: string): UploadRecord {
+    const rec = this.get(id);
+    if (rec.status !== 'processing' && rec.status !== 'uploaded') return rec;
+    Object.assign(rec, applyClaim(rec));
+    this.persist(rec);
+    return rec;
+  }
+
+  // Worker bao 'retry' (ffmpeg loi / webhook 'done' loi): attempts < MAX thi
+  // giu status, hen nextRetryAt theo backoff; attempts >= MAX thi dead-letter
+  // (status 'error' + ly do). Retry tren record da done/error la stale -> bo qua.
+  // 'retry' KHONG bao gio danh dau error truc tiep cho loi tam thoi — chi
+  // dead-letter moi ket thuc job (sua bug cu: done loi webhook -> 'error'
+  // vinh vien cho 1 transcode thanh cong).
+  requestRetry(id: string, message?: string): UploadRecord {
+    const rec = this.get(id);
+    if (rec.status !== 'processing' && rec.status !== 'uploaded') return rec;
+    Object.assign(rec, applyRetry(rec, Date.now(), message));
     this.persist(rec);
     return rec;
   }
@@ -392,8 +441,9 @@ export class UploadsService implements OnModuleInit {
   // nay ket vinh vien ma worker khong bao gio thay.
   pendingTranscode(): Array<UploadRecord & { localPath: string }> {
     const root = this.storageRoot();
+    const now = Date.now();
     return [...this.records.values()]
-      .filter((r) => r.status === 'processing' || r.status === 'uploaded')
+      .filter((r) => isQueueEligible(r, now))
       .map((r) => ({ ...r, localPath: finalPath(root, r.id, r.filename) }));
   }
 
@@ -403,7 +453,46 @@ export class UploadsService implements OnModuleInit {
     const rec = this.get(uploadId);
     const hlsPath = `/media/${uploadId}/master.m3u8`;
     if (rec.videoId) this.videoHls.set(rec.videoId, { uploadId, hlsPath });
+    // Dien duration cho CatalogItem (fire-and-forget nhu persist: loi chi log,
+    // khong chan webhook done). Dong bo sau: CMS form cung tu dien tu
+    // files list khi gan file da co duration.
+    void this.fillCatalogDuration(uploadId).catch((e) =>
+      this.logger.warn(`fill catalog duration ${uploadId} loi: ${(e as Error).message}`),
+    );
     return { hlsPath };
+  }
+
+  // Dien duration h:mm:ss (tu durationSec worker probe) vao CatalogItem
+  // videos/shorts co data.videoFileId = uploadId, CHI khi duration cua item
+  // dang trong (khong ghi de gia tri nguoi dung nhap tay). Link that giua
+  // catalog va upload la videoFileId — khong gate theo videoId cua record
+  // (video tao moi gan file sau thi upload luc init chua co videoId).
+  // Loc bang JS thay vi Json path filter cua Prisma de tranh rui ro cu phap
+  // theo phien ban Prisma (catalog hien tai rat nho).
+  private async fillCatalogDuration(uploadId: string): Promise<void> {
+    if (!this.prisma || !process.env.DATABASE_URL) return;
+    let rec: UploadRecord;
+    try {
+      rec = this.get(uploadId);
+    } catch {
+      return;
+    }
+    const s = rec.durationSec;
+    if (typeof s !== 'number' || !Number.isFinite(s) || s <= 0) return;
+    const hms = formatDurationHms(Math.round(s));
+    if (!hms) return;
+    const rows = await this.prisma.catalogItem.findMany({
+      where: { entity: { in: ['videos', 'shorts'] } },
+    });
+    for (const row of rows) {
+      const data: any = (row.data as any) || {};
+      if (data.videoFileId !== uploadId) continue;
+      if (!shouldFillCatalogDuration(data.duration, hms)) continue;
+      await this.prisma.catalogItem.update({
+        where: { id: row.id },
+        data: { data: { ...data, duration: hms } },
+      });
+    }
   }
 
   private signedPlayUrl(uploadId: string): string {

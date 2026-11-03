@@ -2,7 +2,16 @@
 //
 // Luong: poll GET <API>/internal/transcode-queue (guard bang shared secret,
 // khong JWT) -> transcode tuan tu tung job mot -> bao ket qua ve
-// POST <API>/internal/media-webhook (status processing + progress / done / error).
+// POST <API>/internal/media-webhook. Cac status webhook:
+//   'attempt'    : claim job truoc khi chay ffmpeg (backend tang attempts).
+//   'processing' : % tien trinh (thong tin hien thi, loi thi bo qua).
+//   'done'       : transcode xong, kem durationSec (giay, null neu khong probe duoc).
+//   'retry'      : ffmpeg loi / source mat / webhook 'done' loi — backend ap
+//                  backoff mu (30s x 2^(attempts-1), tran 1h) roi dead-letter
+//                  sau 5 lan thu. KHONG bao gio post 'error' truc tiep:
+//                  'error' la trang thai terminal do backend danh dau khi
+//                  dead-letter (tranh bug cu: done loi webhook -> error vinh vien).
+//   'error'      : chi backend dung noi bo (dead-letter); worker khong gui.
 //
 // Quy uoc duong dan (phai khop backend, xem uploads.service.ts):
 //   - file goc da merge:  <storage>/raw/<uploadId>-<ten file da sanitize>
@@ -112,6 +121,39 @@ export function shouldPostProgress(lastPosted, pct) {
 export function posterSeekSec(durationSec) {
   if (!durationSec || !Number.isFinite(durationSec) || durationSec <= 0) return 1;
   return Math.min(Math.max(durationSec * 0.1, 1), 30);
+}
+
+// ---------------------------------------------------------------------------
+// Retry/backoff/dead-letter + format duration — MIRROR backend
+// (src/modules/uploads/retry-policy.ts). Giu 2 ban dong bo khi doi hang so.
+// Backend la noi ap dung that (queue filter + retry transition); worker chi
+// gui dung status webhook ('attempt'/'retry'/'done'), khong tu tinh backoff.
+// ---------------------------------------------------------------------------
+
+/** So lan thu toi da truoc khi backend dead-letter (giong backend). */
+export const MAX_TRANSCODE_ATTEMPTS = 5;
+export const RETRY_BASE_DELAY_SEC = 30;
+export const RETRY_MAX_DELAY_SEC = 3600;
+
+/** Delay backoff mu (giay): 30, 60, 120, 240, ... tran 1h. */
+export function retryDelaySec(attempts) {
+  const a = Math.max(1, Math.floor(attempts) || 1);
+  return Math.min(RETRY_BASE_DELAY_SEC * 2 ** (a - 1), RETRY_MAX_DELAY_SEC);
+}
+
+/** Da het luot thu? */
+export function shouldDeadLetter(attempts) {
+  return (attempts || 0) >= MAX_TRANSCODE_ATTEMPTS;
+}
+
+/** Giay -> "h:mm:ss" (3661 -> "1:01:01", 90 -> "0:01:30"). Khong hop le -> null. */
+export function formatDurationHms(totalSec) {
+  if (!Number.isFinite(totalSec) || totalSec < 0) return null;
+  const s = Math.floor(totalSec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
 /** Rut gon message loi ve 1 dong ngan de gui webhook (khong gui ca stderr). */
@@ -229,13 +271,29 @@ async function transcodeJob(job) {
     return;
   }
 
+  // CLAIM truoc moi thu (ke ca kiem tra source): backend tang attempts
+  // ngay, ke ca worker chet giua job thi lan thu do van duoc dem. Neu claim
+  // sau kiem tra source thi job mat file se 'retry' mai ma attempts khong
+  // tang -> khong bao gio dead-letter. Claim loi (backend down / record
+  // khong con) -> bo job lan poll nay, lan sau poll lai (khong transcode
+  // mu khi khong bao cao duoc).
+  try {
+    await postWebhook(uploadId, 'attempt');
+  } catch (e) {
+    console.error(`[worker] ${uploadId}: claim failed, skipping this poll: ${e?.message || e}`);
+    return;
+  }
+
   const source = existsSync(job.localPath)
     ? job.localPath
     : sourcePath(CONFIG.storageDir, uploadId, job.filename);
   if (!existsSync(source)) {
     const msg = `source file not found: ${source}`;
     console.error(`[worker] ${uploadId}: ${msg}`);
-    await postWebhook(uploadId, 'error', { message: msg });
+    // File goc mat: van di duong 'retry' de backend ap backoff roi
+    // dead-letter sau MAX lan (tranh ket job vinh vien neu mount loi tam
+    // thoi, dong thoi khong danh dau error ngay cho loi co the tu khoi).
+    await postWebhook(uploadId, 'retry', { message: msg });
     return;
   }
 
@@ -287,7 +345,9 @@ async function transcodeJob(job) {
     // Xoa output do de lan poll sau chay sach tu dau (tranh segment thua
     // cua lan chay do tron vao playlist cua lan chay thanh cong).
     rmSync(outDir, { recursive: true, force: true });
-    await postWebhook(uploadId, 'error', { message: msg });
+    // Loi transcode di duong 'retry' (backend backoff/dead-letter), KHONG
+    // 'error' truc tiep: loi lan dau chua phai dead-letter.
+    await postWebhook(uploadId, 'retry', { message: msg });
     return;
   }
 
@@ -295,7 +355,12 @@ async function transcodeJob(job) {
   // (posterUrlFor() khi do tra '' va FE dung fallback).
   await cutPoster(source, posterPath(CONFIG.storageDir, uploadId), posterSeekSec(duration));
   console.log(`[worker] ${uploadId}: done`);
-  await postWebhook(uploadId, 'done');
+  // Gui kem durationSec (so nguyen giay, lam tron tu duration probe) de
+  // backend luu MediaAsset + tu dien duration CatalogItem; null neu probe
+  // khong ra (backend giu nguyen, khong xoa duration cu).
+  const durationSec =
+    duration != null && Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null;
+  await postWebhook(uploadId, 'done', { durationSec });
 }
 
 // ---------------------------------------------------------------------------
@@ -324,10 +389,13 @@ export async function mainLoopOnce(inProgress) {
     try {
       await transcodeJob(job);
     } catch (e) {
-      // Loi khong luong truoc (vd webhook done gui loi): log, tiep job sau.
+      // Loi khong luong truoc (vd webhook 'done' gui loi — backend down dung
+      // luc bao done): KHONG post 'error' (bug cu: bien 1 transcode THANH
+      // CONG thanh loi vinh vien). Di duong 'retry' de backend ap backoff /
+      // dead-letter; lan poll sau gap master san se bao 'done' lai (idempotent).
       console.error(`[worker] ${job.id}: unexpected error: ${e?.message || e}`);
       try {
-        await postWebhook(job.id, 'error', { message: shortError(e?.message || e) });
+        await postWebhook(job.id, 'retry', { message: shortError(e?.message || e) });
       } catch { /* backend co the dang down; lan poll sau se thu lai */ }
     } finally {
       inProgress.delete(job.id);

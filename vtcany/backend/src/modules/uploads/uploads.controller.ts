@@ -145,11 +145,29 @@ export class UploadsController {
         throw new HttpException('upload not found', HttpStatus.NOT_FOUND);
       }
     }
+    // Worker claim job truoc khi chay ffmpeg: tang attempts ngay (ke ca
+    // worker chet sau claim thi lan thu do van duoc dem).
+    if (status === 'attempt') {
+      try {
+        return this.uploads.claimAttempt(uploadId);
+      } catch {
+        throw new HttpException('upload not found', HttpStatus.NOT_FOUND);
+      }
+    }
+    // Worker bao thu lai (ffmpeg loi / webhook 'done' loi): backend ap
+    // backoff hoac dead-letter, KHONG danh dau error truc tiep.
+    if (status === 'retry') {
+      try {
+        return this.uploads.requestRetry(uploadId, body.message);
+      } catch {
+        throw new HttpException('upload not found', HttpStatus.NOT_FOUND);
+      }
+    }
     if (status === 'done') {
-      this.uploads.markDone(uploadId);
+      this.uploads.markDone(uploadId, body.durationSec);
       return this.uploads.setVideoReady(uploadId);
     }
-    if (status === 'error') return this.uploads.markError(uploadId);
+    if (status === 'error') return this.uploads.markError(uploadId, body.message);
     try {
       return this.uploads.get(uploadId);
     } catch {
