@@ -240,7 +240,7 @@ const titles: Record<string, string> = {
   '/short': 'Quản lý Short',
   '/tap-tin': 'Thư viện Tập tin',
   '/thu-vien': 'Thư viện media',
-  '/the-loai': 'Quản lý Thể loại',
+  '/the-loai': 'Quản lý Thể loại phim',
   '/dien-vien': 'Quản lý Diễn viên',
   '/danh-sach-phat': 'Quản lý Danh sách phát',
   '/bai-viet': 'Quản lý Bài viết',

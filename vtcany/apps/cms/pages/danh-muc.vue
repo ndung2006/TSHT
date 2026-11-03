@@ -159,6 +159,15 @@ const tabs = [
   { key: 'short', label: 'Short' },
   { key: 'tin-bai', label: 'Tin bài' },
 ];
+// Mo trang voi ?tab=<key> (vd: tu muc "Chuyen muc Video" tren sidebar)
+// thi chon san tab do; tab khong hop le thi giu mac dinh 'video'.
+const route = useRoute();
+function applyTabFromQuery() {
+  const key = typeof route.query.tab === 'string' ? route.query.tab : '';
+  if (key && tabs.some((t) => t.key === key)) activeTab.value = key;
+}
+applyTabFromQuery();
+watch(() => route.query.tab, applyTabFromQuery);
 const platformOpts = ['Android Mobile', 'IOS', 'Web'];
 const contentSortOpts = [
   { label: 'Thời gian tạo', value: 'created' },

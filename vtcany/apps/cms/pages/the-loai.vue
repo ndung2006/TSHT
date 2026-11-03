@@ -1,8 +1,8 @@
 <template>
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between">
-      <p class="text-sm text-neutral-400">Tổng: {{ meta.total }} thể loại</p>
-      <Button v-if="can('catalog:write')" label="Thêm thể loại" icon="pi pi-plus" @click="openAdd" />
+      <p class="text-sm text-neutral-400">Tổng: {{ meta.total }} thể loại phim</p>
+      <Button v-if="can('catalog:write')" label="Thêm thể loại phim" icon="pi pi-plus" @click="openAdd" />
     </div>
 
     <div class="surface-card p-4">
@@ -27,7 +27,7 @@
       </DataTable>
     </div>
 
-    <Dialog v-model:visible="dlg" modal :header="editing ? 'Sửa thể loại' : 'Thêm thể loại'" class="w-full max-w-md">
+    <Dialog v-model:visible="dlg" modal :header="editing ? 'Sửa thể loại phim' : 'Thêm thể loại phim'" class="w-full max-w-md">
       <div class="flex flex-col gap-3">
         <div><label class="field-label">Tiêu đề *</label><InputText v-model="form.title" class="w-full" /></div>
         <div class="flex items-center gap-2"><Checkbox v-model="form.isVisible" binary input-id="gv" /><label for="gv">Hiển thị</label></div>
@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
-useHead({ title: 'Thể loại - VTC ANY CMS' });
+useHead({ title: 'Thể loại phim - VTC ANY CMS' });
 
 const { can } = useCmsAuth();
 const confirm = useConfirm();
@@ -61,7 +61,7 @@ function openEdit(g: any) {
 }
 async function save() {
   saving.value = true;
-  const ok = await saveItem(editing.value?.id || null, { ...form.value }, 'Đã lưu thể loại');
+  const ok = await saveItem(editing.value?.id || null, { ...form.value }, 'Đã lưu thể loại phim');
   saving.value = false;
   if (ok) { dlg.value = false; load(); }
 }
