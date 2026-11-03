@@ -102,6 +102,19 @@
     if (radioArt) radioArt.style.display = isRadio ? "flex" : "none";
     if (audioEl) audioEl.style.display = isRadio ? "block" : "none";
     if (isRadio && radioName) radioName.textContent = labelOf(ch);
+    // Nen radio: banner cua kenh tu CMS (neu co) thay gradient cung;
+    // khong co banner thi giu gradient + song am nhu truoc.
+    if (radioArt) {
+      if (isRadio && ch.banner_url) {
+        radioArt.style.backgroundImage = "url(\"" + String(ch.banner_url).replace(/"/g, "") + "\")";
+        radioArt.style.backgroundSize = "cover";
+        radioArt.style.backgroundPosition = "center";
+        radioArt.classList.add("has-banner");
+      } else {
+        radioArt.style.backgroundImage = "";
+        radioArt.classList.remove("has-banner");
+      }
+    }
   }
   function startLive() {
     stopAll();
@@ -291,8 +304,14 @@
       var html = "<h3>" + kindLabel + "</h3>";
       for (var i = 0; i < list.length; i++) {
         var ch = list[i];
+        // Logo kenh tu CMS (catalog backend kem theo API kenh). Co
+        // logo thi hien anh, anh loi thi roi ve monogram chu; chua
+        // dat logo thi giu the chu nhu truoc.
+        var mark = ch.logo
+          ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch.logo) + "\" alt=\"\" onerror=\"this.parentNode.textContent='" + esc(monoOf(ch)) + "'\">"
+          : esc(monoOf(ch));
         html += "<button type=\"button\" class=\"mm-ch" + (current && current.name === ch.name ? " selected" : "") + "\" data-name=\"" + esc(ch.name) + "\" aria-label=\"" + esc(labelOf(ch)) + "\">" +
-          "<span class=\"mm-ch-mark\">" + esc(monoOf(ch)) + "</span>" +
+          "<span class=\"mm-ch-mark\">" + mark + "</span>" +
           "<span class=\"mm-ch-name\">" + glyphOf(ch) + " " + esc(labelOf(ch)) + "</span></button>";
       }
       box.innerHTML = html;

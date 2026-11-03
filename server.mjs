@@ -16,7 +16,7 @@ import { STORAGE_DIR } from "./lib/db.mjs";
 import { createVtcanySession, sessionEntryFromRequest, destroySession, userFromRequest, sessionCookie } from "./lib/auth.mjs";
 import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
-import { fetchVtcanyEpg, fetchVtcanyTimeshift, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
+import { fetchVtcanyEpg, fetchVtcanyTimeshift, fetchVtcanyGroups, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
 import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
@@ -243,8 +243,32 @@ const server = http.createServer(async (req, res) => {
         // Pha B (quyet 2026-10-28: bo han chan DB, loi thi bao loi):
         // nguon duy nhat la vtcaio; loi thi tra danh sach rong kem
         // thong bao loi ro rang, khong tra kenh du phong cu.
-        const ext = await fetchVtcaioChannels();
-        if (ext.ok) return json(res, 200, { items: ext.items, source: "vtcaio" });
+        // Gan them logo/banner HIEN THI tu catalog backend (CMS
+        // Truyen hinh -> Quan ly hien thi kenh) theo ten kenh, chay
+        // song song de khong cham toc do tra kenh live. Catalog chi
+        // la trang tri: loi, khong khop ten, hoac chua dat logo thi
+        // FE giu the chu / gradient, khong lam hong danh sach live.
+        const [ext, cat] = await Promise.all([
+          fetchVtcaioChannels(),
+          fetchVtcanyGroups().catch(() => ({ ok: false })),
+        ]);
+        if (ext.ok) {
+          let byName = null;
+          if (cat && cat.ok && Array.isArray(cat.items)) {
+            byName = new Map();
+            for (const c of cat.items) if (c && c.name) byName.set(String(c.name).toUpperCase(), c);
+          }
+          const items = ext.items.map((it) => {
+            const m = byName ? byName.get(String(it.name || "").toUpperCase()) : null;
+            if (!m) return it;
+            return {
+              ...it,
+              logo: m.logo ? resolveVtcanyImageUrl(m.logo) : null,
+              banner_url: m.banner_url ? resolveVtcanyImageUrl(m.banner_url) : null,
+            };
+          });
+          return json(res, 200, { items, source: "vtcaio" });
+        }
         return json(res, 200, { items: [], source: "none", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${ext.reason || "fetch_failed"}), vui lòng thử lại sau.` });
       }
     }
