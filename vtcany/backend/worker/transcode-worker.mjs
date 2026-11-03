@@ -20,6 +20,15 @@
 // moi — chi dung fetch + child_process cua Node 20).
 // Cau hinh hoan toan qua env (xem CONFIG ben duoi). Thoat bang SIGINT/SIGTERM:
 // worker dung poll sau job hien tai roi thoat (khong giet ffmpeg giua chung).
+//
+// TRIen KHAI (app rieng, khong chay nen trong container backend): worker app
+// dung cung repo/image voi backend, chi khac env — WORKER_MODE=true (xem
+// worker-entrypoint.sh), cung mount STORAGE_DIR voi backend (shared volume,
+// vi worker doc file goc + ghi HLS/poster truc tiep tren o dia), cung
+// MEDIA_WEBHOOK_SECRET voi backend, TRANSCODE_API_BASE tro toi URL API public
+// cua backend (vd https://vtcany-api.vtctech.xyz/api/v1). Worker khong chia
+// se process voi API: moi tuong tac deu qua HTTP (queue + webhook) va o dia
+// chung, nen chay o container nao cung duoc mien la 3 dieu kien tren dung.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
@@ -31,7 +40,9 @@ import { fileURLToPath } from 'node:url';
 // ---------------------------------------------------------------------------
 export const CONFIG = {
   // Base URL cua backend, DA BAO GOM global prefix api/v1 (xem src/main.ts).
-  // Trong container backend chay cung host nen localhost:3001 la dung.
+  // Mac dinh localhost:3001 chi dung khi chay local canh backend; worker app
+  // rieng tren Coolify BAT BUOC set TRANSCODE_API_BASE toi URL API public
+  // cua backend (vd https://vtcany-api.vtctech.xyz/api/v1).
   apiBase: process.env.TRANSCODE_API_BASE || 'http://localhost:3001/api/v1',
   // Secret guard cho 2 endpoint internal — PHAI TRUNG voi MEDIA_WEBHOOK_SECRET
   // cua backend (xem checkWebhookSecret trong uploads.service.ts). Thieu la
