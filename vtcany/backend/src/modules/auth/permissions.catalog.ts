@@ -60,6 +60,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: 'admins', label: 'Quản trị viên', actions: ['view', 'create', 'update', 'delete'] },
   { key: 'settings', label: 'Cài đặt', actions: ['view', 'update'] },
   { key: 'audit', label: 'Nhật ký', actions: ['view', 'delete'] },
+  { key: 'workflows', label: 'Quy trình duyệt', actions: ['view', 'update'] },
 ];
 
 export type PermissionMap = Record<string, string[]>;

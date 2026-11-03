@@ -24,6 +24,7 @@ import { AdsModule } from './modules/ads/ads.module';
 import { RoyaltiesModule } from './modules/royalties/royalties.module';
 import { PrintArticleModule } from './modules/print-articles/print-article.module';
 import { SiteInterfaceModule } from './modules/site-interface/site-interface.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -53,6 +54,7 @@ import { HealthController } from './health.controller';
     RoyaltiesModule,
     PrintArticleModule,
     SiteInterfaceModule,
+    WorkflowsModule,
   ],
   controllers: [HealthController],
 })

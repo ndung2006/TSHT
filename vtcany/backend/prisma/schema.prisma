@@ -1153,3 +1153,41 @@ model SiteSetting {
 
   @@map("site_settings")
 }
+
+// Dinh nghia quy trinh duyet dong (trang Quan tri "Quy trinh duyet").
+// Chuoi mac dinh duoc seed bang migration SQL (bang voi mang STEPS cung
+// trong cac file *-workflow.ts); admin sua tren giao dien se ghi vao day.
+// Neu mot phan he chua co dong definition thi backend dung mang cung cu
+// (fallback) — hanh vi khong doi. Lich su duyet cu khong phu thuoc bang
+// nay: moi dong lich su *Approval da chup stepLabel tai thoi diem duyet.
+model WorkflowDefinition {
+  id          String         @id @default(uuid())
+  moduleKey   String         @unique @map("module_key") // epaper | news | print-article | events | liveblog | ads | royalties | video
+  label       String         // ten hien thi phan he
+  authorRole  String?        @map("author_role") // ten Role nguoi tao (KTV, PV, QLSK...) — hien thi chuoi duyet; video: null
+  authorLabel String?        @map("author_label") // nhan day du nguoi tao cho panel Quy trinh
+  enabled     Boolean        @default(true) // chi video dung cong tac nay de bat/tat luong duyet; luong loi luon bat
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  steps       WorkflowStep[]
+
+  @@map("workflow_definitions")
+}
+
+model WorkflowStep {
+  id             String             @id @default(uuid())
+  definitionId   String             @map("definition_id")
+  definition     WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  key            String             // khoa on dinh, KHONG doi khi sua ten hien thi — remap ho so dang chay dua theo key
+  label          String             // ten hien thi buoc
+  roleName       String             @map("role_name") // ten Role duoc duyet buoc nay (chon tu DB Role, khong nhap tay)
+  sortOrder      Int                @default(0) @map("sort_order")
+  returnTo       String             @default("creator") @map("return_to") // creator: ve thang nguoi tao/nhap | previous: ve buoc lien truoc
+  allowEmergency Boolean            @default(false) @map("allow_emergency") // buoc nay co duoc duyet khan (ket thuc luong ngay) khong
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@unique([definitionId, key])
+  @@index([definitionId, sortOrder])
+  @@map("workflow_steps")
+}
