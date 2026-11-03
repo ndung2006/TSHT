@@ -231,7 +231,8 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .mm-ch.selected { opacity: 1; }
 .mm-ch.selected::after { content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%); border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 10px solid #fff; }
 .mm-ch-mark { flex-shrink: 0; width: 44px; height: 30px; border-radius: 5px; background: rgba(255,255,255,0.14); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em; overflow: hidden; }
-.mm-ch-logo { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; }
+.mm-ch-logo { width: 100%; height: 100%; object-fit: contain; display: block; }
+.mm-ch-mark.has-logo { background: transparent; }
 .mm-radio-art.has-banner::before { content: ""; position: absolute; inset: 0; background: rgba(11,36,71,0.55); }
 .mm-radio-art.has-banner > * { position: relative; z-index: 1; }
 .mm-ch-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

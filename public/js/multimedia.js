@@ -308,10 +308,10 @@
         // logo thi hien anh, anh loi thi roi ve monogram chu; chua
         // dat logo thi giu the chu nhu truoc.
         var mark = ch.logo
-          ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch.logo) + "\" alt=\"\" onerror=\"this.parentNode.textContent='" + esc(monoOf(ch)) + "'\">"
+          ? "<img class=\"mm-ch-logo\" src=\"" + esc(ch.logo) + "\" alt=\"\" onerror=\"this.parentNode.classList.remove('has-logo');this.parentNode.textContent='" + esc(monoOf(ch)) + "'\">"
           : esc(monoOf(ch));
         html += "<button type=\"button\" class=\"mm-ch" + (current && current.name === ch.name ? " selected" : "") + "\" data-name=\"" + esc(ch.name) + "\" aria-label=\"" + esc(labelOf(ch)) + "\">" +
-          "<span class=\"mm-ch-mark\">" + mark + "</span>" +
+          "<span class=\"mm-ch-mark" + (ch.logo ? " has-logo" : "") + "\">" + mark + "</span>" +
           "<span class=\"mm-ch-name\">" + glyphOf(ch) + " " + esc(labelOf(ch)) + "</span></button>";
       }
       box.innerHTML = html;
