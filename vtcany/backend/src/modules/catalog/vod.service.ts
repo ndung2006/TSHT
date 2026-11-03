@@ -16,15 +16,19 @@ export class VodService {
 
   // Play cong khai truyen public_id 24-hex (portal dung publicId), con
   // catalog.get chi tim theo id noi bo -> 'not found' roi bi map thanh
-  // not_published (hieu lam la 'chua xuat ban'). Fallback qua getPublic
-  // (giai public_id + loc isVisible) de play cong khai tim thay ban ghi.
-  // Admin play truyen id noi bo nen get() trung ngay, khong doi hanh vi.
+  // not_published (hieu lam la 'chua xuat ban'). Fallback: getPublic giai
+  // public_id -> id noi bo (va loc isVisible), roi doc lai ban ghi goc
+  // bang get() de lay videoFileId — getPublic tra ban public da luoc
+  // videoFileId (toPublicItem) nen dung truc tiep se ra uploadId rong
+  // va play luon bao vod_not_ready. Admin play truyen id noi bo nen
+  // get() trung ngay, khong doi hanh vi.
   private async resolveVideo(entity: 'videos' | 'shorts', id: string): Promise<any> {
     try {
       return await this.catalog.get(entity, id);
     } catch (e: any) {
       if (e?.message !== 'not found') throw e;
-      return await this.catalog.getPublic(entity, id);
+      const pub = await this.catalog.getPublic(entity, id);
+      return await this.catalog.get(entity, pub.id);
     }
   }
 
