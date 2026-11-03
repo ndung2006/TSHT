@@ -75,12 +75,24 @@ export function displayForFlipIndex(index, total, portrait) {
   return { current: index + 1, shown: shown.filter((p) => p <= total) };
 }
 
-// Read-mode wheel zoom (G2): keep the point under the cursor fixed while
-// the page resizes, then clamp the scroll position into the new range.
-export function scrollAfterZoom({ scroll, cursor, oldSize, newSize, viewport }) {
-  const ratio = (scroll + cursor) / oldSize;
-  const next = ratio * newSize - cursor;
-  return Math.max(0, Math.min(next, Math.max(0, newSize - viewport)));
+// Wheel zoom-to-cursor (PC, flip + read): keep the point under the
+// cursor fixed on screen while the scale changes.
+// Dinh nghia pan theo yeu cau: man hinh = diem * scale + pan.
+// Voi scroll-container: pan = origin - scroll, trong do origin la
+// goc tren-trai cua noi dung trong toa do scroll-content (do truc
+// tiep tu getBoundingClientRect o reader.js, nen tu dong dung ca
+// khi sach dang can giua bang margin auto lan khi sach tran khung).
+// Cong thuc: newPan = mouse - (mouse - oldPan) * (newScale/oldScale).
+export function panAfterZoom({ mouse, oldPan, oldScale, newScale }) {
+  return mouse - (mouse - oldPan) * (newScale / oldScale);
+}
+// Scroll moi tu pan moi: scroll = origin - pan, gioi han vao
+// [0, maxScroll] (maxScroll lay truc tiep tu scrollWidth -
+// clientWidth cua khung chua; o muc vua khung maxScroll = 0 nen
+// scroll ve dung 0, sach nam giua khung nho margin auto, khong
+// bi troi lech sang goc).
+export function scrollFromPan({ origin, pan, maxScroll }) {
+  return Math.max(0, Math.min(origin - pan, Math.max(0, maxScroll)));
 }
 export const zoomLabel = (z) => `${Math.round(z * 100)}%`;
 

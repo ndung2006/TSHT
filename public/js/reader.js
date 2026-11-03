@@ -1,9 +1,9 @@
 import * as pdfjs from "/vendor/pdfjs.mjs?v=20261026-2";
 import {
-  zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, scrollAfterZoom, zoomLabel,
+  zoomIn, zoomOut, canPan, parsePageInput, displayForFlipIndex, panAfterZoom, scrollFromPan, zoomLabel,
   fitBookWidth, singlePageShift, pdfZoomScale, MAX_ZOOM,
   readBaseDpi, cappedReadScale, sharpReadScale,
-} from "./viewer-logic.js?v=20261026-2";
+} from "./viewer-logic.js?v=20261103-1";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
@@ -21,7 +21,7 @@ const isNew = !!newMatch;
 // da co anh trang. Gan ?v= theo ban reader (doi moi lan sua reader)
 // de edge coi la URL moi va tra JSON moi ngay. Proxy TSHT chi xet
 // pathname nen query nay khong anh huong logic server.
-const READER_BUILD = "20261102-3";
+const READER_BUILD = "20261103-1";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
 const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}?v=${READER_BUILD}` : `/api/v1/issues/${issueId}`);
@@ -184,16 +184,41 @@ function refitFlip() {
   flipBaseH = flipBook.offsetHeight || Math.round(bookW * (portrait ? 707 / 500 : 707 / 1000));
   applyFlipZoom();
 }
+// Zoom-to-cursor cho che do Flip (PC wheel + pinch + nut +/-):
+// goc cua noi dung dang hien (sach CSS hoac overlay PDF.js) trong
+// toa do scroll-content cua flipWrap, do truc tiep tu rect nen dung
+// ca khi wrap dang can giua bang margin auto (muc vua khung, ke ca
+// khi co singlePageShift lech bia/trang cuoi) lan khi sach tran khung.
+// Pan theo dinh nghia: pan = origin - scroll; cong thuc doi scale:
+// newPan = mouse - (mouse - oldPan) * (newScale/oldScale) (xem
+// panAfterZoom o viewer-logic.js). O muc vua khung, maxScroll = 0
+// nen scroll ve dung 0 va sach nam giua khung, khong troi sang goc.
+function flipContentOrigin() {
+  const wr = flipWrap.getBoundingClientRect();
+  const br = (flipPdfVisible ? flipPdfZoomEl : flipZoomWrap).getBoundingClientRect();
+  return { x: br.left - wr.left + flipWrap.scrollLeft, y: br.top - wr.top + flipWrap.scrollTop };
+}
+// Dat muc zoom moi sao cho diem (mx, my) tuong doi flipWrap giu
+// nguyen vi tri tren man hinh. Tra ve false neu muc zoom khong doi.
+function setFlipZoomAtCursor(next, mx, my) {
+  if (next === flipZoom) return false;
+  const oldScale = flipZoom;
+  const o = flipContentOrigin();
+  const sl = flipWrap.scrollLeft, st = flipWrap.scrollTop;
+  flipZoom = next; applyFlipZoom();
+  hideFlipPdfOverlay(); // hien sach CSS de do goc moi chinh xac (overlay se ve lai sau 200ms on dinh)
+  const o2 = flipContentOrigin();
+  flipWrap.scrollLeft = scrollFromPan({ origin: o2.x, pan: panAfterZoom({ mouse: mx, oldPan: o.x - sl, oldScale, newScale: next }), maxScroll: flipWrap.scrollWidth - flipWrap.clientWidth });
+  flipWrap.scrollTop = scrollFromPan({ origin: o2.y, pan: panAfterZoom({ mouse: my, oldPan: o.y - st, oldScale, newScale: next }), maxScroll: flipWrap.scrollHeight - flipWrap.clientHeight });
+  return true;
+}
 function stepFlipZoom(dir, cursorX, cursorY) {
   const next = dir > 0 ? zoomIn(flipZoom) : zoomOut(flipZoom);
   if (next === flipZoom) return;
   const rect = flipWrap.getBoundingClientRect();
   const mx = (cursorX ?? rect.left + rect.width / 2) - rect.left;
   const my = (cursorY ?? rect.top + rect.height / 2) - rect.top;
-  const oldW = flipBaseW * flipZoom, oldH = flipBaseH * flipZoom;
-  flipZoom = next; applyFlipZoom();
-  flipWrap.scrollLeft = scrollAfterZoom({ scroll: flipWrap.scrollLeft, cursor: mx, oldSize: oldW, newSize: flipBaseW * flipZoom, viewport: flipWrap.clientWidth });
-  flipWrap.scrollTop = scrollAfterZoom({ scroll: flipWrap.scrollTop, cursor: my, oldSize: oldH, newSize: flipBaseH * flipZoom, viewport: flipWrap.clientHeight });
+  if (!setFlipZoomAtCursor(next, mx, my)) return;
   scheduleFlipPdfOverlay();
 }
 
@@ -312,11 +337,8 @@ flipWrap.addEventListener("touchmove", (e) => {
   if (next === flipZoom) return;
   const rect = flipWrap.getBoundingClientRect();
   const mid = pinchMid(e.touches);
-  const mx = mid.x - rect.left, my = mid.y - rect.top;
-  const oldW = flipBaseW * flipZoom, oldH = flipBaseH * flipZoom;
-  flipZoom = next; applyFlipZoom();
-  flipWrap.scrollLeft = scrollAfterZoom({ scroll: flipWrap.scrollLeft, cursor: mx, oldSize: oldW, newSize: flipBaseW * flipZoom, viewport: flipWrap.clientWidth });
-  flipWrap.scrollTop = scrollAfterZoom({ scroll: flipWrap.scrollTop, cursor: my, oldSize: oldH, newSize: flipBaseH * flipZoom, viewport: flipWrap.clientHeight });
+  // Cung co che zoom-to-cursor nhu wheel: diem giua 2 ngon giu nguyen.
+  setFlipZoomAtCursor(next, mid.x - rect.left, mid.y - rect.top);
 }, { passive: false, capture: true });
 function endPinch() {
   if (!pinch) return;
@@ -446,11 +468,21 @@ function stepZoom(dir, cursorX, cursorY) {
   const rect = scrollEl.getBoundingClientRect();
   const mx = (cursorX ?? rect.left + rect.width / 2) - rect.left;
   const my = (cursorY ?? rect.top + rect.height / 2) - rect.top;
-  const oldW = canvas.offsetWidth, oldH = canvas.offsetHeight;
+  // Cung co che zoom-to-cursor nhu Flip: goc canvas do truc tiep
+  // tu rect (canvas can giua bang text-align/margin auto khi hep
+  // hon khung, tran sang phai khi zoom) roi ap cong thuc pan.
+  const cr = canvas.getBoundingClientRect();
+  const ox = cr.left - rect.left + scrollEl.scrollLeft;
+  const oy = cr.top - rect.top + scrollEl.scrollTop;
+  const sl = scrollEl.scrollLeft, st = scrollEl.scrollTop;
+  const oldScale = zoom;
   zoom = next; applyZoom();
+  const cr2 = canvas.getBoundingClientRect();
+  const ox2 = cr2.left - rect.left + scrollEl.scrollLeft;
+  const oy2 = cr2.top - rect.top + scrollEl.scrollTop;
+  scrollEl.scrollLeft = scrollFromPan({ origin: ox2, pan: panAfterZoom({ mouse: mx, oldPan: ox - sl, oldScale, newScale: next }), maxScroll: scrollEl.scrollWidth - scrollEl.clientWidth });
+  scrollEl.scrollTop = scrollFromPan({ origin: oy2, pan: panAfterZoom({ mouse: my, oldPan: oy - st, oldScale, newScale: next }), maxScroll: scrollEl.scrollHeight - scrollEl.clientHeight });
   scheduleSharpRender();
-  scrollEl.scrollLeft = scrollAfterZoom({ scroll: scrollEl.scrollLeft, cursor: mx, oldSize: oldW, newSize: canvas.offsetWidth, viewport: scrollEl.clientWidth });
-  scrollEl.scrollTop = scrollAfterZoom({ scroll: scrollEl.scrollTop, cursor: my, oldSize: oldH, newSize: canvas.offsetHeight, viewport: scrollEl.clientHeight });
 }
 scrollEl.addEventListener("wheel", (e) => {
   e.preventDefault(); // G2: wheel = zoom, never page flip

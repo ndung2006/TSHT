@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   zoomIn, zoomOut, canPan, canFlip, buildPageNumbers, parsePageInput,
-  displayForFlipIndex, scrollAfterZoom, zoomLabel,
+  displayForFlipIndex, panAfterZoom, scrollFromPan, zoomLabel,
   readBaseDpi, cappedReadScale, sharpReadScale, MAX_READ_PIXELS,
 } from "../public/js/viewer-logic.js";
 
@@ -68,8 +68,22 @@ test("sharp re-render: no-op while base dpi already covers the zoom", () => {
   assert.ok(Math.abs(595 * 842 * at4 * at4 - MAX_READ_PIXELS) < 1);
 });
 
-test("wheel zoom keeps the cursor point fixed, clamped into range", () => {
-  // scroll 100, cursor 50px in, size doubles: (100+50)/1000*2000-50 = 250
-  assert.equal(scrollAfterZoom({ scroll: 100, cursor: 50, oldSize: 1000, newSize: 2000, viewport: 800 }), 250);
-  assert.equal(scrollAfterZoom({ scroll: 0, cursor: 0, oldSize: 1000, newSize: 500, viewport: 800 }), 0);
+test("wheel zoom-to-cursor: user formula keeps the cursor point fixed", () => {
+  // mouse 200, oldPan 50, 1 -> 1.5: 200 - 150*1.5 = -25.
+  // Kiem chung: diem duoi chuot (200-50)/1 = 150; sau zoom 150*1.5 + (-25) = 200.
+  assert.equal(panAfterZoom({ mouse: 200, oldPan: 50, oldScale: 1, newScale: 1.5 }), -25);
+  // Zoom-out ve fit: (200-(-100))/1.5 = 200; 200*1 + pan = 200 -> pan = 0.
+  assert.ok(Math.abs(panAfterZoom({ mouse: 200, oldPan: -100, oldScale: 1.5, newScale: 1 })) < 1e-9);
+  // Scroll tu pan, gioi han 2 dau.
+  assert.equal(scrollFromPan({ origin: 16, pan: -426, maxScroll: 1000 }), 442);
+  assert.equal(scrollFromPan({ origin: 16, pan: 500, maxScroll: 1000 }), 0); // pan vuot goc -> 0
+  // O muc vua khung maxScroll = 0 -> scroll ve dung 0 (sach nam giua khung).
+  assert.equal(scrollFromPan({ origin: 216, pan: 100, maxScroll: 0 }), 0);
+  // Buoc zoom day du giu nguyen phan sach duoi chuot:
+  // scroll 200, origin 16, mouse 300, co 1000 -> phan 0.484;
+  // sau zoom 1.5 (co 1500, origin 16): scroll 442 -> (442+300-16)/1500 = 0.484.
+  const oldPan = 16 - 200;
+  const newPan = panAfterZoom({ mouse: 300, oldPan, oldScale: 1, newScale: 1.5 });
+  assert.equal(newPan, -426);
+  assert.equal(scrollFromPan({ origin: 16, pan: newPan, maxScroll: 5000 }), 442);
 });
