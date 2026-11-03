@@ -263,10 +263,10 @@ async function transcodeJob(job) {
     '[0:v]split=2[v720][v480];' +
       '[v720]scale=-2:720[v720out];' +
       '[v480]scale=-2:480[v480out]',
-    '-map', '[v720out]', '-c:v:0', 'libx264',
+    '-map', '[v720out]', '-c:v:0', 'libx264', '-preset:v:0', 'veryfast',
     '-b:v:0', '2800k', '-maxrate:v:0', '3000k', '-bufsize:v:0', '6000k',
     ...(hasAudio ? ['-map', '0:a'] : []),
-    '-map', '[v480out]', '-c:v:1', 'libx264',
+    '-map', '[v480out]', '-c:v:1', 'libx264', '-preset:v:1', 'veryfast',
     '-b:v:1', '1200k', '-maxrate:v:1', '1400k', '-bufsize:v:1', '2800k',
     ...(hasAudio ? ['-map', '0:a', '-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : []),
     '-f', 'hls',
