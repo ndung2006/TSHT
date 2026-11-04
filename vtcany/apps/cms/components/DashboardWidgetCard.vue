@@ -119,10 +119,11 @@
             <span class="shrink-0 text-xs text-neutral-500">{{ ch.audioOnly ? 'Phát thanh' : 'Truyền hình' }}</span>
           </div>
           <div class="flex flex-wrap gap-4 text-xs">
-            <span>Hôm nay: <NuxtLink :to="drillTo(ch.drillToday)" class="hover:underline"><b :class="ch.today.state === 'empty' ? 'font-normal text-neutral-400' : ''">{{ ch.today.state === 'ok' || ch.today.state === 'stale' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : ch.today.state === 'empty' ? 'Chưa có lịch' : 'Lỗi' }}</b></NuxtLink>
+            <span>Hôm nay: <NuxtLink :to="drillTo(ch.drillToday)" class="hover:underline"><b :class="ch.today.alert && ch.today.state === 'empty' ? 'font-medium text-red-400' : ch.today.state === 'empty' ? 'font-normal text-neutral-400' : ''">{{ ch.today.state === 'ok' || ch.today.state === 'stale' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : ch.today.state === 'empty' ? 'Chưa có lịch' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.today.state === 'stale'" class="text-neutral-500"> (bản cũ, cập nhật lúc {{ fmtTime(ch.today.updatedAt) }})</span>
               <span v-if="ch.today.state === 'no-source'" class="text-neutral-500"> ({{ ch.today.reason }})</span>
               <span v-if="ch.today.state === 'error'" class="text-red-400"> ({{ ch.today.reason }})</span>
+              <span v-if="ch.today.alert && ch.today.state === 'empty'" class="text-red-400"> (quá 07:30 vẫn chưa có lịch)</span>
             </span>
             <span>Ngày mai: <NuxtLink :to="drillTo(ch.drillTomorrow)" class="hover:underline"><b :class="ch.tomorrow.state === 'empty' ? 'font-normal text-neutral-400' : ''">{{ ch.tomorrow.state === 'ok' || ch.tomorrow.state === 'stale' ? fmtNum(ch.tomorrow.programs) : ch.tomorrow.state === 'no-source' ? '—' : ch.tomorrow.state === 'empty' ? 'Chưa có lịch' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.tomorrow.state === 'stale'" class="text-neutral-500"> (bản cũ)</span>
@@ -274,9 +275,9 @@
 
       <!-- D5: canh bao van hanh -->
       <template v-else-if="state.code === 'D5'">
-        <div v-if="state.data.epgTomorrowEmpty?.length">
-          <div class="font-medium text-red-400">EPG ngày mai đang trống</div>
-          <NuxtLink v-for="c in state.data.epgTomorrowEmpty" :key="c.publicId" :to="drillTo(c.drill)"
+        <div v-if="state.data.epgTodayEmpty?.length">
+          <div class="font-medium text-red-400">EPG hôm nay đang trống</div>
+          <NuxtLink v-for="c in state.data.epgTodayEmpty" :key="c.publicId" :to="drillTo(c.drill)"
             class="block truncate py-0.5 text-red-400 hover:underline">{{ c.name }} ({{ c.group }})</NuxtLink>
         </div>
         <div v-if="state.data.issuesUnapproved?.length">
@@ -293,7 +294,7 @@
             {{ ad.name }} · {{ ad.placement }} · hết {{ fmtDate(ad.endsAt) }}
           </NuxtLink>
         </div>
-        <div v-if="!state.data.epgTomorrowEmpty?.length && !state.data.issuesUnapproved?.length && !state.data.adsExpiring?.length" class="text-neutral-400">
+        <div v-if="!state.data.epgTodayEmpty?.length && !state.data.issuesUnapproved?.length && !state.data.adsExpiring?.length" class="text-neutral-400">
           Không có cảnh báo vận hành.
         </div>
       </template>

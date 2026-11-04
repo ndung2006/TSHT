@@ -207,7 +207,7 @@ describe('B3/D5: khong co nguon EPG != 0', () => {
     assert.equal(s.state, 'no-source');
     assert.match(s.reason || '', /AIO không cung cấp EPG phát thanh/);
   });
-  it('kenh co nguon khong co chuong trinh -> empty (se ban canh bao D5 neu la ngay mai)', () => {
+  it('kenh co nguon khong co chuong trinh -> empty (se ban canh bao D5 neu la ngay hom nay va da qua 07:30)', () => {
     assert.equal(epgDayState(0, false, false).state, 'empty');
   });
   it('co chuong trinh -> ok, ban cache cu -> stale', () => {

@@ -72,11 +72,14 @@ export const ROLE_LAYOUT: Record<string, WidgetCode[]> = {
 
 export const FALLBACK_LAYOUT: WidgetCode[] = ['A1', 'A2', 'A3', 'E1'];
 
-/** Gio chot canh bao EPG ngay mai trong (D5, gio VN): truoc gio nay, D5
- *  KHONG canh bao du lich ngay mai co trong hay khong (lich co the chua
- *  ve). User chot 18:00 ngay 2026-11-04 (test chi rang buoc 0-23, khong
- *  khoa gia tri). */
-export const EPG_TOMORROW_ALERT_CUTOFF_HOUR = 18;
+/** Gio chot canh bao EPG hom nay trong (D5, gio VN): AIO chi len lich
+ *  cua mot ngay luc 07:05 sang chinh ngay do, nen truoc 07:30 kenh chua
+ *  co lich hom nay la binh thuong, KHONG canh bao. Qua 07:30 ma kenh
+ *  van chua co lich hom nay thi D5 canh bao "EPG hom nay trong".
+ *  Canh bao "EPG ngay mai trong" cu da BO (user chot 2026-11-04): vi
+ *  lich ngay mai chua len AIO nen canh bao do luon sai. */
+export const EPG_TODAY_ALERT_CUTOFF_HOUR = 7;
+export const EPG_TODAY_ALERT_CUTOFF_MINUTE = 30;
 export function resolveLayout(roleName: string | null | undefined, isFullAdmin: boolean): WidgetCode[] {
   if (isFullAdmin) return [...ALL_WIDGETS];
   if (!roleName) return [...FALLBACK_LAYOUT];

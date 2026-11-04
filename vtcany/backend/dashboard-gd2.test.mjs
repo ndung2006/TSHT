@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 
 import {
   ALL_WIDGETS,
-  EPG_TOMORROW_ALERT_CUTOFF_HOUR,
+  EPG_TODAY_ALERT_CUTOFF_HOUR,
+  EPG_TODAY_ALERT_CUTOFF_MINUTE,
   ROLE_LAYOUT,
   WIDGET_META,
   resolveLayout,
@@ -58,17 +59,27 @@ describe('gom sizeBytes theo fileType (D3)', () => {
   });
 });
 
-describe('gio chot canh bao EPG ngay mai (D5)', () => {
-  it('gio chot nam trong 0-23 (gia tri cu the do user chot, test khong khoa)', () => {
-    assert.ok(Number.isInteger(EPG_TOMORROW_ALERT_CUTOFF_HOUR));
-    assert.ok(EPG_TOMORROW_ALERT_CUTOFF_HOUR >= 0 && EPG_TOMORROW_ALERT_CUTOFF_HOUR <= 23);
+describe('gio chot canh bao EPG hom nay (D5) — AIO len lich luc 07:05 chinh ngay', () => {
+  it('gio chot 07:30 nam trong pham vi (gia tri cu the do user chot, test khong khoa)', () => {
+    assert.ok(Number.isInteger(EPG_TODAY_ALERT_CUTOFF_HOUR));
+    assert.ok(EPG_TODAY_ALERT_CUTOFF_HOUR >= 0 && EPG_TODAY_ALERT_CUTOFF_HOUR <= 23);
+    assert.ok(Number.isInteger(EPG_TODAY_ALERT_CUTOFF_MINUTE));
+    assert.ok(EPG_TODAY_ALERT_CUTOFF_MINUTE >= 0 && EPG_TODAY_ALERT_CUTOFF_MINUTE <= 59);
   });
-  it('vnHourOf lay gio VN, isPastDailyCutoff so dung gio', () => {
+  it('vnHourOf lay gio VN, isPastDailyCutoff so dung gio + phut', () => {
     assert.equal(vnHourOf(new Date('2026-11-04T10:00:00+07:00')), 10);
     assert.equal(vnHourOf(new Date('2026-11-04T18:30:00+07:00')), 18);
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T10:00:00+07:00'), 17), false);
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T17:00:00+07:00'), 17), true);
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T18:30:00+07:00'), 17), true);
+  });
+  it('gio chot 07:30: 07:29 chua canh bao, 07:30 va sau do canh bao', () => {
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T07:00:00+07:00'), 7, 30), false);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T07:29:00+07:00'), 7, 30), false);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T07:30:00+07:00'), 7, 30), true);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T08:00:00+07:00'), 7, 30), true);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T07:29:00+07:00'), EPG_TODAY_ALERT_CUTOFF_HOUR, EPG_TODAY_ALERT_CUTOFF_MINUTE), false);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T07:30:00+07:00'), EPG_TODAY_ALERT_CUTOFF_HOUR, EPG_TODAY_ALERT_CUTOFF_MINUTE), true);
   });
 });
 

@@ -259,7 +259,7 @@ export type EpgDayState = 'ok' | 'empty' | 'no-source' | 'stale';
  *   reason "AIO không cung cấp EPG phát thanh, cần nhập tay"; KHONG
  *   tinh la 0, KHONG ban canh bao D5;
  * - kenh co nguon ma khong co chuong trinh -> empty (ban canh bao D5
- *   neu la ngay mai).
+ *   neu la ngay hom nay va da qua gio chot 07:30).
  */
 export function epgDayState(
   programs: number,
@@ -287,9 +287,20 @@ export function vnHourOf(d: Date): number {
   return Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
 }
 
-/** Da qua gio chot trong ngay (gio VN) hay chua. */
-export function isPastDailyCutoff(now: Date, cutoffHour: number): boolean {
-  return vnHourOf(now) >= cutoffHour;
+/** So phut tu 00:00 gio VN cua mot thoi diem (0-1439). */
+export function vnMinutesOfDay(d: Date): number {
+  const parts = new Intl.DateTimeFormat('vi-VN', {
+    hour: 'numeric', minute: 'numeric', hour12: false, timeZone: VN_TZ,
+  }).formatToParts(d);
+  const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  return h * 60 + m;
+}
+
+/** Da qua gio chot trong ngay (gio VN) hay chua. cutoffMinute mac dinh
+ *  0 nen cach goi cu (chi truyen gio) van dung. */
+export function isPastDailyCutoff(now: Date, cutoffHour: number, cutoffMinute = 0): boolean {
+  return vnMinutesOfDay(now) >= cutoffHour * 60 + cutoffMinute;
 }
 
 export function fmtVnNumber(n: number): string {

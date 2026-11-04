@@ -15,7 +15,8 @@ import { channelPublicId, groupForChannel } from '../tv/tv.catalog';
 import {
   ALL_WIDGETS,
   EPG_CACHE_TTL_MS,
-  EPG_TOMORROW_ALERT_CUTOFF_HOUR,
+  EPG_TODAY_ALERT_CUTOFF_HOUR,
+  EPG_TODAY_ALERT_CUTOFF_MINUTE,
   OPS_WINDOW_DAYS,
   STUCK_THRESHOLD_HOURS,
   WIDGET_META,
@@ -640,10 +641,14 @@ export class DashboardService {
     return out;
   }
 
-  /** B3: EPG hom nay + ngay mai cho moi kenh TH/PT. */
+  /** B3: EPG hom nay + ngay mai cho moi kenh TH/PT. O hom nay trong
+   *  chi la canh bao (today.alert = true) khi da qua gio chot 07:30;
+   *  truoc gio chot va o ngay mai trong luon trung tinh ("Chưa có
+   *  lịch", khong canh bao) vi lich co the chua len AIO. */
   private async wB3(line: string) {
     const today = vnTodayStr();
     const tomorrow = vnDayStrOffset(1);
+    const todayAlertActive = isPastDailyCutoff(new Date(), EPG_TODAY_ALERT_CUTOFF_HOUR, EPG_TODAY_ALERT_CUTOFF_MINUTE);
     let channels = await this.tvChannels();
     if (line === 'tv') channels = channels.filter((c) => !c.audioOnly);
     else if (line === 'radio') channels = channels.filter((c) => c.audioOnly);
@@ -656,7 +661,7 @@ export class DashboardService {
       const mState = m.error ? { state: 'error', reason: m.error } : epgDayState(m.programs, ch.audioOnly, m.stale);
       rows.push({
         ...ch,
-        today: { programs: t.programs, state: tState.state, reason: tState.reason, updatedAt: t.updatedAt, source: t.source },
+        today: { programs: t.programs, state: tState.state, reason: tState.reason, updatedAt: t.updatedAt, source: t.source, alert: todayAlertActive && tState.state === 'empty' },
         tomorrow: { programs: m.programs, state: mState.state, reason: mState.reason, updatedAt: m.updatedAt, source: m.source },
         drill: { route: '/truyen-hinh', query: { channel: ch.publicId } },
         drillToday: { route: '/truyen-hinh', query: { channel: ch.publicId, date: today } },
@@ -1035,26 +1040,27 @@ export class DashboardService {
     };
   }
 
-  /** D5: canh bao van hanh — EPG ngay mai trong (CHI sau gio chot hang
-   *  ngay EPG_TOMORROW_ALERT_CUTOFF_HOUR, vi truoc gio chot lich ngay mai
-   *  co the chua ve tu AIO), so bao 7 ngay toi chua duyet, quang cao het
-   *  han 7 ngay toi. Radio khong co nguon EPG KHONG ban canh bao (state
-   *  'no-source' bi loai). */
+  /** D5: canh bao van hanh — EPG hom nay trong (CHI sau gio chot hang
+   *  ngay 07:30, vi AIO len lich cua mot ngay luc 07:05 sang chinh ngay
+   *  do nen truoc 07:30 kenh chua co lich hom nay la binh thuong),
+   *  so bao 7 ngay toi chua duyet, quang cao het han 7 ngay toi.
+   *  Canh bao EPG ngay mai da bo (lich ngay mai chua len AIO nen
+   *  luon sai). Radio khong co nguon EPG KHONG ban canh bao (state
+   *  'no-source' bi loai, chi giu reason giai thich o B3). */
   private async wD5() {
     const db: any = this.prisma as any;
     const today = vnTodayStr();
-    const tomorrow = vnDayStrOffset(1);
     const channels = await this.tvChannels();
     const epgEmpty: any[] = [];
-    const epgAlertActive = isPastDailyCutoff(new Date(), EPG_TOMORROW_ALERT_CUTOFF_HOUR);
+    const epgAlertActive = isPastDailyCutoff(new Date(), EPG_TODAY_ALERT_CUTOFF_HOUR, EPG_TODAY_ALERT_CUTOFF_MINUTE);
     if (epgAlertActive) for (const ch of channels) {
-      const m = await this.epgDay(ch.publicId, tomorrow);
-      if (m.error) continue;
-      const st = epgDayState(m.programs, ch.audioOnly, m.stale);
+      const t = await this.epgDay(ch.publicId, today);
+      if (t.error) continue;
+      const st = epgDayState(t.programs, ch.audioOnly, t.stale);
       if (st.state === 'empty') {
         epgEmpty.push({
-          publicId: ch.publicId, name: ch.name, group: ch.group, date: tomorrow,
-          drill: { route: '/truyen-hinh', query: { channel: ch.publicId, date: tomorrow } },
+          publicId: ch.publicId, name: ch.name, group: ch.group, date: today,
+          drill: { route: '/truyen-hinh', query: { channel: ch.publicId, date: today } },
         });
       }
     }
@@ -1073,7 +1079,7 @@ export class DashboardService {
     }).catch(() => []);
     return {
       data: {
-        epgTomorrowEmpty: epgEmpty,
+        epgTodayEmpty: epgEmpty,
         issuesUnapproved: issues.map((r: any) => ({
           id: r.id, publicId: r.publicId, title: r.title || `Số ${r.issueNumber}`,
           issueNumber: r.issueNumber, issueType: r.issueType, publishDate: fmtVnDate(r.publishDate),
