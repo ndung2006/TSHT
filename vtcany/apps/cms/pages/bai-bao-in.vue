@@ -530,6 +530,36 @@ function viewReturn() {
   viewDlg.value = false;
   openReturn(viewItem.value);
 }
+
+// Sidebar submenu (?status= / ?new=1): dong bo dropdown loc theo query,
+// ca khi chuyen query ngay tren cung trang. Dong bo lai drill tu query
+// hien tai de drill cu khong ghi de status moi. Dat cuoi setup de
+// openAdd() goi duoc sau khi cac ref dialog da khoi tao (tranh TDZ);
+// onMounted chay sau setup nen load(1) dau tien van dung filter da dong bo.
+const route = useRoute();
+const router = useRouter();
+const SIDEBAR_STATUSES = ['draft', 'pending_review', 'approved'];
+const _qs = route.query.status;
+if (typeof _qs === 'string' && SIDEBAR_STATUSES.includes(_qs)) statusFilter.value = _qs;
+function applySidebarQuery() {
+  initDrill(['q', 'status', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
+  const s = route.query.status;
+  const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
+  const changed = next !== statusFilter.value;
+  if (changed) statusFilter.value = next;
+  if (route.query.new === '1') {
+    openAdd();
+    router.replace({ query: { ...route.query, new: undefined } });
+    if (changed) load(1);
+    return;
+  }
+  if (changed) load(1);
+}
+watch(() => route.query, applySidebarQuery);
+if (route.query.new === '1') {
+  openAdd();
+  router.replace({ query: { ...route.query, new: undefined } });
+}
 </script>
 
 <style scoped>

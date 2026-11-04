@@ -13,12 +13,36 @@
             {{ g.label }}
           </button>
           <template v-if="!isCollapsed(g.id)">
-            <NuxtLink v-for="m in g.items" :key="m.to" :to="m.to"
-              class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
-              active-class="!bg-white/15 font-semibold">
-              <i :class="['pi', m.icon]" />
-              {{ m.label }}
-            </NuxtLink>
+            <template v-for="m in g.items" :key="m.to">
+              <template v-if="m.children?.length">
+                <div class="flex items-center gap-1 rounded-lg hover:bg-white/10"
+                  :class="{ '!bg-white/15': route.path === m.to }">
+                  <NuxtLink :to="m.to" class="flex flex-1 items-center gap-3 px-3 py-2.5"
+                    active-class="font-semibold">
+                    <i :class="['pi', m.icon]" />
+                    {{ m.label }}
+                  </NuxtLink>
+                  <button type="button" class="px-2 py-2.5 text-neutral-400 hover:text-neutral-100"
+                    :aria-expanded="isParentOpen(m)" :aria-label="isParentOpen(m) ? 'Thu gọn' : 'Mở rộng'"
+                    @click="toggleParent(m)">
+                    <i :class="['pi', isParentOpen(m) ? 'pi-chevron-down' : 'pi-chevron-right']" />
+                  </button>
+                </div>
+                <template v-if="isParentOpen(m)">
+                  <NuxtLink v-for="c in visibleChildren(m)" :key="c.to" :to="c.to"
+                    class="flex items-center gap-3 rounded-lg py-2 pl-11 pr-3 hover:bg-white/10"
+                    :class="{ '!bg-white/15 font-semibold': isChildActive(m, c) }">
+                    <span class="truncate">{{ c.label }}<template v-if="countFor(m, c) !== null"> ({{ countFor(m, c) }})</template></span>
+                  </NuxtLink>
+                </template>
+              </template>
+              <NuxtLink v-else :to="m.to"
+                class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
+                active-class="!bg-white/15 font-semibold">
+                <i :class="['pi', m.icon]" />
+                {{ m.label }}
+              </NuxtLink>
+            </template>
           </template>
         </template>
       </nav>
@@ -102,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { visibleMenu } from '~/utils/workspaces';
+import { visibleMenu, hasModuleAction } from '~/utils/workspaces';
 
 const { user, role, logout, dark, toggleDark, permissions } = useCmsAuth();
 const api = useApi();
@@ -209,6 +233,70 @@ async function disable2fa() {
 }
 
 const groups = computed(() => visibleMenu(permissions.value));
+
+// Accordion muc cha (Tin bai / Bai bao in / Tuong thuat): tu mo khi dang
+// o trang cua cha (ke ca link con kem query); dong/mo thu cong duoc ton
+// trong ngay ca khi dang o trang do. Chi luu trong phien (khong
+// localStorage nhu trang thai thu/gap nhom).
+const openParents = ref<string[]>([]);
+const closedParents = ref<string[]>([]);
+function isParentOpen(m: any) {
+  if (closedParents.value.includes(m.to)) return false;
+  if (openParents.value.includes(m.to)) return true;
+  return route.path === m.to;
+}
+function toggleParent(m: any) {
+  if (isParentOpen(m)) {
+    closedParents.value = [...closedParents.value, m.to];
+    openParents.value = openParents.value.filter((x) => x !== m.to);
+  } else {
+    openParents.value = [...openParents.value, m.to];
+    closedParents.value = closedParents.value.filter((x) => x !== m.to);
+  }
+}
+function visibleChildren(m: any) {
+  return (m.children || []).filter((c: any) => hasModuleAction(permissions.value, m.module, c.action));
+}
+function isChildActive(m: any, c: any) {
+  if (route.path !== m.to) return false;
+  if (c.status === null) return route.query.new === '1';
+  return route.query.status === c.status;
+}
+
+// Dem so cho menu con accordion: tin bai dung endpoint counts san co
+// (1 goi, tra du cac trang thai); bai bao in + tuong thuat dung list
+// limit=1 doc total (chua co endpoint counts rieng). Fail-open: loi thi
+// an so, khong chan sidebar. Tai lai moi lan chuyen trang de so khong
+// loi thoi sau khi tao/duyet bai.
+const counts = ref<Record<string, number | null>>({});
+function countKey(parentTo: string, status: string) { return `${parentTo}|${status}`; }
+function countFor(m: any, c: any): number | null {
+  if (c.status === null) return null;
+  return counts.value[countKey(m.to, c.status)] ?? null;
+}
+async function loadCounts() {
+  const jobs: Array<Promise<void>> = [];
+  const parents = groups.value.flatMap((g) => g.items).filter((m: any) => m.children?.length);
+  for (const m of parents) {
+    if (m.to === '/tin-bai') {
+      jobs.push(api.get<any>('/admin/news/counts', {}).then((r: any) => {
+        if (!r) return;
+        for (const s of ['draft', 'pending_review', 'published']) counts.value[countKey(m.to, s)] = typeof r[s] === 'number' ? r[s] : null;
+      }).catch(() => {}));
+    } else if (m.to === '/bai-bao-in' || m.to === '/tuong-thuat') {
+      const ep = m.to === '/bai-bao-in' ? '/admin/print-articles' : '/admin/liveblogs';
+      for (const c of m.children) {
+        if (!c.status) continue;
+        jobs.push(api.get<any>(ep, { status: c.status, limit: 1 }).then((r: any) => {
+          counts.value[countKey(m.to, c.status)] = typeof r?.total === 'number' ? r.total : null;
+        }).catch(() => {}));
+      }
+    }
+  }
+  await Promise.all(jobs);
+}
+onMounted(loadCounts);
+watch(() => route.path, () => { loadCounts(); });
 
 // Sidebar: tung nhom workspace dong/mo duoc bang mui ten (giong mau
 // tham chieu: '>' la dang thu, 'V' la dang mo). Mac dinh mo het nhu

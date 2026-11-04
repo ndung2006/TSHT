@@ -641,6 +641,33 @@ watch(returnDlg, async (v) => {
 });
 
 initDrill(['q', 'status', 'eventId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
+// Sidebar submenu (?status= / ?new=1): dong bo dropdown loc theo query,
+// ca khi chuyen query ngay tren cung trang (setup chi chay 1 lan).
+// Dong bo lai drill tu query hien tai de drill cu khong ghi de status moi.
+const route = useRoute();
+const router = useRouter();
+const SIDEBAR_STATUSES = ['draft', 'pending_review', 'published', 'unpublished'];
+const _qs = route.query.status;
+if (typeof _qs === 'string' && SIDEBAR_STATUSES.includes(_qs)) statusFilter.value = _qs;
+function applySidebarQuery() {
+  initDrill(['q', 'status', 'eventId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
+  const s = route.query.status;
+  const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
+  const changed = next !== statusFilter.value;
+  if (changed) statusFilter.value = next;
+  if (route.query.new === '1') {
+    openAdd();
+    router.replace({ query: { ...route.query, new: undefined } });
+    if (changed) load(1);
+    return;
+  }
+  if (changed) load(1);
+}
+watch(() => route.query, applySidebarQuery);
+if (route.query.new === '1') {
+  openAdd();
+  router.replace({ query: { ...route.query, new: undefined } });
+}
 loadEvents();
 load(1);
 </script>

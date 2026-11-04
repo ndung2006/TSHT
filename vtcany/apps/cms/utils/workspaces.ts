@@ -7,15 +7,31 @@
 //   tung endpoint) va nut hanh dong can() trong tung trang. An menu khong
 //   thay the guard.
 // - KHONG doi ten role: ten viet tat la khoa chan buoc duyet.
-// - Module OTT catalog (phim/videos/...) nam trong workspace (1) vi mo
-//   hinh 4 workspace khong co workspace OTT rieng; tach sau khong doi
-//   co che loc.
+// - Don dep sidebar 2026-11-04: cac muc thuan OTT (Phim, The loai phim,
+//   Dien vien, Goi cuoc) va cac muc lap (Bai viet, Su kien trong nhom TV,
+//   Giao dien trong nhom Bao dien tu) da bi xoa khoi menu — trang page
+//   van ton tai de deep-link cu khong vo, chi khong hien tren sidebar.
+//   Tap tin + Thu vien (cung module catalog) gop thanh 1 muc Kho Media
+//   (DAM) tro ve /thu-vien (thu vien media that); trang /tap-tin (hang
+//   doi upload/transcode VOD) van hoat dong qua URL truc tiep.
+// - Vung hien thi (Zones) giu quyen zones:* rieng, chi doi vi tri hien
+//   thi: cuoi nhom Quan ly giao dien.
 // - Trang khong gate quyen (Thong ke, module = null) luon hien nhu hien
 //   tai, vi trang do tu than khong kiem tra quyen.
 
 export interface Workspace {
   id: string;
   label: string;
+}
+
+/** Menu con cua mot muc cha accordion: link kem query loc hoac ?new=1. */
+export interface MenuChild {
+  to: string;
+  label: string;
+  /** Gia tri status de loc danh sach; null = menu "Them..." (mo dialog). */
+  status: string | null;
+  /** Hanh dong quyen bo sung (vd 'create'); null = chi can quyen module. */
+  action: string | null;
 }
 
 export interface MenuItem {
@@ -25,6 +41,8 @@ export interface MenuItem {
   workspace: string;
   /** Module quyen (catalog quyen); null = luon hien. */
   module: string | null;
+  /** Menu con accordion; chi muc cha tac nghiep moi co. */
+  children?: MenuChild[];
 }
 
 export const WORKSPACES: Workspace[] = [
@@ -42,43 +60,59 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/videos', label: 'Videos', icon: 'pi-play', workspace: 'tv', module: 'videos' },
   { to: '/danh-muc?tab=video', label: 'Chuyên mục Video', icon: 'pi-folder', workspace: 'tv', module: 'categories' },
   { to: '/short', label: 'Short', icon: 'pi-bolt', workspace: 'tv', module: 'shorts' },
-  { to: '/phim', label: 'Phim', icon: 'pi-video', workspace: 'tv', module: 'movies' },
-  { to: '/the-loai', label: 'Thể loại phim', icon: 'pi-tags', workspace: 'tv', module: 'genres' },
-  { to: '/tap-tin', label: 'Tập tin', icon: 'pi-folder-open', workspace: 'tv', module: 'catalog' },
-  { to: '/thu-vien', label: 'Thư viện', icon: 'pi-images', workspace: 'tv', module: 'catalog' },
-  { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user', workspace: 'tv', module: 'actors' },
   { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list', workspace: 'tv', module: 'playlists' },
-  { to: '/bai-viet', label: 'Bài viết', icon: 'pi-file-edit', workspace: 'tv', module: 'catalog' },
-  { to: '/su-kien', label: 'Sự kiện', icon: 'pi-calendar', workspace: 'tv', module: 'events' },
+  { to: '/thu-vien', label: 'Kho Media (DAM)', icon: 'pi-images', workspace: 'tv', module: 'catalog' },
   // (2) Xuat ban Bao in
   { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
-  { to: '/bai-bao-in', label: 'Bài báo in', icon: 'pi-file-edit', workspace: 'print', module: 'print_articles' },
+  {
+    to: '/bai-bao-in', label: 'Bài báo in', icon: 'pi-file-edit', workspace: 'print', module: 'print_articles',
+    children: [
+      { to: '/bai-bao-in?new=1', label: 'Thêm bài báo in', status: null, action: 'create' },
+      { to: '/bai-bao-in?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
+      { to: '/bai-bao-in?status=approved', label: 'Đã duyệt', status: 'approved', action: null },
+    ],
+  },
   // (3) Xuat ban Bao dien tu
-  { to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles' },
+  {
+    to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles',
+    children: [
+      { to: '/tin-bai?new=1', label: 'Thêm bài viết', status: null, action: 'create' },
+      { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null },
+      { to: '/tin-bai?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
+      { to: '/tin-bai?status=published', label: 'Đã xuất bản', status: 'published', action: null },
+    ],
+  },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
-  { to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog' },
+  {
+    to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog',
+    children: [
+      { to: '/tuong-thuat?new=1', label: 'Thêm tường thuật', status: null, action: 'create' },
+      { to: '/tuong-thuat?status=draft', label: 'Nháp', status: 'draft', action: null },
+      { to: '/tuong-thuat?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
+      { to: '/tuong-thuat?status=published', label: 'Đã xuất bản', status: 'published', action: null },
+    ],
+  },
   { to: '/quang-cao-toa-soan', label: 'Quảng cáo', icon: 'pi-bullseye', workspace: 'online', module: 'newsroom_ads' },
+  { to: '/banner', label: 'Banner', icon: 'pi-flag', workspace: 'online', module: 'banners' },
   { to: '/nhuan-but', label: 'Nhuận bút', icon: 'pi-star', workspace: 'online', module: 'royalties' },
   { to: '/thong-ke-nhuan-but', label: 'Thống kê nhuận bút', icon: 'pi-chart-bar', workspace: 'online', module: 'royalties' },
   { to: '/danh-muc', label: 'Danh mục', icon: 'pi-folder', workspace: 'online', module: 'categories' },
-  { to: '/banner', label: 'Banner', icon: 'pi-flag', workspace: 'online', module: 'banners' },
-  { to: '/giao-dien', label: 'Giao diện', icon: 'pi-images', workspace: 'online', module: 'layout' },
-  { to: '/vung-hien-thi', label: 'Vùng hiển thị', icon: 'pi-th-large', workspace: 'online', module: 'zones' },
   { to: '/phan-phoi', label: 'Phân phối', icon: 'pi-share-alt', workspace: 'online', module: 'distribution' },
   // (3b) Quan ly giao dien (goi moi): menu, khoi trang chu, hot link,
   // header, footer, favicon — hien khi co bat ky quyen site_interface nao.
+  // Vung hien thi (Zones) dat cuoi nhom nay (giu quyen zones:* rieng).
   { to: '/giao-dien-menu', label: 'Menu', icon: 'pi-bars', workspace: 'interface', module: 'site_interface' },
   { to: '/giao-dien-trang-chu', label: 'Trang chủ', icon: 'pi-home', workspace: 'interface', module: 'site_interface' },
   { to: '/giao-dien-hot-link', label: 'Hot Link', icon: 'pi-link', workspace: 'interface', module: 'site_interface' },
   { to: '/giao-dien-header', label: 'Header', icon: 'pi-arrow-up', workspace: 'interface', module: 'site_interface' },
   { to: '/giao-dien-footer', label: 'Footer', icon: 'pi-arrow-down', workspace: 'interface', module: 'site_interface' },
   { to: '/giao-dien-favicon', label: 'Favicon', icon: 'pi-star', workspace: 'interface', module: 'site_interface' },
+  { to: '/vung-hien-thi', label: 'Vùng hiển thị', icon: 'pi-th-large', workspace: 'interface', module: 'zones' },
   // (4) Quan tri chung
   { to: '/nguoi-dung', label: 'Người dùng', icon: 'pi-users', workspace: 'admin', module: 'users' },
   { to: '/thong-bao', label: 'Thông báo', icon: 'pi-bell', workspace: 'admin', module: 'notifications' },
   { to: '/tu-khoa', label: 'Từ khoá', icon: 'pi-search', workspace: 'admin', module: 'keywords' },
   { to: '/thong-ke', label: 'Thống kê', icon: 'pi-chart-bar', workspace: 'admin', module: null },
-  { to: '/goi-cuoc', label: 'Gói cước', icon: 'pi-credit-card', workspace: 'admin', module: 'plans' },
   { to: '/cai-dat', label: 'Cài đặt', icon: 'pi-cog', workspace: 'admin', module: 'settings' },
   { to: '/nhat-ky', label: 'Nhật ký', icon: 'pi-history', workspace: 'admin', module: 'audit' },
   { to: '/roles', label: 'Quản lý quyền', icon: 'pi-shield', workspace: 'admin', module: 'roles' },
@@ -95,6 +129,17 @@ export function hasModulePermission(permissions: string[], module: string | null
   if (permissions.includes('*')) return true;
   const prefix = `${module}:`;
   return permissions.some((p) => p.startsWith(prefix));
+}
+
+/** Menu con hien khi: khong yeu cau hanh dong, hoac toan quyen, hoac co
+ *  dung quyen 'module:action' (vd menu "Them..." can 'articles:create').
+ *  Cha da duoc loc bang hasModulePermission truoc; con chi siet them. */
+export function hasModuleAction(permissions: string[], module: string | null, action: string | null): boolean {
+  if (action === null) return true;
+  if (module === null) return true;
+  if (!permissions) return false;
+  if (permissions.includes('*')) return true;
+  return permissions.includes(`${module}:${action}`);
 }
 
 export interface WorkspaceGroup {
