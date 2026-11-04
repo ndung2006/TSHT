@@ -74,9 +74,9 @@ export const FALLBACK_LAYOUT: WidgetCode[] = ['A1', 'A2', 'A3', 'E1'];
 
 /** Gio chot canh bao EPG ngay mai trong (D5, gio VN): truoc gio nay, D5
  *  KHONG canh bao du lich ngay mai co trong hay khong (lich co the chua
- *  ve). Mac dinh tam 17:00 — CHO USER CHOT GIO THUC, doi so nay khi co
- *  quyet dinh (test chi rang buoc 0-23, khong khoa gia tri). */
-export const EPG_TOMORROW_ALERT_CUTOFF_HOUR = 17;
+ *  ve). User chot 18:00 ngay 2026-11-04 (test chi rang buoc 0-23, khong
+ *  khoa gia tri). */
+export const EPG_TOMORROW_ALERT_CUTOFF_HOUR = 18;
 export function resolveLayout(roleName: string | null | undefined, isFullAdmin: boolean): WidgetCode[] {
   if (isFullAdmin) return [...ALL_WIDGETS];
   if (!roleName) return [...FALLBACK_LAYOUT];
