@@ -1179,6 +1179,11 @@ model WorkflowDefinition {
   authorRole  String?        @map("author_role") // ten Role nguoi tao (KTV, PV, QLSK...) — hien thi chuoi duyet; video: null
   authorLabel String?        @map("author_label") // nhan day du nguoi tao cho panel Quy trinh
   enabled     Boolean        @default(true) // chi video dung cong tac nay de bat/tat luong duyet; luong loi luon bat
+  // Moc doi cau truc lan cuoi (doi key/thu tu buoc): B7 bo qua approval
+  // truoc moc nay vi so thu tu buoc cu khong con map dung buoc moi
+  // (vd doi chuoi bai bao in 4 buoc -> 7 buoc). NULL = chua tung doi
+  // cau truc -> khong loc.
+  structureChangedAt DateTime? @map("structure_changed_at")
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
   steps       WorkflowStep[]

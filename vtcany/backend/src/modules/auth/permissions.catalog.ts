@@ -55,6 +55,12 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: 'livestream', label: 'Livestream', actions: FIVE },
   { key: 'plans', label: 'Gói cước', actions: FIVE },
   { key: 'catalog', label: 'Catalog (chung)', actions: FIVE },
+  // Thu vien media (upload/anh/video/audio): hien de cap quyen tren trang
+  // Roles. CHUA noi cong endpoint: uploads/media-library hien chi yeu
+  // cau dang nhap (khong RequirePerms), files/all dung catalog:read —
+  // viec noi cong media:* vao cac endpoint nay can quyet dinh rieng ve
+  // role nao giu quyen tai (PV/KTV dang tai anh hang ngay).
+  { key: 'media', label: 'Thư viện media', actions: FIVE },
   { key: 'users', label: 'Người dùng', actions: ['view', 'create', 'update', 'delete'] },
   { key: 'roles', label: 'Phân quyền', actions: ['view', 'create', 'update', 'delete'] },
   { key: 'admins', label: 'Quản trị viên', actions: ['view', 'create', 'update', 'delete'] },

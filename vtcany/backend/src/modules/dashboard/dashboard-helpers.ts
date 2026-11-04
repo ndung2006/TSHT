@@ -405,3 +405,17 @@ export function sumMembersForStep(memberCount: Map<string, number>, roleNames: s
   for (const r of roleNames) n += memberCount.get(String(r).toLowerCase()) || 0;
   return n;
 }
+
+// ---------------------------------------------------------------------------
+// B7: moc doi cau truc quy trinh
+// ---------------------------------------------------------------------------
+
+/** B7 co tinh approval nay vao duyet thay khong: bo qua approval truoc
+ *  moc doi cau truc cua phan he, vi so thu tu buoc cu khong con map dung
+ *  buoc moi (vd chuoi bai bao in 4 buoc -> 7 buoc). cutoff null = tinh
+ *  het. Approval dung moc van tinh (>=). Chi anh huong dem duyet thay
+ *  (theo so buoc); danh sach ngoai le khong dung so buoc nen khong loc. */
+export function passesStructureCutoff(createdAt: Date, cutoff: Date | null | undefined): boolean {
+  if (!cutoff) return true;
+  return createdAt.getTime() >= new Date(cutoff).getTime();
+}

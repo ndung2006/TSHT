@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { drillNeverSubmittedIds, drillReturnedIds, drillUnpublishedIds } from '../dashboard/dashboard-queries';
+import { pvEditCheck } from '../auth/author-edit-guard';
 import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
@@ -549,6 +550,9 @@ export class NewsService {
   async patch(publicId: string, input: Partial<ArticleInput>, actor: Actor) {
     const row = await this.prisma.newsArticle.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay bai viet');
+    // Gioi han sua cua PV: chi bai do minh tao, o trang thai nhap.
+    const pvBlock = pvEditCheck(row, actor);
+    if (pvBlock) throw new ForbiddenException(pvBlock);
     this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo, contentType: input.contentType, formatData: input.formatData });
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = input.title.trim();

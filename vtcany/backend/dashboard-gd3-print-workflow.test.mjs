@@ -14,9 +14,11 @@ import {
   filterMyQueue,
   groupSubstitutes,
   inMyQueue,
+  passesStructureCutoff,
   sumMembersForStep,
 } from './src/modules/dashboard/dashboard-helpers.ts';
 import { stepRoleNamesFromDefinitions } from './src/modules/dashboard/dashboard-queries.ts';
+import { pvEditCheck } from './src/modules/auth/author-edit-guard.ts';
 
 // Chuoi moi: 7 buoc duyet (PV la tac gia) — map theo anh xa da duyet.
 const STEPS = [
@@ -175,5 +177,36 @@ describe('B7 theo roleNames', () => {
     assert.equal(sumMembersForStep(counts, ['TBT', 'P.TBT']), 3);
     assert.equal(sumMembersForStep(counts, ['T.PP']), 3);
     assert.equal(sumMembersForStep(counts, ['MD']), 0);
+  });
+});
+
+describe('B7 moc doi cau truc (khong dem thua approval cu)', () => {
+  const cutoff = new Date('2026-11-05T00:00:00Z');
+  it('truoc moc -> bo qua; dung moc va sau moc -> tinh', () => {
+    assert.equal(passesStructureCutoff(new Date('2026-11-04T23:59:59Z'), cutoff), false);
+    assert.equal(passesStructureCutoff(new Date('2026-11-05T00:00:00Z'), cutoff), true);
+    assert.equal(passesStructureCutoff(new Date('2026-11-06T00:00:00Z'), cutoff), true);
+  });
+  it('khong co moc (null/undefined) -> tinh het', () => {
+    assert.equal(passesStructureCutoff(new Date('2020-01-01T00:00:00Z'), null), true);
+    assert.equal(passesStructureCutoff(new Date('2020-01-01T00:00:00Z'), undefined), true);
+  });
+});
+
+describe('gioi han sua bai cua PV (chi bai minh tao, trang thai nhap)', () => {
+  it('PV sua nhap cua minh: DUOC', () => {
+    assert.equal(pvEditCheck({ createdBy: 'u-pv', status: 'draft' }, { id: 'u-pv', roleName: 'PV' }), null);
+  });
+  it('PV sua nhap cua nguoi khac: BI CHAN', () => {
+    assert.ok(pvEditCheck({ createdBy: 'u-khac', status: 'draft' }, { id: 'u-pv', roleName: 'PV' }));
+  });
+  it('PV sua bai dang cho duyet / da duyet / da xuat ban cua minh: BI CHAN', () => {
+    for (const s of ['pending_review', 'approved', 'published', 'unpublished']) {
+      assert.ok(pvEditCheck({ createdBy: 'u-pv', status: s }, { id: 'u-pv', roleName: 'PV' }), s);
+    }
+  });
+  it('role khac (TP/T.PP/full-admin) khong bi guard nay chan', () => {
+    assert.equal(pvEditCheck({ createdBy: 'u-khac', status: 'published' }, { id: 'u-tp', roleName: 'TP' }), null);
+    assert.equal(pvEditCheck({ createdBy: 'u-khac', status: 'published' }, { id: 'u-admin', roleName: 'Super Admin' }), null);
   });
 });

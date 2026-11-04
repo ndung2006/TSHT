@@ -15,6 +15,7 @@ import {
 } from './print-article-workflow';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import { ENFORCE_SEPARATION_OF_DUTIES, evaluateSoD } from '../workflows/sod';
+import { pvEditCheck } from '../auth/author-edit-guard';
 
 @Injectable()
 export class PrintArticleService {
@@ -243,6 +244,10 @@ export class PrintArticleService {
    *  deu bi chan 409, muon sua phai tra lai ve nhap truoc. */
   async patchArticle(publicId: string, input: any, actor: Actor) {
     const row = await this.workflowRow(publicId);
+    // Gioi han sua cua PV: chi bai do minh tao, o trang thai nhap.
+    // (Chan trang thai pending_review/approved da co san cho moi role.)
+    const pvBlock = pvEditCheck(row, actor);
+    if (pvBlock) throw new ForbiddenException(pvBlock);
     if (row.status === 'pending_review') {
       throw new ConflictException('bai dang cho duyet, hay tra lai ve nhap truoc khi sua');
     }

@@ -35,6 +35,7 @@ import {
   isStrictDraft,
   latestApprovalsByItem,
   median,
+  passesStructureCutoff,
   periodRange,
   sumMediaSizes,
   sumMembersForStep,
@@ -832,6 +833,13 @@ export class DashboardService {
       }
     }
     // Ngoai le + duyet thay trong ky, tren cac phan he ap dung.
+    // Moc doi cau truc theo phan he (tu definitions): duyet thay bo qua
+    // approval truoc moc (so buoc cu khong map dung buoc moi); ngoai le
+    // khong dung so buoc nen giu nguyen.
+    const cutoffs = new Map<string, Date>();
+    for (const d of defs) {
+      if ((d as any).structureChangedAt) cutoffs.set(d.moduleKey, new Date((d as any).structureChangedAt));
+    }
     const exceptions: any[] = [];
     const subRows: Array<{ actorId: string | null; actorRole: string | null; step: number; module: string }> = [];
     for (const meta of modules) {
@@ -852,7 +860,9 @@ export class DashboardService {
             drill: { route: meta.route, query: { q: titles.get(r[meta.approvalFk]) || '' } },
           });
         }
-        subRows.push({ actorId: r.actorId || null, actorRole: r.actorRole || null, step: r.step, module: meta.workflowKey });
+        if (passesStructureCutoff(r.createdAt, cutoffs.get(meta.workflowKey))) {
+          subRows.push({ actorId: r.actorId || null, actorRole: r.actorRole || null, step: r.step, module: meta.workflowKey });
+        }
       }
     }
     const substitutes = groupSubstitutes(subRows, roles, (r: any) => r.module);

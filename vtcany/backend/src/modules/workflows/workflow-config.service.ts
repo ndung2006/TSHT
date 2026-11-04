@@ -214,6 +214,7 @@ export class WorkflowConfigService implements OnModuleInit {
         authorLabel: row?.authorLabel ?? fb.authorLabel,
         enabled: row?.enabled ?? fb.enabled,
         source: row ? 'db' : 'fallback',
+        structureChangedAt: (row as any)?.structureChangedAt ?? null,
         inFlight: await this.countInFlight(key),
         steps: (row?.steps ?? fb.steps).map((s: any, i: number) => ({
           id: s.id ?? null,
@@ -255,6 +256,7 @@ export class WorkflowConfigService implements OnModuleInit {
       authorLabel: row.authorLabel,
       enabled: row.enabled,
       source: 'db',
+      structureChangedAt: (row as any).structureChangedAt ?? null,
       steps: row.steps.map((s) => ({
         id: s.id,
         key: s.key,
@@ -401,6 +403,10 @@ export class WorkflowConfigService implements OnModuleInit {
       authorRole: input.authorRole !== undefined ? input.authorRole : old.authorRole,
       authorLabel: input.authorLabel !== undefined ? input.authorLabel : old.authorLabel,
       enabled: input.enabled !== undefined ? !!input.enabled : old.enabled,
+      // Chi khi cau truc that su doi (key/thu tu buoc) moi ghi moc: B7
+      // dung moc nay de bo qua approval cu (so buoc cu khong map dung
+      // buoc moi). Doi metadata (label/role) khong ghi moc.
+      ...(structureChanged ? { structureChangedAt: new Date() } : {}),
     };
     ops.unshift(
       this.prisma.workflowDefinition.upsert({
