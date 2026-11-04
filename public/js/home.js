@@ -561,4 +561,6 @@
       thumb.style.top = (max > 0 ? (list.scrollTop / max) * (list.clientHeight - 48) : 0) + "px";
     });
   });
+  // GĐ3 nen: pageview trang chu (server dedupe 30 phut/phien).
+  if (window.TshtTelemetry) window.TshtTelemetry.sendPageview();
 })();

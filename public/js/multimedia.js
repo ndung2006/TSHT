@@ -75,6 +75,7 @@
     if (liveHandle) { try { liveHandle.stop(); } catch (e) {} liveHandle = null; }
     if (replayHandle) { try { replayHandle.stop(); } catch (e) {} replayHandle = null; }
     if (videoHandle) { try { videoHandle.stop(); } catch (e) {} videoHandle = null; }
+    if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat();
   }
   function setMode(m) {
     mode = m;
@@ -130,6 +131,8 @@
     };
     if (window.playVtcanyLive) liveHandle = window.playVtcanyLive(media, current.name, showMsg, fallback);
     else fallback();
+    // GĐ3 nen: heartbeat live (nhip 60 giay, dung khi stop/chuyen kenh).
+    if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "live", media: media });
   }
   function backToLive() {
     // Thu tu quan trong: startLive() xoa replayingKey truoc, roi moi
@@ -163,6 +166,8 @@
         showMediaFor(current);
         var media = current && current.kind === "radio" ? audioEl : videoEl;
         if (media && window.playTimeshift) replayHandle = window.playTimeshift(media, item.replay_url, showMsg);
+        // GĐ3 nen: heartbeat xem lai.
+        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "timeshift", media: media });
         renderSchedule();
       })
       .catch(function (e) {
@@ -404,6 +409,8 @@
         if (radioArt) radioArt.style.display = "none";
         if (audioEl) audioEl.style.display = "none";
         if (videoEl && window.playDirect) videoHandle = window.playDirect(videoEl, res.data.url, showMsg);
+        // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh).
+        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
         else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
       })
       .catch(function () { showMsg("Không phát được video này (lỗi mạng)."); });
@@ -442,4 +449,6 @@
       loadVideos();
     })
     .catch(function () { showMsg("Không tải được danh sách kênh. Vui lòng tải lại trang."); loadVideos(); });
+  // GĐ3 nen: pageview khoi da phuong tien (cung path voi trang chu nen server dedupe, khong dem trung).
+  if (window.TshtTelemetry) window.TshtTelemetry.sendPageview();
 })();

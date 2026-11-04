@@ -1209,3 +1209,63 @@ model WorkflowStep {
   @@index([definitionId, sortOrder])
   @@map("workflow_steps")
 }
+
+// Telemetry kenh (GĐ3 nen, thu tu ngay bo gui len live): heartbeat tu
+// player truyen hinh/phat thanh/VOD. Chi thu thap, chua dashboard tang C.
+// - channelPublicId: ma kenh chuan (sha256 tv-channel:NAME, 24 hex) do
+//   backend tu quy doi tu ten kenh client gui; kenh khong ton tai -> bo
+//   row (tra ok nhu loc bot). VOD khong co kenh (NULL) ma co contentId.
+// - isClean: true = qua loc bot + khong phai gui lap; GĐ3 chi tinh row
+//   isClean = true. Khong luu IP/UA/user id (rieng tu nhu PageView).
+model ChannelHeartbeat {
+  id              String   @id @default(uuid())
+  sessionId       String?  @map("session_id")
+  channelPublicId String?  @map("channel_public_id")
+  channelName     String?  @map("channel_name")
+  contentId       String?  @map("content_id")
+  viewType        String   @map("view_type") // live | timeshift | vod
+  isClean         Boolean? @map("is_clean")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([channelPublicId, createdAt])
+  @@index([sessionId, createdAt])
+  @@map("channel_heartbeats")
+}
+
+// Tong hop ngay cho PageView (GĐ3 nen): 1 dong = 1 noi dung x 1 ngay VN.
+// contentKey = articlePublicId (bai viet) hoac path (trang; trinh doc
+// bao in: path la URL so bao, 1 path = 1 so). Chi gop row isClean =
+// true; chay lai an toan (upsert theo khoa duy nhat).
+model PageViewDaily {
+  id             String   @id @default(uuid())
+  vnDate         DateTime @map("vn_date") @db.Date
+  contentType    String   @map("content_type") // article | page
+  contentKey     String   @map("content_key")
+  views          Int      @default(0)
+  uniqueSessions Int      @default(0) @map("unique_sessions")
+
+  @@unique([vnDate, contentType, contentKey])
+  @@index([vnDate])
+  @@map("pageview_daily")
+}
+
+// Tong hop ngay cho telemetry kenh (GĐ3 nen, cho C4): live/timeshift gop
+// theo (ngay VN, ma kenh, loai xem); VOD gop theo (ngay VN, contentId,
+// loai xem) vi VOD khong co kenh. watchedMinutes ≈ so heartbeat x 1
+// phut (nhip 60 giay, chi gui khi dang phat).
+model ChannelTelemetryDaily {
+  id              String   @id @default(uuid())
+  vnDate          DateTime @map("vn_date") @db.Date
+  channelPublicId String?  @map("channel_public_id")
+  channelName     String?  @map("channel_name")
+  contentId       String?  @map("content_id")
+  viewType        String   @map("view_type")
+  heartbeats      Int      @default(0)
+  uniqueSessions  Int      @default(0) @map("unique_sessions")
+  watchedMinutes  Int      @default(0) @map("watched_minutes")
+
+  @@unique([vnDate, channelPublicId, viewType])
+  @@unique([vnDate, contentId, viewType])
+  @@index([vnDate])
+  @@map("channel_telemetry_daily")
+}

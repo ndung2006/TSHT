@@ -585,6 +585,7 @@ const server = http.createServer(async (req, res) => {
     function newsListItem(it) {
       return {
         slug: it.slug, title: it.title, sapo: it.sapo,
+        publicId: it.publicId || "",
         cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
         category: it.category || null, authors: it.authors || [], tags: it.tags || [],
         publishAt: it.publishAt, isFeatured: !!it.isFeatured,
@@ -625,6 +626,41 @@ const server = http.createServer(async (req, res) => {
       const ext = await fetchVtcanyEpaperJson(`/news-categories`);
       if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
       return json(res, 200, { data: ext.data || [] });
+    }
+    // ---- Thu thap GĐ3 nen (pageview + heartbeat kenh): proxy POST sang
+    // backend, chi chuyen tiep body JSON nho (toi da 64KB) + UA that cua
+    // trinh duyet (de backend loc bot) + X-Forwarded-For (de backend
+    // gioi han tan suat theo IP that; giu nguyen XFF do proxy truoc
+    // (Coolify) dat, neu khong co thi dung IP socket). Trinh duyet
+    // khong bao gio goi thang backend.
+    if (req.method === "POST" && (u.pathname === "/api/v2/pageviews" || u.pathname === "/api/v2/channel-telemetry")) {
+      const base = vtcanyApiBase();
+      if (!base) return err(res, 503, "backend chua cau hinh");
+      let raw;
+      try {
+        raw = await readBody(req, 64 * 1024);
+      } catch {
+        return err(res, 413, "body qua lon");
+      }
+      const target = u.pathname === "/api/v2/pageviews" ? "/pageviews" : "/channel-telemetry/heartbeat";
+      const incomingXff = req.headers["x-forwarded-for"] || "";
+      const socketIp = (req.socket && req.socket.remoteAddress) || "";
+      try {
+        const r = await fetch(base + target, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": req.headers["user-agent"] || "",
+            "X-Forwarded-For": incomingXff || socketIp,
+          },
+          body: raw,
+          signal: AbortSignal.timeout(8000),
+        });
+        const text = await r.text();
+        return send(res, r.status, text, "application/json");
+      } catch {
+        return err(res, 502, "khong goi duoc backend");
+      }
     }
 
     // ---- Quan ly giao dien (Goi site-interface) ----

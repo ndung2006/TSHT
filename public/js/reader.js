@@ -21,13 +21,15 @@ const isNew = !!newMatch;
 // da co anh trang. Gan ?v= theo ban reader (doi moi lan sua reader)
 // de edge coi la URL moi va tra JSON moi ngay. Proxy TSHT chi xet
 // pathname nen query nay khong anh huong logic server.
-const READER_BUILD = "20261103-1";
+const READER_BUILD = "20261104-1";
 const m = location.pathname.match(/-(\d+)\.html$/);
 const issueId = m ? Number(m[1]) : Number(new URLSearchParams(location.search).get("issue") || 0);
 const res = await fetch(isNew ? `/api/v2/epaper/${newMatch[1]}?v=${READER_BUILD}` : `/api/v1/issues/${issueId}`);
 // Public reader: so da xuat ban khong can login; so nhap/cho duyet van 403 o server.
 if (!res.ok) { document.getElementById("title").textContent = "Không tìm thấy số báo hoặc không có quyền xem."; throw new Error("issue not found"); }
 const issue = await res.json();
+// GĐ3 nen: pageview trinh doc (path la URL so bao, 1 path = 1 so, dung cho C5).
+if (window.TshtTelemetry) window.TshtTelemetry.sendPageview();
 document.getElementById("title").textContent = issue.title;
 if (issue.can_download) { document.getElementById("download").href = `/api/v1/issues/${issueId}/download`; document.getElementById("download").textContent = "Tải PDF gốc"; }
 else document.getElementById("download").remove();

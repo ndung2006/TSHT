@@ -65,4 +65,6 @@
     .catch(function () {
       list.innerHTML = "<p>Không tải được bài viết của chuyên mục này.</p>";
     });
+  // GĐ3 nen: pageview chuyen muc (path = /chuyen-muc/<slug>).
+  if (window.TshtTelemetry) window.TshtTelemetry.sendPageview();
 })();

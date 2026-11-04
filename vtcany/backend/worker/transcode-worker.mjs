@@ -364,6 +364,30 @@ async function transcodeJob(job) {
 }
 
 // ---------------------------------------------------------------------------
+// Gop ngay (GĐ3 nen): worker tick goi endpoint internal cua backend.
+// ---------------------------------------------------------------------------
+
+/** Tick gop ngay toi da 1 lan/gio (mac dinh): tranh goi lien tuc moi poll 10s. */
+export function shouldCallRollup(lastCallMs, nowMs, intervalMs = 3600000) {
+  if (!lastCallMs) return true;
+  return nowMs - lastCallMs >= intervalMs;
+}
+
+/** POST /internal/rollup-daily (guard bang MEDIA_WEBHOOK_SECRET giong queue). Khong throw. */
+export async function callRollupDaily() {
+  const res = await fetch(`${CONFIG.apiBase}/internal/rollup-daily`, {
+    method: 'POST',
+    headers: { 'x-webhook-secret': CONFIG.webhookSecret },
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) throw new Error(`rollup-daily HTTP ${res.status}: ${text.slice(0, 200)}`);
+  let data = {};
+  try { data = JSON.parse(text); } catch { /* giu {} */ }
+  console.log(`[worker] rollup-daily ok: dates=${(data.dates || []).join(',') || '(none)'} pruned=${JSON.stringify(data.pruned || {})}`);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // Vong lap chinh: tuan tu, 1 job/lan, loi 1 job khong giet loop
 // ---------------------------------------------------------------------------
 
@@ -412,9 +436,21 @@ async function main() {
   process.on('SIGINT', () => { stopping = true; console.log('[worker] stopping after current job...'); });
   process.on('SIGTERM', () => { stopping = true; console.log('[worker] stopping after current job...'); });
   const inProgress = new Set();
+  let lastRollupCall = 0;
   while (!stopping) {
     await mainLoopOnce(inProgress);
     if (stopping) break;
+    // Tick gop ngay (GĐ3 nen): goi endpoint internal toi da 1 lan/gio.
+    // Endpoint tu quet cac ngay VN con thieu + tia row tho > 90 ngay,
+    // chay lai an toan; loi o day khong duoc giet vong transcode.
+    if (shouldCallRollup(lastRollupCall, Date.now())) {
+      lastRollupCall = Date.now();
+      try {
+        await callRollupDaily();
+      } catch (e) {
+        console.error(`[worker] rollup-daily failed: ${e?.message || e}`);
+      }
+    }
     await sleep(CONFIG.pollMs);
   }
   console.log('[worker] stopped');

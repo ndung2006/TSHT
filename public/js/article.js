@@ -106,6 +106,8 @@
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (it) {
       document.title = it.title + " — Tòa soạn hội tụ";
+      // GĐ3 nen: pageview bai viet (kem ma bai on dinh de C2/C3 gop theo bai, khong phu thuoc slug).
+      if (window.TshtTelemetry) window.TshtTelemetry.sendPageview(it.publicId ? { articlePublicId: it.publicId } : {});
       var meta = [];
       if (it.category) meta.push("<a href=\"/chuyen-muc/" + esc(it.category.slug) + "\">" + esc(it.category.name) + "</a>");
       if (it.publishAt) meta.push(esc(fmtDate(it.publishAt)));

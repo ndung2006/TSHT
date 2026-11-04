@@ -9,7 +9,7 @@ import { RolesService } from './roles.service';
 import { AdminsService } from './admins.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './permissions.guard';
-import { RateLimitGuard } from './rate-limit.guard';
+import { RateLimitGuard, CollectRateLimitGuard } from './rate-limit.guard';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
@@ -25,7 +25,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
     }),
   ],
   controllers: [AuthController, AdminController],
-  providers: [AuthService, UsersService, RolesService, AdminsService, JwtAuthGuard, PermissionsGuard, RateLimitGuard],
-  exports: [JwtModule, JwtAuthGuard, PermissionsGuard, RateLimitGuard, UsersService, RolesService],
+  providers: [AuthService, UsersService, RolesService, AdminsService, JwtAuthGuard, PermissionsGuard, RateLimitGuard, CollectRateLimitGuard],
+  exports: [JwtModule, JwtAuthGuard, PermissionsGuard, RateLimitGuard, CollectRateLimitGuard, UsersService, RolesService],
 })
 export class AuthModule {}

@@ -12,10 +12,12 @@ import { isBotUserAgent, normalizePageViewInput } from './pageview-input';
 //   { ok: true } nhung khong ghi them row).
 // - Du lieu sach: moi row ghi tu ban nay co is_clean = true; row cu
 //   (truoc ban nay) co is_clean = NULL. Dashboard tang C (GĐ3) chi tinh
-//   row is_clean = true; ngay bat dau thu sach = MIN(createdAt) trong so
-//   row do (chinh la ngay deploy ban nay) — khong can bang phu.
+//   row is_clean = true. MOC DU LIEU SACH = ngay bo gui len live (ghi
+//   trong phuong an + memory, khong dung 04/11: ngay do endpoint moi
+//   chi co mat, chua co caller gui that). GĐ3 loc tu moc do tro di.
 // Endpoint cong khai, khong can auth, body JSON nho (nam trong gioi han
-// 256kb hien tai, khong tang gioi han). Chua rate-limit.
+// 256kb hien tai, khong tang gioi han) + gioi han tan suat theo IP qua
+// CollectRateLimitGuard (300 req/phut/IP) o controller.
 export const PAGEVIEW_DEDUPE_WINDOW_MS = 30 * 60 * 1000;
 
 @Injectable()

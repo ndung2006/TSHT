@@ -32,8 +32,8 @@
     return "Đang phát: " + e.title + (s && en ? " (" + s + "–" + en + ")" : "");
   }
   function saigonToday() { return window.LiveEpg.saigonToday(); }
-  function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } }
-  function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; }
+  function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
+  function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
   function setLiveUi() {
     if (badge) badge.textContent = "● TRỰC TIẾP";
     if (replayBar) replayBar.style.display = "none";
@@ -55,6 +55,8 @@
     } else {
       liveHandle = window.playDirect(audio, channelStreamUrl, showMsg);
     }
+    // GĐ3 nen: heartbeat live (nhip 60 giay, dung khi stop/chuyen kenh).
+    if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "live", media: audio });
   }
   function backToLive() { stopReplayOnly(); renderLastSchedule(); startLive(); }
   function onReplay(item) {
@@ -73,6 +75,8 @@
         hideMsg();
         var audio = document.getElementById("player");
         replayHandle = window.playTimeshift(audio, item.replay_url, showMsg);
+        // GĐ3 nen: heartbeat xem lai.
+        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: audio });
         renderLastSchedule();
       })
       .catch(function (e) {
@@ -136,4 +140,6 @@
     }
     loadSchedule();
   }).catch(function () { showMsg("Không tải được danh sách kênh. Vui lòng tải lại trang."); });
+  // GĐ3 nen: pageview trang phat thanh.
+  if (window.TshtTelemetry) window.TshtTelemetry.sendPageview();
 })();
