@@ -61,6 +61,77 @@
       </Dialog>
     </template>
 
+    <!-- TAB 2: Khối trang chủ (FE tsht.vtctech.xyz) — lưu thật vào bảng
+         layout_blocks, khác tab Layout blocks cũ (khối video VTCPlay).
+         Gạt công tắc / Lên-Xuống có hiệu lực ngay ngoài trang chủ. -->
+    <template v-if="tab === 'homeblocks'">
+      <div class="flex items-center justify-between">
+        <p class="text-sm text-neutral-400">Tổng: {{ homeBlocks.length }} khối — gạt công tắc để ẩn/hiện ngoài trang chủ, bấm Lên/Xuống để đổi thứ tự.</p>
+        <Button label="Thêm khối" icon="pi pi-plus" @click="openHomeBlockAdd" />
+      </div>
+      <div class="surface-card p-4">
+        <DataTable :value="homeBlocks" :loading="homeBlocksLoading" size="small">
+          <Column header="Thứ tự" style="width:10rem">
+            <template #body="{ data, index }">
+              <span class="mr-2">{{ data.order }}</span>
+              <Button icon="pi pi-chevron-up" size="small" text rounded aria-label="Lên"
+                :disabled="index === 0" @click="moveHomeBlock(data, -1)" />
+              <Button icon="pi pi-chevron-down" size="small" text rounded aria-label="Xuống"
+                :disabled="index === homeBlocks.length - 1" @click="moveHomeBlock(data, 1)" />
+            </template>
+          </Column>
+          <Column field="title" header="Tiêu đề" />
+          <Column header="Loại">
+            <template #body="{ data }"><Tag :value="homeBlockTypeLabel(data.type)" severity="info" /></template>
+          </Column>
+          <Column header="Cột">
+            <template #body="{ data }">{{ homeBlockColumnLabel(data.column) }}</template>
+          </Column>
+          <Column header="Chuyên mục nguồn">
+            <template #body="{ data }">{{ homeBlockCategoryName(data) }}</template>
+          </Column>
+          <Column header="Hiển thị">
+            <template #body="{ data }">
+              <InputSwitch :model-value="data.isActive !== false"
+                @update:model-value="(v: boolean) => toggleHomeBlock(data, v)" />
+            </template>
+          </Column>
+          <Column header="Thao tác">
+            <template #body="{ data }">
+              <Button label="Sửa" size="small" text @click="openHomeBlockEdit(data)" />
+              <Button label="Xóa" size="small" text severity="danger" @click="removeHomeBlock(data)" />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <Dialog v-model:visible="homeBlockDlg" modal :header="editingHomeBlock ? 'Sửa khối trang chủ' : 'Thêm khối trang chủ'" class="w-full max-w-xl">
+        <div class="flex flex-col gap-3">
+          <div><label class="field-label">Tiêu đề</label><InputText v-model="homeBlockForm.title" class="w-full" /></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="field-label">Loại khối *</label>
+              <Dropdown v-model="homeBlockForm.type" :options="homeBlockTypeOpts" option-label="label" option-value="value" class="w-full" />
+            </div>
+            <div><label class="field-label">Cột hiển thị</label>
+              <Dropdown v-model="homeBlockForm.column" :options="homeBlockColumnOpts" option-label="label" option-value="value" class="w-full" />
+            </div>
+          </div>
+          <div v-if="homeBlockForm.type === 'CATEGORY_NEWS'">
+            <label class="field-label">Chuyên mục nguồn *</label>
+            <Dropdown v-model="homeBlockForm.categorySlug" :options="newsCatOpts" option-label="name" option-value="slug"
+              placeholder="— Chọn chuyên mục —" class="w-full" filter />
+            <small class="text-neutral-400">Khối chỉ lấy bài đã xuất bản của chuyên mục này; chưa có bài thì trang chủ tự ẩn khối.</small>
+          </div>
+          <div class="flex items-center gap-2"><InputSwitch v-model="homeBlockForm.isActive" input-id="hb-a" /><label for="hb-a">Hiển thị ngoài trang chủ</label></div>
+        </div>
+        <template #footer>
+          <Button label="Hủy" text @click="homeBlockDlg = false" />
+          <Button label="Lưu" :loading="homeBlockSaving" @click="saveHomeBlock"
+            :disabled="!homeBlockForm.type || (homeBlockForm.type === 'CATEGORY_NEWS' && !homeBlockForm.categorySlug)" />
+        </template>
+      </Dialog>
+    </template>
+
     <!-- TAB 3: Khối giao diện theo mục (giống CMS VTCPlay: 6 trang con) -->
     <template v-if="tab === 'rails'">
       <div class="flex flex-wrap items-center gap-2">
@@ -187,6 +258,7 @@ const confirm = useConfirm();
 
 const tabs = [
   { key: 'blocks', label: 'Layout blocks', icon: 'pi pi-th-large' },
+  { key: 'homeblocks', label: 'Khối trang chủ', icon: 'pi pi-home' },
   { key: 'rails', label: 'Khối giao diện theo mục', icon: 'pi pi-list' },
 ];
 const tab = ref('blocks');
@@ -399,8 +471,110 @@ async function onRailDrop(i: number) {
   } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Lưu thứ tự thất bại', life: 3000 }); loadRails(); }
 }
 
+// ---- TAB homeblocks: khối trang chủ (FE tsht.vtctech.xyz) ----
+const homeBlocks = ref<any[]>([]);
+const homeBlocksLoading = ref(false);
+const homeBlockDlg = ref(false);
+const editingHomeBlock = ref<any>(null);
+const homeBlockSaving = ref(false);
+const newsCatOpts = ref<any[]>([]);
+const homeBlockTypeOpts = [
+  { label: 'Hero tin', value: 'HERO_NEWS' },
+  { label: 'Đa phương tiện', value: 'MULTIMEDIA' },
+  { label: 'Khối chuyên mục', value: 'CATEGORY_NEWS' },
+  { label: 'Thời tiết', value: 'WEATHER' },
+  { label: 'Báo in', value: 'EPAPER' },
+];
+const homeBlockColumnOpts = [
+  { label: 'Toàn trang', value: 'full' },
+  { label: 'Cột trái (2/3)', value: 'left' },
+  { label: 'Cột phải (1/3)', value: 'right' },
+];
+const homeBlockForm = ref({ title: '', type: 'CATEGORY_NEWS', column: 'left', categorySlug: '', isActive: true });
+function homeBlockTypeLabel(t: string) { return homeBlockTypeOpts.find((x) => x.value === t)?.label || t || '—'; }
+function homeBlockColumnLabel(c: string) { return homeBlockColumnOpts.find((x) => x.value === c)?.label || c || '—'; }
+function homeBlockCategoryName(b: any) {
+  if (b.type !== 'CATEGORY_NEWS') return '—';
+  return newsCatOpts.value.find((c) => c.slug === b.categorySlug)?.name || b.categorySlug || '—';
+}
+async function loadHomeBlocks() {
+  homeBlocksLoading.value = true;
+  try {
+    const r = await api.get<any>('/admin/home-blocks');
+    homeBlocks.value = (r.data || []).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+  } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không tải được khối trang chủ', life: 3000 }); }
+  finally { homeBlocksLoading.value = false; }
+}
+async function loadNewsCats() {
+  try {
+    const r = await api.get<any[]>('/admin/news-categories') || [];
+    newsCatOpts.value = r.filter((c: any) => !c.parentId);
+  } catch { /* bo qua */ }
+}
+function defaultColumnForType(t: string) {
+  return t === 'CATEGORY_NEWS' ? 'left' : t === 'WEATHER' ? 'right' : 'full';
+}
+function openHomeBlockAdd() {
+  editingHomeBlock.value = null;
+  homeBlockForm.value = { title: '', type: 'CATEGORY_NEWS', column: 'left', categorySlug: '', isActive: true };
+  homeBlockDlg.value = true;
+}
+function openHomeBlockEdit(b: any) {
+  editingHomeBlock.value = b;
+  homeBlockForm.value = {
+    title: b.title || '', type: b.type, column: b.column || defaultColumnForType(b.type),
+    categorySlug: b.categorySlug || '', isActive: b.isActive !== false,
+  };
+  homeBlockDlg.value = true;
+}
+async function saveHomeBlock() {
+  homeBlockSaving.value = true;
+  const body: any = {
+    title: homeBlockForm.value.title.trim() || homeBlockTypeLabel(homeBlockForm.value.type),
+    type: homeBlockForm.value.type,
+    column: homeBlockForm.value.column,
+    isActive: homeBlockForm.value.isActive,
+  };
+  if (homeBlockForm.value.type === 'CATEGORY_NEWS') body.categorySlug = homeBlockForm.value.categorySlug;
+  try {
+    if (editingHomeBlock.value) await api.patch(`/admin/home-blocks/${editingHomeBlock.value.id}`, body);
+    else await api.post('/admin/home-blocks', body);
+    toast.add({ severity: 'success', summary: 'Xong', detail: 'Đã lưu khối trang chủ', life: 3000 });
+    homeBlockDlg.value = false; loadHomeBlocks();
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || 'Lưu thất bại', life: 3000 }); }
+  finally { homeBlockSaving.value = false; }
+}
+async function toggleHomeBlock(b: any, v: boolean) {
+  try {
+    await api.patch(`/admin/home-blocks/${b.id}`, { isActive: v });
+    b.isActive = v;
+    toast.add({ severity: 'success', summary: 'Xong', detail: v ? 'Đã hiển thị' : 'Đã ẩn', life: 2000 });
+  } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không đổi được trạng thái', life: 3000 }); }
+}
+async function moveHomeBlock(b: any, dir: number) {
+  const idx = homeBlocks.value.findIndex((x) => x.id === b.id);
+  const other = homeBlocks.value[idx + dir];
+  if (!other) return;
+  try {
+    await api.patch(`/admin/home-blocks/${b.id}`, { order: other.order });
+    await api.patch(`/admin/home-blocks/${other.id}`, { order: b.order });
+    loadHomeBlocks();
+  } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Đổi thứ tự thất bại', life: 3000 }); loadHomeBlocks(); }
+}
+function removeHomeBlock(b: any) {
+  confirm.require({
+    message: `Xóa khối trang chủ "${b.title || b.type}"?`, header: 'Xác nhận', icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Xóa', rejectLabel: 'Hủy', acceptClass: 'p-button-danger',
+    accept: async () => {
+      try { await api.del(`/admin/home-blocks/${b.id}`); toast.add({ severity: 'success', summary: 'Xong', detail: 'Đã xóa', life: 3000 }); loadHomeBlocks(); }
+      catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Xóa thất bại', life: 3000 }); }
+    },
+  });
+}
+
 watch(tab, (t) => {
   if (t === 'rails') { loadCats(); loadRails(); }
+  if (t === 'homeblocks') { loadNewsCats(); loadHomeBlocks(); }
 });
 watch([railSection, railPlatform], () => { if (tab.value === 'rails') loadRails(); });
 onMounted(load);

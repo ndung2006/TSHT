@@ -321,3 +321,29 @@ button.mm-row.is-now:hover { background: #c21717; }
   .mm-videos { grid-template-columns: 1fr; }
   .mm-section { padding: 1rem; }
 }
+
+/* Vung than trang kieu dai PT-TH (2026-11-04, khoi do CMS quan ly):
+   trai 2/3 = khoi chuyen muc, phai 1/3 = Thoi tiet + slot quang cao.
+   Khoi chuyen muc: thanh tieu de + 1 bai lon trai + 3-4 bai phai. */
+#home-body { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; margin: 1.5rem 0; }
+#home-cat-left, #home-side { min-width: 0; }
+.cat-block { margin-bottom: 1.5rem; }
+.cat-block-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; border-bottom: 2px solid #c00; padding-bottom: 0.35rem; margin-bottom: 0.75rem; }
+.cat-block-head h2 { margin: 0; border-left: 4px solid #c00; padding-left: 0.5rem; font-size: 1.15rem; text-transform: uppercase; }
+.cat-block-head a { white-space: nowrap; font-weight: 700; text-decoration: none; }
+.cat-block-body { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem; align-items: start; }
+.cat-feat { color: inherit; text-decoration: none; display: block; }
+.cat-feat img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #f2f2f2; display: block; }
+.cat-feat h3 { margin: 0.5rem 0 0.25rem; font-size: 1.05rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cat-feat-sapo { margin: 0; color: #555; font-size: 0.92rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cat-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.cat-row { display: flex; gap: 0.6rem; color: inherit; text-decoration: none; align-items: flex-start; }
+.cat-row img { width: 96px; height: 64px; object-fit: cover; background: #f2f2f2; flex-shrink: 0; }
+.cat-row span { font-size: 0.95rem; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.side-block { border: 1px solid #eee; padding: 0.75rem; margin-bottom: 1rem; }
+.side-block h3 { margin: 0 0 0.4rem; font-size: 1rem; text-transform: uppercase; }
+.side-block .weather-note { color: #555; margin: 0; }
+@media (max-width: 800px) {
+  #home-body { grid-template-columns: 1fr; }
+  .cat-block-body { grid-template-columns: 1fr; }
+}

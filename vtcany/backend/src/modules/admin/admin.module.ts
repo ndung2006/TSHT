@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { LayoutAdminController } from './layout-admin.controller';
+import { HomeBlocksAdminController, HomeBlocksPublicController } from './home-blocks.controller';
+import { HomeBlocksService } from './home-blocks.service';
 import { CategoryService } from './category.service';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -9,8 +11,8 @@ import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
   imports: [AuditModule, AuthModule, LayoutModule, PrismaModule],
-  controllers: [AdminController, LayoutAdminController],
-  providers: [CategoryService],
+  controllers: [AdminController, LayoutAdminController, HomeBlocksAdminController, HomeBlocksPublicController],
+  providers: [CategoryService, HomeBlocksService],
   exports: [CategoryService],
 })
 export class AdminModule {}

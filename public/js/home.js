@@ -4,22 +4,18 @@
 //     (he moi qua proxy TSHT; tra dung dang cu:
 //     {items: [{issue_number, issue_type, publish_date, title,
 //       page_count, cover, url}], ...})
-//     Luu y: /api/v1/issues cu khong con so nao da xuat ban (4 so cu
-//     bi go xuat ban), nen trang chu phai doc tu he moi ke tu 27/10.
-//   GET /api/v1/schedule?channel=tv|radio&date=YYYY-MM-DD
-//     -> {items: [{title, start_time, end_time, startTime, endTime, status}]}
-// HERO CHOICE (documented): the newest published e-paper issue is the hero,
-// because e-paper is TSHT phase 1 and live TV already has its own pages.
-// Live TV/radio appear in the live strip, the "BẠN ĐỌC QUAN TÂM" sidebar
-// and the bottom cards — no second player is started on this page.
-// News (tu 27/10): chuyen muc + bai viet that qua proxy TSHT
-//   GET /api/v2/news-categories -> cay chuyen muc (cap 1 len catnav)
-//   GET /api/v2/news?featured=1&limit=4 -> khoi Tin noi bat
-//   GET /api/v2/news?limit=8 -> khoi Tin moi nhat
-// Videos and weather are still NOT built here: VIDEO MỚI honestly says
-// "Chưa có video", and weather is only the neutral "sẽ cập nhật sau"
-// line in home.html. Khi chua co chuyen muc/bai viet, cac khoi tin hien
-// trang thai cho trung thuc, khong bia.
+//   GET /api/v2/home-blocks -> khoi trang chu do CMS quan ly (Layout
+//     blocks, tab Khoi trang chu trong Quan ly giao dien): thu tu,
+//     cot hien thi, chuyen muc nguon, bat/tat. Chi khoi dang bat moi
+//     co trong danh sach public.
+//   GET /api/v2/news?category=<slug>&limit=5 -> bai da xuat ban cua
+//     mot chuyen muc (khoi chuyen muc: 1 bai lon + toi da 4 bai sau).
+//   GET /api/v2/zones/tieu-diem -> khoi Hero (bai ghim + lap day).
+// Cac khoi trung da go 2026-11-04: luoi Tin tieu diem duoi hero, dai
+// Dang phat cu, cum TV/PHAT THANH TRUC TUYEN/VIDEO MOI, khoi Noi bat
+// giua trang (bao in + BAN DOC QUAN TAM lap lan 2), danh sach Tin moi
+// nhat tron chung (thay bang khoi chuyen muc). Khoi chuyen muc nao
+// chua co bai da xuat ban thi tu an, khong de khoang trong.
 // Every block degrades to a plain "chưa tải được" note on API failure.
 (function () {
   "use strict";
@@ -27,11 +23,6 @@
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
-  }
-  function saigonToday() {
-    try {
-      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
-    } catch (e) { return new Date().toISOString().slice(0, 10); }
   }
   function typeLabel(t) { return t === "vung_cao" ? "Vùng cao" : "Thường"; }
   function issueLabel(it) {
@@ -47,23 +38,6 @@
       "<div><p><a href=\"" + esc(it.url || "#") + "\">" + esc(issueLabel(it)) + "</a></p>" +
       "<p class=\"issue-meta\">Báo in</p></div></div>";
   }
-  function findLive(items) {
-    if (!items || !items.length) return null;
-    var now = Date.now(), i, s, e;
-    for (i = 0; i < items.length; i++) {
-      if (items[i].status === "LIVE") return items[i];
-    }
-    for (i = 0; i < items.length; i++) {
-      s = items[i].startTime ? Date.parse(items[i].startTime) : NaN;
-      e = items[i].endTime ? Date.parse(items[i].endTime) : NaN;
-      if (isFinite(s) && isFinite(e) && s <= now && now < e) return items[i];
-    }
-    return null;
-  }
-  function progLine(it) {
-    if (!it) return "";
-    return esc(it.title) + (it.start_time && it.end_time ? " (" + esc(it.start_time) + "–" + esc(it.end_time) + ")" : "");
-  }
 
   // Categories are placeholders for the future news module: no fake pages.
   document.querySelectorAll(".catnav a[data-cat]").forEach(function (a) {
@@ -77,127 +51,30 @@
   var topBtn = document.getElementById("to-top");
   if (topBtn) topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
 
-  // Sidebar content is assembled from two independent fetches (issues and
-  // schedules), so keep both parts in variables and re-render on either
-  // completion instead of letting one fetch overwrite the other's output.
-  var sideIssuesHtml = "";
-  var sideLiveLines = [];
-  function renderSide() {
-    var side = document.getElementById("feat-side");
-    if (!side) return;
-    var body = (sideIssuesHtml || "") + sideLiveLines.map(function (l) { return "<p>" + l + "</p>"; }).join("");
-    if (body) side.innerHTML = body;
-  }
-
-  // --- E-paper blocks (nguon moi, cung proxy nhu trang /bao-in) ---
+  // --- E-paper: chi khoi "Bao in moi nhat" o cuoi trang (nguon moi,
+  // cung proxy nhu trang /bao-in). Khoi Noi bat giua trang (feat-hero /
+  // feat-left / feat-side) da go theo yeu cau don khoi lap: noi dung
+  // khoi cuoi trang giu nguyen — cac so sau so moi nhat, dang luoi ngang.
   fetch("/api/v2/epaper?page=1").then(function (r) {
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }).then(function (d) {
     var items = (d && d.items) || [];
-    var hero = document.getElementById("feat-hero");
-    var left = document.getElementById("feat-left");
-    var side = document.getElementById("feat-side");
     var more = document.getElementById("epaper-more");
+    if (!more) return;
     if (!items.length) {
-      hero.innerHTML = "<p>Chưa có số báo nào đã xuất bản.</p>";
-      left.innerHTML = "<p>Chưa có số báo nào đã xuất bản.</p>";
-      sideIssuesHtml = "<p>Chưa có số báo nào đã xuất bản.</p>";
-      renderSide();
       more.innerHTML = "<p>Chưa có số báo nào đã xuất bản. <a href=\"/bao-in\">Xem trang báo in →</a></p>";
       return;
     }
-    var first = items[0];
-    hero.innerHTML = "<a href=\"" + esc(first.url) + "\"><img src=\"" + esc(first.cover) +
-      "\" alt=\"Bìa " + esc(issueLabel(first)) + "\"></a>" +
-      "<h3><a href=\"" + esc(first.url) + "\">" + esc(issueLabel(first)) + "</a></h3>" +
-      "<p><a href=\"" + esc(first.url) + "\">Đọc số báo này →</a></p>";
     var rest = items.slice(1);
-    left.innerHTML = rest.slice(0, 3).map(function (it) { return issueCard(it, true); }).join("") ||
-      "<p>Chỉ có một số báo đã xuất bản.</p>";
-    var sideIssues = rest.slice(3, 8).map(function (it) {
-      return "<p><a href=\"" + esc(it.url) + "\">" + esc(issueLabel(it)) + "</a></p>";
-    }).join("");
-    sideIssuesHtml = sideIssues || "<p>Xem thêm các số báo mới nhất ở khối bên trái và trang báo in.</p>";
-    renderSide();
     more.innerHTML = rest.map(function (it) { return issueCard(it, false); }).join("") ||
       "<p>Chỉ có một số báo đã xuất bản.</p>";
   }).catch(function () {
-    ["feat-hero", "feat-left", "feat-side", "epaper-more"].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.innerHTML = "<p>Chưa tải được danh sách báo in. <a href=\"/bao-in\">Thử xem trang báo in →</a></p>";
-    });
+    var more = document.getElementById("epaper-more");
+    if (more) more.innerHTML = "<p>Chưa tải được danh sách báo in. <a href=\"/bao-in\">Thử xem trang báo in →</a></p>";
   });
 
-  // --- Live TV / radio blocks (no player on this page, links only) ---
-  var date = saigonToday();
-  function loadSchedule(kind, elId, cardId, isRadio) {
-    return fetch("/api/v1/schedule?channel=" + encodeURIComponent(kind) + "&date=" + encodeURIComponent(date))
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) {
-        var items = (d && d.items) || [];
-        var live = findLive(items);
-        var el = document.getElementById(elId), card = cardId && document.getElementById(cardId);
-        var html;
-        if (live) {
-          html = "<span class=\"badge-live\">● TRỰC TIẾP</span> " + progLine(live);
-        } else if (!items.length) {
-          html = isRadio ? "Chưa có lịch phát" : "Chưa có lịch phát sóng cho ngày đã chọn.";
-        } else {
-          html = "Hiện chưa có chương trình đang phát.";
-        }
-        if (el) el.innerHTML = html;
-        if (card) card.innerHTML = html + " <a href=\"" + (isRadio ? "/phat-thanh" : "/truyen-hinh") + "\">Xem trang trực tiếp →</a>";
-        // Append the live program to the sidebar list, if it loaded.
-        if (live) {
-          sideLiveLines.push((isRadio ? "Phát thanh đang phát: " : "Truyền hình đang phát: ") + progLine(live));
-          renderSide();
-        }
-        return live;
-      })
-      .catch(function () {
-        var el = document.getElementById(elId), card = cardId && document.getElementById(cardId);
-        var msg = "Chưa tải được lịch phát sóng.";
-        if (el) el.textContent = msg;
-        if (card) card.textContent = msg;
-        return null;
-      });
-  }
   // --- Tin tuc (chuyen muc + bai viet that, qua proxy TSHT) ---
-  function newsCard(it) {
-    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
-      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
-      "<h3>" + esc(it.title) + "</h3></a>" +
-      (it.sapo ? "<p class=\"news-sapo\">" + esc(it.sapo) + "</p>" : "") +
-      "<p class=\"news-meta\">" + esc(it.category ? it.category.name : "") +
-      (it.publishAt ? " · " + esc(String(it.publishAt).slice(0, 10)) : "") + "</p></div>";
-  }
-  function loadNewsBlock(url, elId, emptyText) {
-    var el = document.getElementById(elId);
-    if (!el) return;
-    fetch(url)
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) {
-        var items = (d && d.items) || [];
-        el.innerHTML = items.length ? items.map(newsCard).join("") : "<p>" + emptyText + "</p>";
-      })
-      .catch(function () { el.innerHTML = "<p>Chưa tải được tin bài.</p>"; });
-  }
-  // --- Vung hien thi trang chu — Goi 1A Zone/Widget Manager ---
-  // Khoi tin doc tu zone (bai ghim + lap day tu nhien den du slot).
-  // Zone chua co (backend truoc deploy 1A) thi roi ve URL tin cu de
-  // trang chu khong trong trong cua so deploy.
-  function loadZoneBlock(zoneKey, elId, fallbackUrl, emptyText) {
-    var el = document.getElementById(elId);
-    if (!el) return;
-    fetch("/api/v2/zones/" + zoneKey)
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) {
-        var items = (d && d.items) || [];
-        el.innerHTML = items.length ? items.map(newsCard).join("") : "<p>" + emptyText + "</p>";
-      })
-      .catch(function () { loadNewsBlock(fallbackUrl, elId, emptyText); });
-  }
   // --- Khoi Tin noi bat kieu hero (mau Tuyen Quang TV): cot trai la
   // danh sach doc co thanh cuon (hien 3 tin, cuon xem them, bam vao tin
   // nao thi tin do len giua lam hero), tin hero lon o giua (nut < >
@@ -292,23 +169,6 @@
       renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length, spotItems);
     });
   }
-  // Khoi Tin tieu diem duoi hero: chi tu bai tick Tieu diem rieng
-  // (moi nhat truoc, toi da 4), khong lay tu zone, khong lay tu bai
-  // Noi bat. Rong -> an ca luoi lan tieu de "Tin tieu diem" (tieu de
-  // la HTML tinh nen phai an bang JS), khong fallback.
-  function renderTieudiem(items) {
-    var grid = document.getElementById("news-tieudiem");
-    if (!grid) return;
-    var title = document.getElementById("news-tieudiem-title");
-    if (!items.length) {
-      grid.style.display = "none";
-      if (title) title.style.display = "none";
-      return;
-    }
-    grid.style.display = "";
-    if (title) title.style.display = "";
-    grid.innerHTML = items.slice(0, 4).map(newsCard).join("");
-  }
   function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
     var el = document.getElementById(elId);
     if (!el) return;
@@ -318,12 +178,11 @@
         .then(function (d) { return (d && d.items) || []; });
     }
     function show(zoneItems) {
-      if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); return; }
+      if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; return; }
       // Bai Tieu diem rieng (spotlight=1): luoi toi da 4 + link toi da
       // 3 tru hero -> limit 4 la du trong moi truong hop (hero co
       // trong danh sach hay khong). Loi tai -> coi nhu rong (an khoi).
       function renderWithSpot(spotItems) {
-        renderTieudiem(spotItems);
         fetchItems("/api/v2/news?limit=12").then(function (latest) {
           var seen = {};
           zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
@@ -334,7 +193,7 @@
       fetchItems("/api/v2/news?spotlight=1&limit=4").then(renderWithSpot, function () { renderWithSpot([]); });
     }
     function loadFallback() {
-      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; renderTieudiem([]); });
+      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
     }
     fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
       if (items.length) show(items);
@@ -342,7 +201,6 @@
     }).catch(loadFallback);
   }
   loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
-  loadZoneBlock("tin-moi-nhat", "news-latest", "/api/v2/news?limit=8", "Chưa có tin bài.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (menu, hot link, khoi
   // trang chu, header, footer, favicon). Lay 1 lan, dung chung cho nav +
   // khoi + header; tai loi thi tra null va portal giu hanh vi cu.
@@ -359,27 +217,6 @@
         return "<a href=\"/tin/" + esc(h.slug) + "\">" + esc(h.title) + "</a>";
       }).join("");
       strip.hidden = false;
-    }
-    var wrap = document.getElementById("home-sections");
-    if (wrap && si.homeSections && si.homeSections.length) {
-      si.homeSections.forEach(function (s, i) {
-        var sec = document.createElement("section");
-        sec.setAttribute("aria-label", s.name);
-        var h = document.createElement("h2");
-        h.className = "section-title";
-        var a = document.createElement("a");
-        a.href = "/chuyen-muc/" + encodeURIComponent(s.slug);
-        a.textContent = s.name;
-        h.appendChild(a);
-        var grid = document.createElement("div");
-        grid.id = "home-sec-" + i;
-        grid.className = "news-grid";
-        grid.textContent = "Đang tải tin…";
-        sec.appendChild(h);
-        sec.appendChild(grid);
-        wrap.appendChild(sec);
-        loadNewsBlock("/api/v2/news?category=" + encodeURIComponent(s.slug) + "&limit=4", grid.id, "Chưa có tin bài.");
-      });
     }
     // Topline (ngay + hotline/mang xa hoi + anh logo) do header.js dam
     // nhan tren moi trang, khong lam o day nua.
@@ -567,8 +404,6 @@
       });
   })();
 
-  loadSchedule("tv", "live-tv", "card-tv", false);
-  loadSchedule("radio", "live-radio", "card-radio", true);
 
   // Nut tim kiem tren catnav (2026-11-03): truoc day 🔍 chi la span
   // trang tri, bam khong mo o nhap. Nay la nut that: bam mo o nhap
@@ -605,6 +440,107 @@
         })
         .catch(function () { if (results) results.innerHTML = "<p class=\"catnav-search-note\">Không tải được kết quả tìm kiếm.</p>"; });
     });
+  })();
+
+
+  // --- Khoi trang chu do CMS quan ly (Layout blocks) ---
+  // Config tu /api/v2/home-blocks (chi khoi dang bat, xep theo order):
+  // khoi full (Hero / Multimedia / Bao in) hien/ an + xep thu tu that
+  // trong luong trang; khoi left/right gom vao vung 2 cot (trai = khoi
+  // chuyen muc, phai = Thoi tiet + slot quang cao cot phai). Khoi
+  // chuyen muc goi /api/v2/news?category=<slug>&limit=5: 0 bai da xuat
+  // ban -> khong ve khoi (tu an, khong de khoang trong). Config loi ->
+  // giu nguyen thu tu mac dinh + khoi Thoi tiet mac dinh, khong vo trang.
+  function catBlockHtml(title, slug, items) {
+    var feat = items[0];
+    var rest = items.slice(1, 5);
+    var featHtml = "<a class=\"cat-feat\" href=\"" + esc(feat.url || "#") + "\">" +
+      (feat.cover ? "<img src=\"" + esc(feat.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      "<h3>" + esc(feat.title || "") + "</h3>" +
+      (feat.sapo ? "<p class=\"cat-feat-sapo\">" + esc(feat.sapo) + "</p>" : "") + "</a>";
+    var rows = rest.map(function (it) {
+      return "<a class=\"cat-row\" href=\"" + esc(it.url || "#") + "\">" +
+        (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+        "<span>" + esc(it.title || "") + "</span></a>";
+    }).join("");
+    return "<div class=\"cat-block-head\"><h2>" + esc(title) + "</h2>" +
+      "<a href=\"/chuyen-muc/" + encodeURIComponent(slug) + "\">Xem thêm →</a></div>" +
+      "<div class=\"cat-block-body\">" + featHtml + "<div class=\"cat-list\">" + rows + "</div></div>";
+  }
+  (function initHomeBlocks() {
+    var flow = document.getElementById("home-flow");
+    if (!flow) return;
+    var heroSec = document.getElementById("block-hero");
+    var mmSec = document.getElementById("multimedia");
+    var bodyEl = document.getElementById("home-body");
+    var epaperSec = document.getElementById("block-epaper");
+    var leftCol = document.getElementById("home-cat-left");
+    var weatherSlot = document.getElementById("home-weather-slot");
+    var adMedia = document.querySelector('[data-ad-placement="web_home_media_right"]');
+    var adUnderMedia = document.querySelector('[data-ad-placement="web_home_under_media"]');
+    var fullSections = { HERO_NEWS: heroSec, MULTIMEDIA: mmSec, EPAPER: epaperSec };
+    function renderWeather() {
+      if (weatherSlot) weatherSlot.innerHTML = "<section class=\"side-block\" aria-label=\"Thời tiết\"><h3>Thời tiết</h3><p class=\"weather-note\">Thời tiết: sẽ cập nhật sau.</p></section>";
+    }
+    function refreshBodyVisibility() {
+      if (!bodyEl) return;
+      var hasLeft = leftCol && leftCol.childNodes.length > 0;
+      var hasWeather = weatherSlot && weatherSlot.childNodes.length > 0;
+      bodyEl.style.display = (hasLeft || hasWeather) ? "" : "none";
+    }
+    function loadCatBlock(b) {
+      if (!leftCol || !b.categorySlug) return;
+      fetch("/api/v2/news?category=" + encodeURIComponent(b.categorySlug) + "&limit=5")
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) {
+          var items = (d && d.items) || [];
+          if (!items.length) return; // chuyen muc chua co bai -> an gon khoi
+          var title = (items[0].category && items[0].category.name) || b.title || b.categorySlug;
+          var sec = document.createElement("section");
+          sec.className = "cat-block";
+          sec.setAttribute("aria-label", title);
+          sec.innerHTML = catBlockHtml(title, b.categorySlug, items);
+          leftCol.appendChild(sec);
+          refreshBodyVisibility();
+        })
+        .catch(function () { refreshBodyVisibility(); });
+    }
+    function applyBlocks(blocks) {
+      var sorted = (blocks || []).slice().sort(function (a, c) { return (a.order || 0) - (c.order || 0); });
+      var activeFull = {};
+      var nodes = [];
+      var bodyPlaced = false;
+      sorted.forEach(function (b) {
+        if (b.column === "left" || b.column === "right") {
+          if (!bodyPlaced && bodyEl) { nodes.push(bodyEl); bodyPlaced = true; }
+        } else {
+          var sec = fullSections[b.type];
+          if (sec) {
+            nodes.push(sec); activeFull[b.type] = true;
+            if (b.type === "MULTIMEDIA") { if (adMedia) nodes.push(adMedia); if (adUnderMedia) nodes.push(adUnderMedia); }
+          }
+        }
+      });
+      Object.keys(fullSections).forEach(function (t) {
+        var sec = fullSections[t];
+        if (sec) sec.style.display = activeFull[t] ? "" : "none";
+      });
+      if (bodyEl) bodyEl.style.display = bodyPlaced ? "" : "none";
+      nodes.forEach(function (n) { flow.appendChild(n); });
+      sorted.forEach(function (b) {
+        if (b.type === "CATEGORY_NEWS") loadCatBlock(b);
+        else if (b.type === "WEATHER") renderWeather();
+      });
+      refreshBodyVisibility();
+    }
+    fetch("/api/v2/home-blocks")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var blocks = (d && d.blocks) || [];
+        if (!blocks.length) { renderWeather(); return; }
+        applyBlocks(blocks);
+      })
+      .catch(function () { renderWeather(); });
   })();
 
   // Giu vach do chi thi cuon dung vi tri khi khung doi kich thuoc

@@ -8,7 +8,7 @@
 <meta property="og:title" content="Tòa soạn hội tụ">
 <meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261103-8"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261104-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -41,7 +41,7 @@
   <a href="/" class="brand"><img id="brand-logo" class="brand-logo" alt="" hidden><span class="brand-name" hidden>TÒA SOẠN HỘI TỤ</span></a>
   <nav class="masthead-actions" aria-label="Tiện ích">
     <span class="masthead-date" data-topline-date></span>
-    <a href="/#news-latest" class="news-bell"><span class="news-bell-icon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v2.6l-2 2.4h16l-2-2.4V9a6 6 0 0 0-6-6Z" fill="none" stroke="#c00" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 20a2.2 2.2 0 0 0 4 0" fill="none" stroke="#c00" stroke-width="1.7" stroke-linecap="round"/></svg></span> Tin mới</a>
+    <a href="/#home-body" class="news-bell"><span class="news-bell-icon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v2.6l-2 2.4h16l-2-2.4V9a6 6 0 0 0-6-6Z" fill="none" stroke="#c00" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 20a2.2 2.2 0 0 0 4 0" fill="none" stroke="#c00" stroke-width="1.7" stroke-linecap="round"/></svg></span> Tin mới</a>
   </nav>
 </header>
 
@@ -80,22 +80,24 @@
 <div id="hotlink-strip" class="hotlink-strip" hidden></div>
 
 <main class="wrap">
-  <!-- Quang cao web_home_under_menu 1200x146 — Ngang duoi thanh menu
-       (danh muc Dien Bien). Trang chu khong co khoi rieng duoi menu nen
-       day la vi tri gan nhat: dau main, truoc slot home_top cu. -->
+  <!-- Quang cao web_home_under_menu 1200x146 — Ngang duoi thanh menu -->
   <div class="ad-slot" data-ad-placement="web_home_under_menu" hidden></div>
   <!-- Quang cao home_top: dau trang chu -->
   <div class="ad-slot" data-ad-placement="home_top" hidden></div>
-  <!-- Tin tuc len dau main (truoc dai Dang phat): bai bao dien tu da
-       xuat ban hien truoc cac khoi khac; khoi chuyen muc do CMS Quan ly
-       giao dien chon van nam ngay sau Tin moi nhat. -->
-  <section aria-label="Tin tức">
-    <div id="news-featured">Đang tải…</div>
-    <h2 class="section-title" id="news-tieudiem-title">Tin tiêu điểm</h2>
-    <div id="news-tieudiem" class="news-grid">Đang tải tin tiêu điểm…</div>
-    <!-- Khoi Da phuong tien: Truyen hinh / Phat thanh / Lich phat song / Video noi bat.
-         Noi API that (kenh, lich, video thu vien); khong mock cung.
-         Logic o public/js/multimedia.js, kieu o .mm-* trong home.css. -->
+  <!-- Luong khoi trang chu do CMS quan ly (Layout blocks — tab Khoi trang
+       chu trong Quan ly giao dien): thu tu + an/hien do config
+       /api/v2/home-blocks quyet dinh, home.js sap xep lai cac section
+       theo order; khong co config thi giu nguyen thu tu mac dinh duoi day.
+       Cac khoi trung da go 2026-11-04: luoi Tin tieu diem duoi hero,
+       dai Dang phat cu, cum TV/PHAT THANH TRUC TUYEN/VIDEO MOI,
+       khoi Noi bat giua trang (bao in + BAN DOC QUAN TAM lap lan 2),
+       danh sach Tin moi nhat tron chung (thay bang khoi chuyen muc). -->
+  <div id="home-flow">
+    <!-- Hero 3 cot: slider bai chinh giua + cot trai + BAN DOC QUAN TAM phai.
+         Noi dung do home.js ve tu zone tieu-diem + tin moi nhat. -->
+    <section id="block-hero" aria-label="Tin tức">
+      <div id="news-featured">Đang tải…</div>
+    </section>
     <section id="multimedia" class="mm-section" aria-label="Đa phương tiện">
       <div class="mm-top">
         <div class="mm-channels">
@@ -130,93 +132,33 @@
       </div>
       <div id="mm-videos" class="mm-videos"></div>
     </section>
-    <h2 class="section-title">Tin mới nhất</h2>
-    <div id="news-latest" class="news-grid">Đang tải tin mới…</div>
-  </section>
-  <div id="home-sections"></div>
-  <section class="live-strip" aria-label="Đang phát">
-    <h2>Đang phát</h2>
-    <p id="live-tv" class="live-line">Đang tải chương trình truyền hình…</p>
-    <p id="live-radio" class="live-line">Đang tải chương trình phát thanh…</p>
-    <p class="weather-note">Thời tiết: sẽ cập nhật sau.</p>
-  </section>
-  <!-- Quang cao web_home_weather_right 301x180 — Ben phai khoi chuyen muc
-       co muc thoi tiet (danh muc Dien Bien). Trang chu khong co khoi thoi
-       tiet rieng; khoi gan nhat la live-strip tren (chua ghi chu thoi tiet)
-       nen slot dat ngay sau live-strip, can phai 301px. -->
-  <div class="ad-slot" data-ad-placement="web_home_weather_right" hidden></div>
-
-  <section aria-label="Nổi bật">
-    <h2 class="section-title">Nổi bật</h2>
-    <div class="featured">
-      <div class="feat-left">
-        <h3>Báo in mới</h3>
-        <div id="feat-left">Đang tải danh sách báo in…</div>
-      </div>
-      <article class="feat-hero" id="feat-hero">
-        <p>Đang tải số báo mới nhất…</p>
-      </article>
-      <aside class="feat-side">
-        <!-- Quang cao web_home_focus_right 263x210 — Ben phai trang tai khoi
-             "Tam diem", tren link page Facebook (danh muc Dien Bien). Trang
-             chu khong co link page Facebook; khoi gan nhat la cot phai
-             feat-side trong khoi Noi bat (= khoi tam diem), nen slot dat
-             dau aside, tren noi dung "BAN DOC QUAN TAM". -->
+    <!-- Quang cao ben phai / duoi muc Da phuong tien (dinh kem khoi
+         multimedia khi doi thu tu khoi). -->
+    <div class="ad-slot" data-ad-placement="web_home_media_right" hidden></div>
+    <div class="ad-slot" data-ad-placement="web_home_under_media" hidden></div>
+    <!-- Vung 2 cot: trai 2/3 = khoi chuyen muc (CMS chon), phai 1/3 =
+         khoi Thoi tiet + slot quang cao cot phai. Khoi chuyen muc do
+         home.js ve tu config; chuyen muc chua co bai da xuat ban thi
+         khoi do tu an, khong de khoang trong. -->
+    <div id="home-body">
+      <div id="home-cat-left"></div>
+      <aside id="home-side">
+        <div id="home-weather-slot"></div>
         <div class="ad-slot" data-ad-placement="web_home_focus_right" hidden></div>
-        <h3>BẠN ĐỌC QUAN TÂM</h3>
-        <div id="feat-side">Đang tải…</div>
+        <div class="ad-slot" data-ad-placement="web_home_weather_right" hidden></div>
+        <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
+        <div class="ad-slot" data-ad-placement="web_home_below_weather_2" hidden></div>
       </aside>
     </div>
-  </section>
-  <!-- Quang cao web_home_under_focus 1200x146 — Ben duoi khoi "Tam diem"
-       (danh muc Dien Bien). Khoi gan nhat la khoi Noi bat tren nen slot
-       dat ngay sau khoi Noi bat, ngang toan bo. -->
+    <!-- Bao in moi nhat o cuoi trang, giu nguyen noi dung nhu truoc. -->
+    <section id="block-epaper" aria-label="Báo in">
+      <h2 class="section-title">Báo in mới nhất</h2>
+      <p><a href="/bao-in">Xem tất cả các số báo in →</a></p>
+      <div id="epaper-more" class="epaper-grid">Đang tải danh sách báo in…</div>
+    </section>
+  </div>
+  <!-- Quang cao web_home_under_focus 1200x146 — Ngang toan bo sau vung than trang -->
   <div class="ad-slot" data-ad-placement="web_home_under_focus" hidden></div>
-
-  <!-- Quang cao web_home_below_weather_1 301x228 — #1 ben phai khoi chuyen
-       muc duoi thoi tiet (danh muc Dien Bien). Trang chu khong co khoi
-       thoi tiet rieng; 2 slot duoi thoi tiet dat sau khoi Noi bat (vi tri
-       hien tai sau khi Tin tuc len dau main), theo thu tu #1 roi #2,
-       can phai 301px. -->
-  <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
-  <!-- Quang cao web_home_below_weather_2 301x300 — #2 ben phai khoi chuyen
-       muc duoi thoi tiet (danh muc Dien Bien). Vi tri nhu slot #1, ngay
-       sau slot #1, can phai 301px. -->
-  <div class="ad-slot" data-ad-placement="web_home_below_weather_2" hidden></div>
-
-  <section class="bottom-blocks" aria-label="Truyền hình, phát thanh và video">
-    <div class="card">
-      <h2>TRUYỀN HÌNH TRỰC TUYẾN</h2>
-      <p id="card-tv">Đang tải chương trình truyền hình…</p>
-      <p><a class="btn" href="/truyen-hinh">Xem truyền hình trực tuyến →</a></p>
-    </div>
-    <div class="card">
-      <h2>PHÁT THANH TRỰC TUYẾN</h2>
-      <p id="card-radio">Đang tải chương trình phát thanh…</p>
-      <p><a class="btn" href="/phat-thanh">Nghe phát thanh trực tuyến →</a></p>
-    </div>
-    <div class="card">
-      <h2>VIDEO MỚI</h2>
-      <p>Chưa có video.</p>
-      <p class="note">Hiện chưa có video nào, nên khối này chưa liệt kê video — không dùng tiêu đề hay ảnh video bịa sẵn.</p>
-    </div>
-  </section>
-  <!-- Quang cao web_home_media_right 301x238 — Ben phai muc "Da Phuong
-       Tien" (danh muc Dien Bien). Trang chu khong co muc "Da Phuong Tien"
-       rieng; khoi gan nhat la bottom-blocks tren (Truyen hinh / Phat thanh
-       / Video moi = khoi da phuong tien), nen slot dat ngay sau
-       bottom-blocks, can phai 301px. -->
-  <div class="ad-slot" data-ad-placement="web_home_media_right" hidden></div>
-  <!-- Quang cao web_home_under_media 1200x430 — Ngang duoi muc "Da Phuong
-       Tien" (danh muc Dien Bien). Dat ngay sau slot media_right, ngang
-       toan bo. -->
-  <div class="ad-slot" data-ad-placement="web_home_under_media" hidden></div>
-
-  <section aria-label="Báo in">
-    <h2 class="section-title">Báo in mới nhất</h2>
-    <p><a href="/bao-in">Xem tất cả các số báo in →</a></p>
-    <div id="epaper-more" class="epaper-grid">Đang tải danh sách báo in…</div>
-  </section>
   <!-- Quang cao home_sidebar (FALLBACK): trang chu khong co cot sidebar,
        nen slot dat cuoi cot chinh thay vi doi bo cuc trang -->
   <div class="ad-slot" data-ad-placement="home_sidebar" hidden></div>
@@ -243,7 +185,7 @@
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261102-1"></script>
-<script src="/js/home.js?v=20261103-9"></script>
+<script src="/js/home.js?v=20261104-1"></script>
 <script src="/js/header.js?v=20261102-7"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261026-6"></script>

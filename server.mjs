@@ -158,6 +158,7 @@ const server = http.createServer(async (req, res) => {
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/news-categories" ||
       u.pathname === "/api/v2/site-interface" ||
+      u.pathname === "/api/v2/home-blocks" ||
       /^\/api\/v2\/zones\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/distribution" ||
       u.pathname === "/api/v2/events" ||
@@ -659,6 +660,25 @@ const server = http.createServer(async (req, res) => {
           name: d.favicon ? str(d.favicon.name) : "", description: d.favicon ? str(d.favicon.description) : "",
         },
       }, { "Cache-Control": "no-store" });
+    }
+
+    // ---- Khoi trang chu do CMS quan ly (Layout blocks) ----
+    // GET /api/v2/home-blocks — danh sach khoi trang chu dang bat do CMS
+    // quan ly (thu tu + cot + chuyen muc nguon). Chi doi hinh dang qua
+    // whitelist. Cache no-store: editor doi la portal phai doi theo.
+    // Backend loi -> tra danh sach rong de home.js giu hanh vi cu
+    // (hien cac khoi co dinh) thay vi vo trang.
+    if (req.method === "GET" && u.pathname === "/api/v2/home-blocks") {
+      const ext = await fetchVtcanyEpaperJson(`/home-blocks`);
+      if (!ext.ok) return json(res, 200, { blocks: [] }, { "Cache-Control": "no-store" });
+      const d = ext.data || {};
+      const str = (v) => (typeof v === "string" ? v : "");
+      const blocks = (d.blocks || []).filter((b) => b && b.type).map((b) => ({
+        id: str(b.id), order: Number(b.order) || 0, type: str(b.type),
+        title: str(b.title), column: ["full", "left", "right"].includes(b.column) ? b.column : "full",
+        categorySlug: str(b.categorySlug) || null, isActive: b.isActive !== false,
+      }));
+      return json(res, 200, { blocks }, { "Cache-Control": "no-store" });
     }
 
     // ---- Vung hien thi trang chu — Goi 1A Zone/Widget Manager ----
