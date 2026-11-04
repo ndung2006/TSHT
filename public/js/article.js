@@ -105,7 +105,9 @@
   fetch("/api/v2/news/" + encodeURIComponent(slug))
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (it) {
-      document.title = it.title + " — Tòa soạn hội tụ";
+      // Giu Meta title cua SSR: neu JS ghi de bang it.title thi
+      // <title> dung cua meta (da chen san trong HTML) se mat.
+      document.title = (it.metaTitle || it.title) + " — Tòa soạn hội tụ";
       // GĐ3 nen: pageview bai viet (kem ma bai on dinh de C2/C3 gop theo bai, khong phu thuoc slug).
       if (window.TshtTelemetry) window.TshtTelemetry.sendPageview(it.publicId ? { articlePublicId: it.publicId } : {});
       var meta = [];
