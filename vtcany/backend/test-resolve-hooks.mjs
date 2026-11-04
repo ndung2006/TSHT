@@ -5,7 +5,12 @@
 // tsc, khong dung hook nay).
 export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith('./') || specifier.startsWith('../')) {
-    if (!/\.[a-zA-Z0-9]+$/.test(specifier)) {
+    const base = specifier.split('/').pop();
+    // Chi coi la da co extension khi duoi thuoc loai file thuc
+    // (.ts/.js/...). Ten module co dau cham (vd permissions.catalog)
+    // khong phai extension — truoc day regex cu nhan nham '.catalog'
+    // la extension nen khong them '.ts' va resolve that bai.
+    if (!/\.(ts|js|mjs|cjs|json|node)$/.test(base)) {
       try {
         return await nextResolve(`${specifier}.ts`, context);
       } catch {

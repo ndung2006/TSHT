@@ -1,4 +1,4 @@
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 export type Role = 'superadmin' | 'admin' | 'editor';
 export type OAuthProvider = 'google' | 'facebook';
