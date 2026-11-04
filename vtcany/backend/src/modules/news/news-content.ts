@@ -32,3 +32,13 @@ export function normalizeContentType(value: unknown): ContentType {
   }
   return value;
 }
+
+/**
+ * Co Tin anh / Infographic suy ra tu content_type (goi khep nho).
+ * Khoa theo loai de khong tick tay lech loai nhu loi Dien Bien #9:
+ * gallery -> Tin anh, infographic -> Infographic, cac loai khac -> tat ca.
+ */
+export function typeFlags(contentType: unknown): { isPhoto: boolean; isInfographic: boolean } {
+  const ct = normalizeContentType(contentType);
+  return { isPhoto: ct === 'gallery', isInfographic: ct === 'infographic' };
+}

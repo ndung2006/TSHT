@@ -80,6 +80,8 @@
       <div class="flex flex-col gap-3">
         <div><label class="field-label">Tên chuyên mục *</label><InputText v-model="newsForm.name" class="w-full" /></div>
         <div><label class="field-label">Slug (để trống = tự sinh)</label><InputText v-model="newsForm.slug" class="w-full" /></div>
+        <div><label class="field-label">Meta title (để trống = dùng tên chuyên mục)</label><InputText v-model="newsForm.metaTitle" class="w-full" /></div>
+        <div><label class="field-label">Meta description (để trống = dùng mô tả mặc định)</label><Textarea v-model="newsForm.metaDescription" rows="2" class="w-full" /></div>
         <div>
           <label class="field-label">Chuyên mục cha (để trống = cấp 1)</label>
           <Dropdown v-model="newsForm.parentId" :options="newsParentOptions" option-label="label" option-value="value"
@@ -278,7 +280,7 @@ const newsLoading = ref(false);
 const newsDlg = ref(false);
 const newsEditing = ref<any>(null);
 const newsSaving = ref(false);
-const newsForm = ref({ name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true });
+const newsForm = ref({ name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true, metaTitle: '', metaDescription: '' });
 const newsFiltered = computed(() => {
   const needle = q.value.trim().toLowerCase();
   return newsCats.value.filter((c) => !needle || (c.name || '').toLowerCase().includes(needle));
@@ -298,7 +300,7 @@ async function loadNewsCats() {
 }
 function openNewsAdd() {
   newsEditing.value = null;
-  newsForm.value = { name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true };
+  newsForm.value = { name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true, metaTitle: '', metaDescription: '' };
   newsDlg.value = true;
 }
 function openNewsEdit(c: any) {
@@ -307,6 +309,7 @@ function openNewsEdit(c: any) {
     name: c.name || '', slug: c.slug || '',
     parentId: newsCats.value.find((x) => x.id === c.parentId)?.publicId || '',
     sortOrder: c.sortOrder || 0, isVisible: c.isVisible !== false,
+    metaTitle: c.metaTitle || '', metaDescription: c.metaDescription || '',
   };
   newsDlg.value = true;
 }
@@ -318,6 +321,8 @@ async function saveNewsCat() {
     parentId: newsForm.value.parentId || null,
     sortOrder: Number(newsForm.value.sortOrder) || 0,
     isVisible: newsForm.value.isVisible,
+    metaTitle: newsForm.value.metaTitle.trim() || null,
+    metaDescription: newsForm.value.metaDescription.trim() || null,
   };
   try {
     if (newsEditing.value) await api.patch(`/admin/news-categories/${newsEditing.value.publicId}`, payload);

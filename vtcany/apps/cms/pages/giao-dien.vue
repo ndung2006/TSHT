@@ -80,7 +80,9 @@
                 :disabled="index === homeBlocks.length - 1" @click="moveHomeBlock(data, 1)" />
             </template>
           </Column>
-          <Column field="title" header="Tiêu đề" />
+          <Column header="Tiêu đề">
+            <template #body="{ data }"><span class="block max-w-80 truncate" :title="data.title">{{ data.title }}</span></template>
+          </Column>
           <Column header="Loại">
             <template #body="{ data }"><Tag :value="homeBlockTypeLabel(data.type)" severity="info" /></template>
           </Column>

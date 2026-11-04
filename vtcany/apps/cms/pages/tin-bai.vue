@@ -115,6 +115,8 @@
           <label class="field-label">Sapo (tóm tắt, tối đa 500 ký tự) — {{ form.sapo.length }}/500</label>
           <Textarea v-model="form.sapo" rows="4" class="w-full" maxlength="500" />
         </div>
+        <div><label class="field-label">Meta title (để trống = dùng tiêu đề)</label><InputText v-model="form.metaTitle" class="w-full" /></div>
+        <div><label class="field-label">Meta description (để trống = dùng sapo)</label><Textarea v-model="form.metaDescription" rows="2" class="w-full" /></div>
         <div><label class="field-label">Nội dung</label>
           <Editor ref="editorRef" v-model="form.body" editor-style="height: 560px" @load="onEditorLoad" />
           <div class="flex flex-wrap items-center gap-2 mt-2">
@@ -206,11 +208,11 @@
               <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
                 <label for="spot">Tiêu điểm (lên khối Tin tiêu điểm ở trang chủ)</label>
               </div>
-              <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" />
-                <label for="photo">Tin ảnh</label>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" disabled />
+                <label for="photo">Tin ảnh (tự động theo định dạng)</label>
               </div>
-              <div class="flex items-center gap-2"><Checkbox v-model="form.isInfographic" binary input-id="info" />
-                <label for="info">Infographic</label>
+              <div class="flex items-center gap-2"><Checkbox v-model="form.isInfographic" binary input-id="info" disabled />
+                <label for="info">Infographic (tự động theo định dạng)</label>
               </div>
               <div class="flex items-center gap-2"><Checkbox v-model="form.allowComments" binary input-id="cmt" />
                 <label for="cmt">Cho phép bình luận</label>
@@ -650,7 +652,16 @@ const contentTypeFilterOptions = computed(() => [{ label: 'Tất cả loại bà
 const form = ref({
   title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
   contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
+  metaTitle: '', metaDescription: '',
 });
+// Khoa Tin anh / Infographic theo dinh dang (goi khep nho): khong cho
+// tick tay lech loai nhu loi Dien Bien #9. Backend cung suy ra co tu
+// contentType nen luu kieu gi cung nhat quan.
+function syncTypeFlags() {
+  form.value.isPhoto = form.value.contentType === 'gallery';
+  form.value.isInfographic = form.value.contentType === 'infographic';
+}
+watch(() => form.value.contentType, syncTypeFlags);
 const authorsText = ref('');
 const tagsText = ref('');
 const publishAtText = ref('');
@@ -773,6 +784,7 @@ function openAdd() {
   form.value = {
     title: '', slug: '', sapo: '', body: '', categoryId: '', coverPath: '', isFeatured: false,
     contentType: 'text', isSpotlight: false, isPhoto: false, isInfographic: false, allowComments: true, localNews: '',
+    metaTitle: '', metaDescription: '',
   };
   authorsText.value = '';
   tagsText.value = '';
@@ -787,7 +799,11 @@ function openEdit(it: any) {
     categoryId: it.category?.publicId || '', coverPath: it.coverPath || '', isFeatured: !!it.isFeatured,
     contentType: it.contentType || 'text', isSpotlight: !!it.isSpotlight, isPhoto: !!it.isPhoto,
     isInfographic: !!it.isInfographic, allowComments: it.allowComments !== false, localNews: it.localNews || '',
+    metaTitle: it.metaTitle || '', metaDescription: it.metaDescription || '',
   };
+  // Bai cu co the bi tick lech loai tu truoc: hien co dung theo loai ngay
+  // khi mo sua, luu lai se chuan hoa luon.
+  syncTypeFlags();
   authorsText.value = (it.authors || []).join(', ');
   tagsText.value = (it.tags || []).join(', ');
   publishAtText.value = isoToLocalInput(it.publishAt);
@@ -1072,6 +1088,8 @@ async function save() {
       isInfographic: form.value.isInfographic,
       allowComments: form.value.allowComments,
       localNews: (form.value.localNews || '').trim() || null,
+      metaTitle: (form.value.metaTitle || '').trim() || null,
+      metaDescription: (form.value.metaDescription || '').trim() || null,
     };
     if (editing.value) await api.patch(`/admin/news/${editing.value.publicId}`, payload);
     else await api.post('/admin/news', payload);

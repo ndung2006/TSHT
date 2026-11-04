@@ -571,6 +571,9 @@ model NewsCategory {
   id        String         @id @default(uuid())
   publicId  String         @unique @map("public_id") // 24 hex, theo quy uoc chung
   name      String
+  // Meta SEO rieng (goi khep nho): de trong = dung ten muc.
+  metaTitle String? @map("meta_title")
+  metaDescription String? @map("meta_description")
   slug      String         @unique
   parentId  String?        @map("parent_id")
   parent    NewsCategory?  @relation("NewsCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
@@ -600,6 +603,9 @@ model NewsArticle {
   title        String
   slug         String       @unique
   sapo         String       @default("") // tom tat, gioi han 500 ky tu o API
+  // Meta SEO rieng (goi khep nho): de trong = dung title/sapo.
+  metaTitle    String?      @map("meta_title")
+  metaDescription String?   @map("meta_description")
   body         String       @default("") // HTML tu editor CMS
   categoryId   String?      @map("category_id")
   category     NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)

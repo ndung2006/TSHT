@@ -11,7 +11,7 @@ import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './news-workflow';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
-import { normalizeContentType } from './news-content';
+import { normalizeContentType, typeFlags } from './news-content';
 import { normalizeFormatData } from './news-format-data';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
@@ -60,6 +60,9 @@ export interface ArticleInput {
   isInfographic?: boolean;
   allowComments?: boolean;
   localNews?: string | null;
+  // Goi khep nho: meta SEO rieng (de trong = dung title/sapo).
+  metaTitle?: string | null;
+  metaDescription?: string | null;
   // Goi 1C: nguon goc ban nhap chuyen doi cheo { type, id, title, ... }
   // (xem crossmedia-map.ts). Chi admin thay, khong hien cong khai.
   sourceRef?: unknown;
@@ -123,6 +126,8 @@ export class NewsService {
       isInfographic: row.isInfographic ?? false,
       allowComments: row.allowComments ?? true,
       localNews: row.localNews ?? null,
+      metaTitle: row.metaTitle ?? null,
+      metaDescription: row.metaDescription ?? null,
       updatedBy: row.updatedBy,
       updatedByRole: row.updatedByRole,
       createdAt: row.createdAt ? row.createdAt.toISOString() : null,
@@ -214,6 +219,8 @@ export class NewsService {
       isInfographic: row.isInfographic ?? false,
       allowComments: row.allowComments ?? true,
       localNews: row.localNews ?? null,
+      metaTitle: row.metaTitle ?? null,
+      metaDescription: row.metaDescription ?? null,
     };
   }
 
@@ -534,10 +541,12 @@ export class NewsService {
         // Goi 1C: luu nguon goc chuyen doi cheo (neu co).
         sourceRef: (input.sourceRef as any) ?? undefined,
         isSpotlight: !!input.isSpotlight,
-        isPhoto: !!input.isPhoto,
-        isInfographic: !!input.isInfographic,
+        // Khoa co theo loai (goi khep nho): khong nhan co tick tay.
+        ...typeFlags(input.contentType),
         allowComments: input.allowComments !== false,
         localNews: input.localNews?.trim() ? input.localNews.trim() : null,
+        metaTitle: input.metaTitle?.trim() || null,
+        metaDescription: input.metaDescription?.trim() || null,
         createdBy: actor.id,
         updatedBy: actor.username,
         updatedByRole: actor.roleName,
@@ -585,10 +594,18 @@ export class NewsService {
     if (input.contentType !== undefined) data.contentType = normalizeContentType(input.contentType);
     if (input.formatData !== undefined) data.formatData = normalizeFormatData(input.formatData);
     if (input.isSpotlight !== undefined) data.isSpotlight = !!input.isSpotlight;
-    if (input.isPhoto !== undefined) data.isPhoto = !!input.isPhoto;
-    if (input.isInfographic !== undefined) data.isInfographic = !!input.isInfographic;
+    // Khoa co theo loai (goi khep nho): chi khi doi contentType moi tinh
+    // lai co; cap nhat rieng khong co contentType thi giu co cu, khong
+    // cho tick tay lech loai qua API.
+    if (input.contentType !== undefined) {
+      const f = typeFlags(input.contentType);
+      data.isPhoto = f.isPhoto;
+      data.isInfographic = f.isInfographic;
+    }
     if (input.allowComments !== undefined) data.allowComments = !!input.allowComments;
     if (input.localNews !== undefined) data.localNews = input.localNews?.trim() ? input.localNews.trim() : null;
+    if (input.metaTitle !== undefined) data.metaTitle = input.metaTitle?.trim() || null;
+    if (input.metaDescription !== undefined) data.metaDescription = input.metaDescription?.trim() || null;
     // Bia mac dinh + chuan hoa URL anh trung byte ve URL bia ngay luc luu.
     // Chay ca khi chi doi bia (bia moi co the trung anh cu trong body) va
     // ca khi bai cu chua co bia (luu lai se tu co bia mac dinh tu anh dau
@@ -740,10 +757,11 @@ export class NewsService {
     return rows.map((r) => ({
       id: r.id, publicId: r.publicId, name: r.name, slug: r.slug,
       parentId: r.parentId, sortOrder: r.sortOrder, isVisible: r.isVisible,
+      metaTitle: r.metaTitle ?? null, metaDescription: r.metaDescription ?? null,
     }));
   }
 
-  async createCategory(input: { name: string; slug?: string; parentId?: string | null; sortOrder?: number; isVisible?: boolean }) {
+  async createCategory(input: { name: string; slug?: string; parentId?: string | null; sortOrder?: number; isVisible?: boolean; metaTitle?: string | null; metaDescription?: string | null }) {
     if (!input.name || !input.name.trim()) throw new BadRequestException('ten chuyen muc bat buoc');
     let parentDbId: string | null = null;
     if (input.parentId) {
@@ -762,12 +780,14 @@ export class NewsService {
         parentId: parentDbId,
         sortOrder: input.sortOrder ?? 0,
         isVisible: input.isVisible !== false,
+        metaTitle: input.metaTitle?.trim() || null,
+        metaDescription: input.metaDescription?.trim() || null,
       },
     });
-    return { publicId: row.publicId, name: row.name, slug: row.slug, parentId: row.parentId, sortOrder: row.sortOrder, isVisible: row.isVisible };
+    return { publicId: row.publicId, name: row.name, slug: row.slug, parentId: row.parentId, sortOrder: row.sortOrder, isVisible: row.isVisible, metaTitle: row.metaTitle ?? null, metaDescription: row.metaDescription ?? null };
   }
 
-  async patchCategory(publicId: string, input: { name?: string; slug?: string; parentId?: string | null; sortOrder?: number; isVisible?: boolean }) {
+  async patchCategory(publicId: string, input: { name?: string; slug?: string; parentId?: string | null; sortOrder?: number; isVisible?: boolean; metaTitle?: string | null; metaDescription?: string | null }) {
     const row = await this.prisma.newsCategory.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay chuyen muc');
     const data: any = {};
@@ -788,6 +808,8 @@ export class NewsService {
     }
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.isVisible !== undefined) data.isVisible = !!input.isVisible;
+    if (input.metaTitle !== undefined) data.metaTitle = input.metaTitle?.trim() || null;
+    if (input.metaDescription !== undefined) data.metaDescription = input.metaDescription?.trim() || null;
     const out = await this.prisma.newsCategory.update({ where: { id: row.id }, data });
     // Goi 1D-2: doi slug that cua chuyen muc -> ghi lich su de chuyen 301.
     // Ghi SAU khi update thanh cong (khat 1D ghi trong luc xay data):
@@ -804,7 +826,7 @@ export class NewsService {
         create: { oldSlug: row.slug, categoryId: row.id },
       });
     }
-    return { publicId: out.publicId, name: out.name, slug: out.slug, parentId: out.parentId, sortOrder: out.sortOrder, isVisible: out.isVisible };
+    return { publicId: out.publicId, name: out.name, slug: out.slug, parentId: out.parentId, sortOrder: out.sortOrder, isVisible: out.isVisible, metaTitle: out.metaTitle ?? null, metaDescription: out.metaDescription ?? null };
   }
 
   async removeCategory(publicId: string) {
@@ -913,7 +935,7 @@ export class NewsService {
     });
     const byParent = new Map<string | null, any[]>();
     for (const r of rows) {
-      const item = { publicId: r.publicId, name: r.name, slug: r.slug, children: [] as any[] };
+      const item = { publicId: r.publicId, name: r.name, slug: r.slug, metaTitle: r.metaTitle ?? null, metaDescription: r.metaDescription ?? null, children: [] as any[] };
       const key = r.parentId;
       if (!byParent.has(key)) byParent.set(key, []);
       byParent.get(key)!.push(item);

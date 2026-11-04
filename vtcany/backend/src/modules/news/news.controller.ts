@@ -84,6 +84,14 @@ class ArticleDto {
   @IsOptional()
   @IsString()
   localNews?: string | null;
+
+  @IsOptional()
+  @IsString()
+  metaTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  metaDescription?: string | null;
 }
 
 class CategoryDto {
@@ -105,6 +113,14 @@ class CategoryDto {
   @IsOptional()
   @IsBoolean()
   isVisible?: boolean;
+
+  @IsOptional()
+  @IsString()
+  metaTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  metaDescription?: string | null;
 }
 
 @UseGuards(PermissionsGuard)

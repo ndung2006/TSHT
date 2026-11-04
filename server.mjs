@@ -590,6 +590,7 @@ const server = http.createServer(async (req, res) => {
         category: it.category || null, authors: it.authors || [], tags: it.tags || [],
         publishAt: it.publishAt, isFeatured: !!it.isFeatured,
         contentType: it.contentType || "text",
+        metaTitle: it.metaTitle || "", metaDescription: it.metaDescription || "",
         url: `/tin/${it.slug}`,
       };
     }
@@ -604,7 +605,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && u.pathname === "/api/v2/news") {
       const bq = new URLSearchParams();
-      for (const k of ["page", "limit", "category", "q", "featured", "spotlight"]) {
+      for (const k of ["page", "limit", "category", "q", "featured", "spotlight", "contentType"]) {
         const v = u.searchParams.get(k);
         if (v) bq.set(k, v);
       }
@@ -980,10 +981,12 @@ const server = http.createServer(async (req, res) => {
             categoryName: it.category ? it.category.name : "",
             publishAt: it.publishAt || "",
             canonicalUrl,
+            metaTitle: it.metaTitle || "",
+            metaDescription: it.metaDescription || "",
           });
           const out = html.replace(
             "<title>Tin bài — TSHT</title>",
-            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+            `<title>${escapeXml(it.metaTitle || it.title)} — TSHT</title>\n${meta}`,
           );
           return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
@@ -1073,10 +1076,10 @@ const server = http.createServer(async (req, res) => {
             const html = await fs.promises.readFile(path.join(PUBLIC, "category.html"), "utf8");
             const origin = publicOrigin(req.headers, process.env.PUBLIC_ORIGIN);
             const canonicalUrl = `${origin}/chuyen-muc/${decision.node.slug}`;
-            const meta = buildCategoryMeta({ name: decision.node.name, canonicalUrl });
+            const meta = buildCategoryMeta({ name: decision.node.name, canonicalUrl, metaTitle: decision.node.metaTitle || "", metaDescription: decision.node.metaDescription || "" });
             const out = html.replace(
               "<title>Chuyên mục — TSHT</title>",
-              `<title>${escapeXml(decision.node.name)} — TSHT</title>\n${meta}`,
+              `<title>${escapeXml(decision.node.metaTitle || decision.node.name)} — TSHT</title>\n${meta}`,
             );
             return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
           } catch {
