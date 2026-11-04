@@ -1,5 +1,36 @@
 // Phiên đăng nhập CMS: token + role/permissions/user, dark/light toggle.
+//
+// Quy tắc phiên hết hạn (sửa 2026-11-04): phiên hết hạn phải tự xóa
+// SẠCH (cả 4 khóa, cả 2 storage) rồi về trang đăng nhập, không để lại
+// trạng thái nửa vời (token mất nhưng user/role/perms còn) khiến giao
+// diện render khung rỗng mà mọi nút đều chết. Backend vẫn là cổng chặn
+// cuối cùng; kiểm tra exp phía client chỉ để chuyển hướng sớm.
 const TOKEN_KEY = 'cms_token';
+const SESSION_KEYS = [TOKEN_KEY, 'cms_user', 'cms_role', 'cms_perms'] as const;
+
+export function clearCmsSession() {
+  if (!process.client) return;
+  for (const k of SESSION_KEYS) {
+    localStorage.removeItem(k);
+    sessionStorage.removeItem(k);
+  }
+}
+
+export function readCmsToken(): string | null {
+  if (!process.client) return null;
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+}
+
+// true khi token vắng, sai định dạng JWT, hoặc đã quá hạn exp.
+export function isCmsTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
 
 export function useCmsAuth() {
   const config = useRuntimeConfig();
@@ -10,12 +41,16 @@ export function useCmsAuth() {
   const dark = useState<boolean>('cms-dark', () => false);
 
   if (process.client && token.value === null) {
-    token.value = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
-    try {
-      user.value = JSON.parse(localStorage.getItem('cms_user') || sessionStorage.getItem('cms_user') || 'null');
-      role.value = localStorage.getItem('cms_role') || sessionStorage.getItem('cms_role') || '';
-      permissions.value = JSON.parse(localStorage.getItem('cms_perms') || sessionStorage.getItem('cms_perms') || '[]');
-    } catch { /* bỏ qua cache hỏng */ }
+    token.value = readCmsToken();
+    // Không token thì không nạp user/role/perms: tránh trạng thái nửa vời
+    // (phiên cũ đã xóa token nhưng còn user/perms) khiến khung render sai.
+    if (token.value) {
+      try {
+        user.value = JSON.parse(localStorage.getItem('cms_user') || sessionStorage.getItem('cms_user') || 'null');
+        role.value = localStorage.getItem('cms_role') || sessionStorage.getItem('cms_role') || '';
+        permissions.value = JSON.parse(localStorage.getItem('cms_perms') || sessionStorage.getItem('cms_perms') || '[]');
+      } catch { /* bỏ qua cache hỏng */ }
+    }
     document.documentElement.classList.toggle('p-dark', dark.value);
     document.body.classList.toggle('light-mode', !dark.value);
   }
@@ -63,16 +98,16 @@ export function useCmsAuth() {
     await navigateTo('/');
   }
 
-  function logout() {
-    for (const k of [TOKEN_KEY, 'cms_user', 'cms_role', 'cms_perms']) {
-      localStorage.removeItem(k);
-      sessionStorage.removeItem(k);
-    }
+  // Đăng xuất: xóa sạch phiên rồi về /login. Nếu router SPA kẹt (trường
+  // hợp hiếm) thì chuyển hướng cứng để nút luôn đưa về trang đăng nhập.
+  async function logout() {
+    clearCmsSession();
     token.value = null;
     user.value = null;
     role.value = '';
     permissions.value = [];
-    navigateTo('/login');
+    await navigateTo('/login');
+    if (process.client && window.location.pathname !== '/login') window.location.assign('/login');
   }
 
   function toggleDark() {

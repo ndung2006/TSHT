@@ -21,10 +21,12 @@ export function useApi() {
         },
       });
     } catch (e: any) {
+      // 401 = phiên hết hạn/không hợp lệ: xóa SẠCH phiên (không chỉ token)
+      // rồi về /login; nếu router kẹt thì chuyển hướng cứng.
       if (e?.response?.status === 401 && process.client && route.path !== '/login') {
-        localStorage.removeItem('cms_token');
-        sessionStorage.removeItem('cms_token');
+        clearCmsSession();
         await navigateTo('/login');
+        if (window.location.pathname !== '/login') window.location.assign('/login');
       }
       throw e;
     }

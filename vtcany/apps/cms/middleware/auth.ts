@@ -1,6 +1,11 @@
-// Chưa đăng nhập -> /login (token nằm ở localStorage nên chỉ check phía client).
+// Chưa đăng nhập (không token, hoặc token đã quá hạn) -> xóa sạch phiên
+// rồi về /login. Token nằm ở localStorage nên chỉ check phía client.
+// Kiểm tra exp chỉ để chuyển hướng sớm; backend vẫn chặn cuối cùng.
 export default defineNuxtRouteMiddleware(() => {
   if (!process.client) return;
-  const token = localStorage.getItem('cms_token') || sessionStorage.getItem('cms_token');
-  if (!token) return navigateTo('/login');
+  const token = readCmsToken();
+  if (isCmsTokenExpired(token)) {
+    clearCmsSession();
+    return navigateTo('/login');
+  }
 });
