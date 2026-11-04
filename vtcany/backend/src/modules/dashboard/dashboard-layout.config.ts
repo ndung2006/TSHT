@@ -80,20 +80,32 @@ export function resolveLayout(roleName: string | null | undefined, isFullAdmin: 
   return [...FALLBACK_LAYOUT];
 }
 
-// Nguong "treo" (gio) — tai lieu duyet: tin bai 4h, bai bao in 12h,
-// so bao PDF 2h moi buoc. Su kien / tuong thuat / quang cao lay nhip
-// tin bai (4h); nhuan but lay nhip hanh chinh (12h). Day la GIA DINH
-// can user xac nhan (tai lieu goc khong dinh nguong cho 4 phan he nay);
-// nguong nam o day de doi 1 cho, khong rac trong tung widget.
+// Nguong "treo" (gio) — user chot 2026-11-04 khi dong GĐ1: tin bai 4h,
+// bai bao in 12h, so bao PDF 2h moi buoc; tuong thuat 30 phut (0.5h),
+// su kien 4h, quang cao 4h, nhuan but 72h. Nguong nam o day de doi 1 cho,
+// khong rac trong tung widget.
 export const STUCK_THRESHOLD_HOURS: Record<string, number> = {
   news: 4,
   printArticle: 12,
   epaper: 2,
   events: 4,
-  liveblog: 4,
+  liveblog: 0.5,
   ads: 4,
-  royalties: 12,
+  royalties: 72,
 };
+
+/** Nhom role thay TOAN BO A4 (hen xuat ban 24h toi) — user chot 2026-11-04
+ *  khi dong GĐ1. Role khac chi thay muc do minh tao. 'Super Admin' la ten
+ *  role seed co quyen '*' nen thuong da ve full-admin; liet ke ca ten de
+ *  quy tac dung ca khi role do khong co '*' (du phong). */
+export const NEWSROOM_WIDE_ROLES: string[] = ['Super Admin', 'TBT', 'P.TBT', 'BBT', 'T.PP'];
+
+/** true neu actor thuoc nhom toan toa soan (xem toan bo A4). */
+export function isNewsroomWide(roleName: string | null | undefined, isFullAdmin: boolean): boolean {
+  if (isFullAdmin) return true;
+  if (!roleName) return false;
+  return NEWSROOM_WIDE_ROLES.some((r) => r.toLowerCase() === roleName.toLowerCase());
+}
 
 // Cache EPG phia server cho B3/D5: TTL 12 phut (tai lieu duyet: 10–15 phut).
 export const EPG_CACHE_TTL_MS = 12 * 60 * 1000;

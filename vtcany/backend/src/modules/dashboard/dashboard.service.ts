@@ -18,6 +18,7 @@ import {
   OPS_WINDOW_DAYS,
   STUCK_THRESHOLD_HOURS,
   WIDGET_META,
+  isNewsroomWide,
   resolveLayout,
   type WidgetCode,
 } from './dashboard-layout.config';
@@ -235,7 +236,7 @@ export class DashboardService {
       case 'A1': ({ data, drill } = await this.wA1(actor)); break;
       case 'A2': ({ data, drill } = await this.wA2(actor)); break;
       case 'A3': ({ data, drill } = await this.wA3(actor)); break;
-      case 'A4': ({ data, drill } = await this.wA4()); break;
+      case 'A4': ({ data, drill } = await this.wA4(actor)); break;
       case 'B1': ({ data, empty, drill } = await this.wB1(range, line)); break;
       case 'B2': ({ data, empty, drill } = await this.wB2(q, line)); break;
       case 'B3': ({ data, empty, drill } = await this.wB3(line)); break;
@@ -413,19 +414,25 @@ export class DashboardService {
   }
 
   /** A4: hen xuat ban 24h toi (tin bai / su kien / quang cao + so bao ngay mai).
-   *  Pham vi toan toa soan (chuc nang truc ban, khong phai viec ca nhan) —
-   *  layout chi mo cho Thu ky toa soan / BBT / full-admin. */
-  private async wA4() {
+   *  Pham vi (user chot 2026-11-04 khi dong GĐ1): nhom toan toa soan
+   *  (Super Admin, TBT, P.TBT, BBT, T.PP) thay toan bo; role khac chi thay
+   *  muc do minh tao (createdBy = JWT sub). */
+  private async wA4(actor: DashboardActor) {
     const db: any = this.prisma as any;
     const now = new Date();
     const in24h = new Date(now.getTime() + 24 * 3600_000);
+    const wide = isNewsroomWide(actor.roleName, actor.isFullAdmin);
+    // Fail-closed: role hep ma khong co userId thi khong tra dong nao
+    // (tranh createdBy: null khop cac muc khong co nguoi tao).
+    if (!wide && !actor.id) return { data: { total: 0, items: [] }, drill: null };
+    const mine = wide ? {} : { createdBy: actor.id };
     const items: any[] = [];
     const push = (module: string, moduleLabel: string, route: string, id: string, publicId: string | null, title: string, publishAt: string, query: any) => {
       items.push({ module, moduleLabel, id, publicId, title, publishAt, drill: { route, query } });
     };
     for (const meta of [moduleMeta('news'), moduleMeta('events'), moduleMeta('ads')]) {
       const rows = await db[meta.itemModel].findMany({
-        where: { status: 'published', publishAt: { gt: now, lte: in24h } },
+        where: { status: 'published', publishAt: { gt: now, lte: in24h }, ...mine },
         select: { id: true, publicId: true, title: true, publishAt: true },
         orderBy: { publishAt: 'asc' },
       }).catch(() => []);
@@ -438,7 +445,7 @@ export class DashboardService {
     const tomorrow = vnDayStrOffset(1);
     const { from: tFrom, to: tTo } = vnDayRange(tomorrow);
     const issues = await db.epaperIssue.findMany({
-      where: { status: 'published', publishDate: { gte: tFrom, lt: tTo } },
+      where: { status: 'published', publishDate: { gte: tFrom, lt: tTo }, ...mine },
       select: { id: true, publicId: true, title: true, issueNumber: true, issueType: true, publishDate: true },
       orderBy: { publishDate: 'asc' },
     }).catch(() => []);
@@ -486,9 +493,16 @@ export class DashboardService {
     const published = await db.newsArticle.count({
       where: { status: 'published', publishAt: { gte: range.from, lt: range.to, lte: new Date() } },
     }).catch(() => 0);
-    const unpublished = await db.newsArticleApproval.count({
+    // Ha xuat ban trong ky: dem KHAC NHAU theo bai (khong dem so dong
+    // approval) de so tren widget = so dong danh sach drill (quy tac
+    // muc 11.2 muc 8). Bai co the vua bi ha vua duoc xuat ban lai trong
+    // cung ky — drill liet ke theo su kien ha, khong theo trang thai
+    // hien tai cua bai.
+    const unpubRows = await db.newsArticleApproval.findMany({
       where: { action: 'unpublish', createdAt: { gte: range.from, lt: range.to } },
-    }).catch(() => 0);
+      select: { articleId: true },
+    }).catch(() => []);
+    const unpublished = new Set(unpubRows.map((r: any) => r.articleId)).size;
     const stepRows = steps.map((s, i) => ({
       step: s,
       label: labels.news?.[s] || `Bước ${s}`,
@@ -502,6 +516,7 @@ export class DashboardService {
         steps: stepRows, returned: { count: returned, drill: { route: '/tin-bai', query: { status: 'draft', returned: 1 } } },
         publishedInPeriod: published, unpublishedInPeriod: unpublished, inProcess,
         publishedDrill: { route: '/tin-bai', query: { status: 'published', publishFrom: range.from.toISOString(), publishTo: range.to.toISOString() } },
+        unpublishedDrill: { route: '/tin-bai', query: { unpublishedFrom: range.from.toISOString(), unpublishedTo: range.to.toISOString() } },
       },
       drill: null,
     };
@@ -618,6 +633,8 @@ export class DashboardService {
         today: { programs: t.programs, state: tState.state, reason: tState.reason, updatedAt: t.updatedAt, source: t.source },
         tomorrow: { programs: m.programs, state: mState.state, reason: mState.reason, updatedAt: m.updatedAt, source: m.source },
         drill: { route: '/truyen-hinh', query: { channel: ch.publicId } },
+        drillToday: { route: '/truyen-hinh', query: { channel: ch.publicId, date: today } },
+        drillTomorrow: { route: '/truyen-hinh', query: { channel: ch.publicId, date: tomorrow } },
       });
     }
     return {
@@ -873,6 +890,7 @@ export class DashboardService {
       }
     }
     const channels = [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+    for (const c of channels) c.drill = { route: '/truyen-hinh', query: { channel: c.publicId } };
     return {
       data: {
         total: channels.length,

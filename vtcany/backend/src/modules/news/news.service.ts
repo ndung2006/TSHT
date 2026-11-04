@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
-import { drillNeverSubmittedIds, drillReturnedIds } from '../dashboard/dashboard-queries';
+import { drillNeverSubmittedIds, drillReturnedIds, drillUnpublishedIds } from '../dashboard/dashboard-queries';
 import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
@@ -330,7 +330,7 @@ export class NewsService {
 
   // ---------------- Admin: bai viet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where = await this.buildListWhere(params);
@@ -356,7 +356,7 @@ export class NewsService {
    * publishAt); ngay sai dinh dang thi bo qua (giong cach loc lenh lac
    * hien co: status la cung tra 0 dong chu khong 400).
    */
-  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string }) {
+  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
     const where: any = {};
     if (params.status) where.status = params.status;
     // Loc "cua toi" (day so lieu ca nhan, 2026-11-01): mine = bai do chinh
@@ -408,6 +408,13 @@ export class NewsService {
       const ids = await drillNeverSubmittedIds(this.prisma, 'newsArticleApproval', 'articleId', drafts.map((d: any) => d.id));
       where.id = { in: ids };
       where.status = 'draft';
+    }
+    if (params.unpublishedFrom || params.unpublishedTo) {
+      const from = params.unpublishedFrom ? new Date(params.unpublishedFrom) : new Date(0);
+      const to = params.unpublishedTo ? new Date(params.unpublishedTo) : new Date();
+      const ids = await drillUnpublishedIds(this.prisma, 'newsArticleApproval', 'articleId', from, to);
+      where.id = { in: ids };
+      // Khong ghi de status: bai co the da xuat ban lai sau khi ha.
     }
     if (params.categoryId) {
       const cat = await this.prisma.newsCategory.findFirst({

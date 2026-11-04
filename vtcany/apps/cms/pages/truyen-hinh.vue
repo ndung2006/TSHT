@@ -288,6 +288,7 @@ const api = useApi();
 const toast = useToast();
 const confirm = useConfirm();
 const { can } = useCmsAuth();
+const route = useRoute();
 
 // ---------- Quan ly hien thi kenh ----------
 const channels = ref<any[]>([]);
@@ -492,7 +493,47 @@ async function doImport() {
   } finally { importing.value = false; }
 }
 
-onMounted(() => { loadChannels(); loadPlans(); loadSources(); });
+onMounted(() => { loadChannels().then(applyDashboardDeepLink); loadPlans(); loadSources(); });
+
+// Deep-link tu dashboard (B3/D1/D5, dong GĐ1): ?channel=<publicId 24hex>
+// + ?date=YYYY-MM-DD -> tu chon kenh + ngay lich roi tai EPG. publicId
+// la sha256('tv-channel:' + TEN.toUpperCase()).slice(0,24) o backend
+// (tv.catalog.ts): kenh AIO dung ten AIO, kenh tu them dung
+// displayName || channelKey; o day thu ca 3 ung vien (displayName, name,
+// key) vi hang /admin/channels khong tra publicId. Khong khop thi giu
+// trang thai mac dinh (khong chon gi, khong bao loi).
+async function sha256Hex(text: string): Promise<string> {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { return ''; }
+}
+async function applyDashboardDeepLink() {
+  const pid = typeof route.query.channel === 'string' ? route.query.channel : '';
+  const dateQ = typeof route.query.date === 'string' ? route.query.date : '';
+  let matched: any = null;
+  if (/^[0-9a-f]{24}$/.test(pid)) {
+    for (const c of channels.value) {
+      for (const cand of [c.displayName, c.name, c.key]) {
+        if (!cand) continue;
+        const h = await sha256Hex(`tv-channel:${String(cand).toUpperCase()}`);
+        if (h.slice(0, 24) === pid) { matched = c; break; }
+      }
+      if (matched) break;
+    }
+  }
+  let dateOk = false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateQ)) {
+    const [y, m, d] = dateQ.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) {
+      date.value = dt;
+      dateOk = true;
+    }
+  }
+  if (matched) { selected.value = matched; loadEpg(); }
+  else if (dateOk && selected.value) { loadEpg(); }
+}
 
 // ---- Nguon phat VTCAIO: nhieu domain + token key, quet kenh truoc khi kich hoat ----
 const sources = ref<any[]>([]);

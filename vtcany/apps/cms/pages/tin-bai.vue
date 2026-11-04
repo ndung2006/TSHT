@@ -1354,7 +1354,7 @@ watch(returnDlg, async (v) => {
   if (!v && reviewDlg.value && reviewItem.value && returnTarget.value?.publicId === reviewItem.value.publicId) await refreshReview();
 });
 
-initDrill(['q', 'status', 'categoryId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted', 'scheduled', 'publishFrom', 'publishTo']);
+initDrill(['q', 'status', 'categoryId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted', 'scheduled', 'publishFrom', 'publishTo', 'unpublishedFrom', 'unpublishedTo']);
 loadCats();
 loadAuthors();
 load(1);

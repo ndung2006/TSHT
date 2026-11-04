@@ -746,14 +746,19 @@ model PrintArticleApproval {
 
 // Su kien luot xem bai (Dot 1a, CHI thu thap — chua dashboard, chua
 // chong lam dung). Ton trong rieng tu: chi luu bai duoc xem (publicId)
-// hoac duong dan + thoi diem; KHONG luu IP, user-agent, user id.
+// hoac duong dan + thoi diem + sessionId (token phien do client tu sinh);
+// KHONG luu IP, user-agent, user id. is_clean = true tu ban chong bot
+// (2026-11-04); row cu co is_clean = NULL (xem PageViewService).
 model PageView {
   id              String   @id @default(uuid())
   articlePublicId String?  @map("article_public_id")
   path            String   @default("")
+  sessionId       String?  @map("session_id")
+  isClean         Boolean? @map("is_clean")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([articlePublicId, createdAt])
+  @@index([sessionId, createdAt])
   @@map("page_views")
 }
 

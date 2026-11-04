@@ -90,7 +90,7 @@
           </div>
           <div class="flex justify-between gap-2">
             <span>Đã hạ xuất bản trong kỳ</span>
-            <span class="shrink-0 font-medium">{{ fmtNum(state.data.unpublishedInPeriod) }}</span>
+            <NuxtLink :to="drillTo(state.data.unpublishedDrill)" class="shrink-0 font-medium hover:underline">{{ fmtNum(state.data.unpublishedInPeriod) }}</NuxtLink>
           </div>
         </div>
       </template>
@@ -119,12 +119,12 @@
             <span class="shrink-0 text-xs text-neutral-500">{{ ch.audioOnly ? 'Phát thanh' : 'Truyền hình' }}</span>
           </div>
           <div class="flex flex-wrap gap-4 text-xs">
-            <span>Hôm nay: <b>{{ ch.today.state === 'ok' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : 'Lỗi' }}</b>
+            <span>Hôm nay: <NuxtLink :to="drillTo(ch.drillToday)" class="hover:underline"><b>{{ ch.today.state === 'ok' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.today.state === 'stale'" class="text-neutral-500"> (bản cũ, cập nhật lúc {{ fmtTime(ch.today.updatedAt) }})</span>
               <span v-if="ch.today.state === 'no-source'" class="text-neutral-500"> ({{ ch.today.reason }})</span>
               <span v-if="ch.today.state === 'error'" class="text-red-400"> ({{ ch.today.reason }})</span>
             </span>
-            <span>Ngày mai: <b>{{ ch.tomorrow.state === 'ok' ? fmtNum(ch.tomorrow.programs) : ch.tomorrow.state === 'no-source' ? '—' : 'Lỗi' }}</b>
+            <span>Ngày mai: <NuxtLink :to="drillTo(ch.drillTomorrow)" class="hover:underline"><b>{{ ch.tomorrow.state === 'ok' ? fmtNum(ch.tomorrow.programs) : ch.tomorrow.state === 'no-source' ? '—' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.tomorrow.state === 'stale'" class="text-neutral-500"> (bản cũ)</span>
               <span v-if="ch.tomorrow.state === 'no-source'" class="text-neutral-500"> ({{ ch.tomorrow.reason }})</span>
               <span v-if="ch.tomorrow.state === 'error'" class="text-red-400"> ({{ ch.tomorrow.reason }})</span>
@@ -218,7 +218,7 @@
           <span class="text-red-400">Đang ẩn: <b>{{ fmtNum(state.data.hidden) }}</b></span>
         </div>
         <div v-for="ch in state.data.channels" :key="ch.publicId" class="flex items-center justify-between gap-2">
-          <span class="truncate">{{ ch.name }} <span class="text-neutral-500">({{ ch.group }})</span></span>
+          <NuxtLink :to="drillTo(ch.drill)" class="truncate hover:underline">{{ ch.name }} <span class="text-neutral-500">({{ ch.group }})</span></NuxtLink>
           <span class="shrink-0 text-xs" :class="ch.isVisible ? 'text-green-400' : 'text-red-400'">
             {{ ch.isVisible ? 'Hiển thị' : 'Đang ẩn' }}<span v-if="!ch.hlsConfigured"> · chưa có HLS</span>
           </span>

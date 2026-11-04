@@ -156,6 +156,27 @@ export async function drillNeverSubmittedIds(
 }
 
 /**
+ * Drill "ha xuat ban trong ky" (dong GĐ1, lam o GĐ2 vi GĐ1 chi co so dem):
+ * cac bai co it nhat 1 approval action='unpublish' trong khoang [from, to).
+ * Khac returned/neverSubmitted: khong gioi han o nhap hien tai — bai co the
+ * da duoc xuat ban lai sau khi ha, van thuoc danh sach su kien ha trong ky.
+ * Tra ve id KHAC NHAU de khop so dem distinct cua widget B1.
+ */
+export async function drillUnpublishedIds(
+  db: any,
+  approvalModel: string,
+  fk: string,
+  from: Date,
+  to: Date,
+): Promise<string[]> {
+  const rows = await db[approvalModel].findMany({
+    where: { action: 'unpublish', createdAt: { gte: from, lt: to } },
+    select: { [fk]: true },
+  });
+  return [...new Set<string>(rows.map((r: any) => r[fk] as string))];
+}
+
+/**
  * Ap loc drill-down tu dashboard GĐ1 vao where cua API danh sach (dung
  * chung cho bao in / bai bao in / su kien / tuong thuat / quang cao /
  * nhuan but; tin bai dung buildListWhere rieng vi co scope san).

@@ -38,6 +38,8 @@ export function useDrillQuery() {
     categoryId: () => 'theo chuyên mục',
     publishFrom: (v) => `từ ${v.slice(0, 10)}`,
     publishTo: (v) => `đến ${v.slice(0, 10)}`,
+    unpublishedFrom: (v) => `hạ xuất bản từ ${v.slice(0, 10)}`,
+    unpublishedTo: (v) => `hạ xuất bản đến ${v.slice(0, 10)}`,
     issueNumber: (v) => `số ${v}`,
     issueType: (v) => (v === 'vung_cao' ? 'Vùng cao' : 'Thường'),
     actor: (v) => `người thực hiện "${v}"`,
