@@ -25,7 +25,7 @@ export class UploadsController {
 
   // CMS (editor+): xin URL upload. File di thang len storage, khong qua backend.
   @UseGuards(PermissionsGuard)
-  @RequirePerms('video:create')
+  @RequirePerms('media:create')
   @Post('uploads/init')
   init(@Body() dto: InitUploadDto) {
     try {
@@ -38,14 +38,14 @@ export class UploadsController {
   // Thu vien anh (thumbnail/poster/banner) cho CMS chon lai.
   // Khai bao TRUOC uploads/:id de khong bi param nuot mat.
   @UseGuards(PermissionsGuard)
-  @RequirePerms('catalog:read')
+  @RequirePerms('media:view')
   @Get('uploads/images')
   listImages() {
     return { data: this.uploads.listImages() };
   }
 
   @UseGuards(PermissionsGuard)
-  @RequirePerms('video:create')
+  @RequirePerms('media:view')
   @Get('uploads/:id')
   status(@Param('id') id: string) {
     try {
@@ -58,7 +58,7 @@ export class UploadsController {
   // Nhan chunk nhi phan (application/octet-stream), stream thang ra dia.
   // Khong di qua JSON body parser - file khong lot vao API logic.
   @UseGuards(PermissionsGuard)
-  @RequirePerms('video:create')
+  @RequirePerms('media:create')
   @Put('storage-local/raw/:id/chunks/:n')
   async putChunk(@Param('id') id: string, @Param('n') n: string, @Req() req: Request, @Res() res: Response) {
     try {
@@ -71,7 +71,7 @@ export class UploadsController {
 
   // Browser bao da nhan du file -> backend day job cho worker.
   @UseGuards(PermissionsGuard)
-  @RequirePerms('video:create')
+  @RequirePerms('media:create')
   @Post('uploads/:id/complete')
   complete(@Param('id') id: string) {
     try {
@@ -85,7 +85,7 @@ export class UploadsController {
   // Upload anh thumbnail/poster/banner: PUT nhi phan (Content-Type: image/*,
   // ten file goc o header x-file-name da encodeURIComponent). Khong transcode.
   @UseGuards(PermissionsGuard)
-  @RequirePerms('catalog:write')
+  @RequirePerms('media:create')
   @Put('uploads/image')
   async putImage(@Req() req: Request, @Res() res: Response) {
     const rawName = (req.headers['x-file-name'] as string) || 'image';

@@ -18,19 +18,19 @@ import { MediaLibraryService } from './media-library.service';
 export class MediaLibraryController {
   constructor(private readonly library: MediaLibraryService) {}
 
-  @RequirePerms('catalog:read')
+  @RequirePerms('media:view')
   @Get()
   async list(@Query() q: any) {
     return this.library.list({ kind: q?.kind, q: q?.q, page: q?.page, limit: q?.limit, folderId: q?.folderId });
   }
 
-  @RequirePerms('catalog:update')
+  @RequirePerms('media:update')
   @Patch(':id/folder')
   async move(@Param('id') id: string, @Body() body: any) {
     return this.library.moveItem(id, body || {});
   }
 
-  @RequirePerms('catalog:delete')
+  @RequirePerms('media:delete')
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.library.remove(id);
@@ -42,25 +42,25 @@ export class MediaLibraryController {
 export class MediaFoldersController {
   constructor(private readonly library: MediaLibraryService) {}
 
-  @RequirePerms('catalog:read')
+  @RequirePerms('media:view')
   @Get()
   async list() {
     return this.library.listFolders();
   }
 
-  @RequirePerms('catalog:create')
+  @RequirePerms('media:create')
   @Post()
   async create(@Body() body: any) {
     return this.library.createFolder(body || {});
   }
 
-  @RequirePerms('catalog:update')
+  @RequirePerms('media:update')
   @Patch(':id')
   async update(@Param('id') id: string, @Body() body: any) {
     return this.library.updateFolder(id, body || {});
   }
 
-  @RequirePerms('catalog:delete')
+  @RequirePerms('media:delete')
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.library.deleteFolder(id);
