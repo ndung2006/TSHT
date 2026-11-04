@@ -10,7 +10,7 @@ import {
   WIDGET_META,
   resolveLayout,
 } from './src/modules/dashboard/dashboard-layout.config.ts';
-import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf, filterMyQueue } from './src/modules/dashboard/dashboard-helpers.ts';
+import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf, filterMyQueue, countMembersByRole } from './src/modules/dashboard/dashboard-helpers.ts';
 import { stepRolesFromDefinitions } from './src/modules/dashboard/dashboard-queries.ts';
 
 describe('D3 thuoc tap widget tu GĐ2, dung role moi thay', () => {
@@ -85,6 +85,21 @@ describe('A1 phai tra role buoc bang workflowKey (loi bai bao in 2026-11-04)', (
     assert.equal(filterMyQueue([item], md, roles).length, 1);
     // Bay cu: wA1 truyen meta.key 'printArticle' -> tra role ra undefined -> A1 luon rong.
     assert.equal(filterMyQueue([{ ...item, module: 'printArticle' }], md, roles).length, 0);
+  });
+});
+
+describe('B7 dem thanh vien theo role hieu luc, loai user khoa', () => {
+  it('uu tien role quan he, fallback cot roleName, bo qua disabled va rong', () => {
+    const m = countMembersByRole([
+      { roleName: null, status: 'active', role: { name: 'TBT' } },
+      { roleName: 'TBT', status: 'active', role: null },
+      { roleName: 'TBT', status: 'disabled', role: null },
+      { roleName: null, status: 'active', role: null },
+      { roleName: 'MD', status: 'active', role: { name: null } },
+    ]);
+    assert.equal(m.get('tbt'), 2);
+    assert.equal(m.get('md'), 1);
+    assert.equal(m.size, 2);
   });
 });
 

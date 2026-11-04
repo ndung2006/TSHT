@@ -329,3 +329,25 @@ export function fmtVnTime(d: Date | string | number): string {
     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: VN_TZ,
   }).format(date);
 }
+
+// ---------------------------------------------------------------------------
+// B7: dem thanh vien theo role hieu luc
+// ---------------------------------------------------------------------------
+
+/** Dem thanh vien theo role hieu luc — giong adminIdentity: uu tien ten
+ *  role qua quan he, fallback cot roleName; user khong active (khoa) KHONG
+ *  dem. Thay groupBy cot roleName: cot nay co the trong khi role gan qua
+ *  roleId, lam B7 bao 0 thanh vien sai (phat hien khi kiem chung live
+ *  2026-11-04: test-tbt dang nhap duoc nhung B7 bao TBT 0 thanh vien). */
+export function countMembersByRole(
+  rows: Array<{ roleName?: string | null; status?: string | null; role?: { name?: string | null } | null }>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (r.status && r.status !== 'active') continue;
+    const name = (r.role?.name || r.roleName || '').toLowerCase();
+    if (!name) continue;
+    out.set(name, (out.get(name) || 0) + 1);
+  }
+  return out;
+}

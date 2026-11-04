@@ -24,6 +24,7 @@ import {
   type WidgetCode,
 } from './dashboard-layout.config';
 import {
+  countMembersByRole,
   epgDayState,
   filterMyQueue,
   fmtVnDate,
@@ -786,13 +787,12 @@ export class DashboardService {
     const { roles } = await this.stepMaps();
     const modules = this.modulesForLine(line);
     const moduleKeys = new Set(modules.map((m) => m.key));
-    // Dem thanh vien theo roleName (khong phan biet hoa/thuong).
-    const adminGroups = await db.adminUser.groupBy({ by: ['roleName'], _count: true }).catch(() => []);
-    const memberCount = new Map<string, number>();
-    for (const g of adminGroups) {
-      const name = (g.roleName || '').toLowerCase();
-      memberCount.set(name, (memberCount.get(name) || 0) + (g._count || 0));
-    }
+    // Dem thanh vien theo role hieu luc (quan he role truoc, cot roleName
+    // fallback) va LOAI user khong active — xem countMembersByRole.
+    const adminRows = await db.adminUser.findMany({
+      select: { roleName: true, status: true, role: { select: { name: true } } },
+    }).catch(() => []);
+    const memberCount = countMembersByRole(adminRows);
     const singleMemberSteps: any[] = [];
     const zeroMemberRoles = new Map<string, string[]>();
     for (const d of defs) {
