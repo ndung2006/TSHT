@@ -490,20 +490,24 @@
     }
     function loadCatBlock(b) {
       if (!leftCol || !b.categorySlug) return;
+      // Tao khung khoi TRUOC, chen ngay theo thu tu config (applyBlocks
+      // duyet khoi theo order): neu doi fetch xong moi chen thi thu tu
+      // hien thi se theo toc do tra API tung khoi, khong theo order CMS.
+      var sec = document.createElement("section");
+      sec.className = "cat-block";
+      leftCol.appendChild(sec);
+      refreshBodyVisibility();
       fetch("/api/v2/news?category=" + encodeURIComponent(b.categorySlug) + "&limit=5")
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (d) {
           var items = (d && d.items) || [];
-          if (!items.length) return; // chuyen muc chua co bai -> an gon khoi
+          if (!items.length) { sec.remove(); return; } // chuyen muc chua co bai -> an gon khoi
           var title = (items[0].category && items[0].category.name) || b.title || b.categorySlug;
-          var sec = document.createElement("section");
-          sec.className = "cat-block";
           sec.setAttribute("aria-label", title);
           sec.innerHTML = catBlockHtml(title, b.categorySlug, items);
-          leftCol.appendChild(sec);
           refreshBodyVisibility();
         })
-        .catch(function () { refreshBodyVisibility(); });
+        .catch(function () { sec.remove(); refreshBodyVisibility(); });
     }
     function applyBlocks(blocks) {
       var sorted = (blocks || []).slice().sort(function (a, c) { return (a.order || 0) - (c.order || 0); });
