@@ -5,6 +5,8 @@
 // cac ham thuan do — widget va danh sach drill-down dung chung dinh nghia.
 
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { existsSync, statSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RolesService } from '../auth/roles.service';
 import { TvService } from '../tv/tv.service';
@@ -980,11 +982,16 @@ export class DashboardService {
   }
 
   /** D3 (GĐ2): dung luong FILE GOC da dung theo loai — chi 4 loai hien
-   *  tren widget: anh, video, audio (tu MediaAsset.sizeBytes) + PDF bao in
-   *  (tu epaper_issues.pdfSizeBytes). XAC MINH: sizeBytes chi ghi dung
-   *  luong file goc luc tai len (planUpload / anh truc tiep); webhook
-   *  transcode xong KHONG cap nhat sizeBytes nen cac ban HLS + poster
-   *  khong nam trong so nay — widget phai ghi ro 'dung luong file goc'.
+   *  tren widget: anh, video, audio (tu MediaAsset.sizeBytes) + PDF bao in.
+   *  PDF BAO IN DEM THEO FILE THAT (pdfPath co gia tri), KHONG theo cot
+   *  pdfSizeBytes: xac minh 2026-11-04, ca 5 so hien co deu co pdfPath
+   *  nhung pdfSizeBytes deu NULL (form CMS khong gui truong nay) nen dem
+   *  theo cot cu ra 0 file. Dung luong: lay pdfSizeBytes neu co, neu
+   *  khong thi doc kich thuoc file that tren o dia (storageRoot cua
+   *  UploadsService); file mat/khong doc duoc thi tinh 0. XAC MINH
+   *  sizeBytes goc: webhook transcode xong KHONG cap nhat sizeBytes nen
+   *  cac ban HLS + poster khong nam trong so nay — widget phai ghi ro
+   *  'dung luong file goc'.
    *  Drill: anh/video/audio ve Thu vien loc theo kind; PDF ve Bao in
    *  (Thu vien khong loc duoc PDF). */
   private async wD3() {
@@ -996,10 +1003,18 @@ export class DashboardService {
       fileType: r.fileType ?? null, sizeBytes: r.sizeBytes ?? null,
     }))).filter((r) => ['image', 'video', 'audio'].includes(r.type));
     const pdfRows = await db.epaperIssue.findMany({
-      where: { pdfSizeBytes: { not: null } },
-      select: { pdfSizeBytes: true },
+      where: { pdfPath: { not: null } },
+      select: { pdfPath: true, pdfSizeBytes: true },
     }).catch(() => []);
-    const pdfBytes = pdfRows.reduce((a: number, r: any) => a + Number(r.pdfSizeBytes || 0), 0);
+    const pdfRoot = this.uploads.storageRoot();
+    const pdfBytes = pdfRows.reduce((a: number, r: any) => {
+      if (r.pdfSizeBytes !== null && r.pdfSizeBytes !== undefined) return a + Number(r.pdfSizeBytes);
+      try {
+        const abs = join(pdfRoot, String(r.pdfPath));
+        if (abs.startsWith(pdfRoot) && existsSync(abs)) return a + statSync(abs).size;
+      } catch { /* file mat/khong doc duoc: tinh 0 */ }
+      return a;
+    }, 0);
     const out: Array<{ type: string; label: string; files: number; bytes: number; drill: { route: string; query: Record<string, string> } | null }> = rows.map((r) => ({
       ...r,
       drill: { route: '/thu-vien', query: { kind: r.type } },
