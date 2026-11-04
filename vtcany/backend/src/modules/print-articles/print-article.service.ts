@@ -11,9 +11,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { slugify, type Actor } from '../news/news.service';
 import {
-  WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
+  WORKFLOW_ACTION_LABELS,
 } from './print-article-workflow';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
+import { ENFORCE_SEPARATION_OF_DUTIES, evaluateSoD } from '../workflows/sod';
 
 @Injectable()
 export class PrintArticleService {
@@ -276,7 +277,16 @@ export class PrintArticleService {
     const where: any = {};
     if (params.q?.trim()) where.title = { contains: params.q.trim(), mode: 'insensitive' };
     if (params.status) where.status = params.status;
-    await applyDrillWhere(this.prisma, 'printArticle', 'printArticleApproval', 'articleId', where, params, params.actorId);
+    // Drill myQueue: truyen roleNames cua buoc hien tai de vong lap cung
+    // role van thay duoc muc trong list (khop widget A1). Khong co buoc
+    // hop le thi giu dinh nghia chat cu.
+    const drillParams: any = { ...params };
+    if (params.myQueue && params.workflowStep) {
+      const step = parseInt(String(params.workflowStep), 10);
+      const st = Number.isInteger(step) && step > 0 ? this.wf.steps('print-article')[step - 1] : undefined;
+      if (st) drillParams.stepRoleNames = st.roleNames?.length ? st.roleNames : [st.roleName];
+    }
+    await applyDrillWhere(this.prisma, 'printArticle', 'printArticleApproval', 'articleId', where, drillParams, params.actorId);
     const [rows, total] = await Promise.all([
       this.prisma.printArticle.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       this.prisma.printArticle.count({ where }),
@@ -309,18 +319,35 @@ export class PrintArticleService {
   async approveStep(publicId: string, actor: Actor, isFullAdmin: boolean, opts?: { breakingNews?: boolean; breakingNewsReason?: string; emergency?: boolean; emergencyReason?: string }) {
     const row = await this.workflowRow(publicId);
     const step = row.workflowStep ?? 0;
+    const curStep = this.wf.steps('print-article')[step - 1];
+    const curRoles = curStep ? (curStep.roleNames?.length ? curStep.roleNames : [curStep.roleName]) : [];
     if (!this.wf.canApprove('print-article', actor.roleName, isFullAdmin, step)) {
-      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('print-article', step) || '?'}) chi vai ${this.wf.steps('print-article')[step - 1]?.roleName || '?'} hoac toan quyen moi duyet duoc`);
+      throw new ForbiddenException(`buoc duyet hien tai (${this.wf.stepLabel('print-article', step) || '?'}) chi vai ${curRoles.join(' / ') || '?'} hoac toan quyen moi duyet duoc`);
     }
-    // Tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau
-    // cua cung mot bai. Ap dung cho ca toan quyen — truong hop ngoai le
-    // tin nong phai di qua co breakingNews va duoc ghi log ro rang.
-    const prev = await this.prisma.printArticleApproval.findFirst({
-      where: { articleId: row.id }, orderBy: { createdAt: 'desc' },
-    });
-    const sod = checkSeparationOfDuties(prev?.actorId || null, actor.id, !!opts?.breakingNews);
-    if (!sod.allowed) {
-      throw new ForbiddenException('tach nhiem vu: nguoi xu ly buoc truoc khong duoc duyet buoc sau cua cung mot bai; dung ngoai le tin nong neu can');
+    // Tach nhiem vu (luat 11.2) — CHI ap khi cong tac BAT (trien khai
+    // that). Cong tac TAT (ban demo): chi con cong Role o tren, full-admin
+    // duyet moi buoc ke ca bai tu tao hoac da duyet truoc do.
+    // Luat 11.2 xet TAT CA approval truoc do (khong chi buoc lien truoc):
+    // chan tac gia tu duyet, chan nguoi da xu ly buoc truoc co role khac
+    // buoc hien tai; cho vong lap cung role (T.PP lan 1 -> lan 2,
+    // P.TBT lan 1 -> lan 2, P.TBT -> buoc cuoi {TBT, P.TBT}).
+    let sodIsException = false;
+    if (ENFORCE_SEPARATION_OF_DUTIES) {
+      const priors = await this.prisma.printArticleApproval.findMany({
+        where: { articleId: row.id },
+        select: { actorId: true, actorRole: true, action: true },
+      });
+      const sod = evaluateSoD({
+        creatorId: (row as any).createdBy ?? null,
+        actorId: actor.id,
+        prior: priors,
+        currentRoleNames: curRoles,
+        breakingNews: !!opts?.breakingNews,
+      });
+      if (!sod.allowed) {
+        throw new ForbiddenException(`tach nhiem vu: ${sod.reason || 'nguoi duyet da xu ly buoc truoc khong cung role'}; dung ngoai le tin nong neu can`);
+      }
+      sodIsException = sod.isException;
     }
     // Duyet khan: chi buoc co allowEmergency=true moi duoc chon; duyet
     // khan ket thuc luong ngay (xuat ban / approved), ghi lich su ngoai le
@@ -339,7 +366,7 @@ export class PrintArticleService {
       where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
     });
     await this.writeApproval(row.id, step, actor.id, actor.roleName, 'approve', null,
-      (sod.isException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
+      (sodIsException || !!opts?.emergency) ? { isException: true, exceptionReason: emergencyReason || (opts?.breakingNewsReason || '').trim() || null } : undefined);
     const cats = await this.resolveCategories([updated.categoryId]);
     return this.toItem(updated, cats);
   }

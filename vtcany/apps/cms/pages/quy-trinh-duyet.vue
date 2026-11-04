@@ -40,7 +40,7 @@
         <DataTable :value="form.steps" size="small" data-key="key">
           <Column header="#" style="width:3rem"><template #body="{ index }">{{ index + 1 }}</template></Column>
           <Column header="Tên hiển thị bước"><template #body="{ data }"><InputText v-model="data.label" class="w-full" placeholder="VD: T.PP — Trưởng/Phó phòng" /></template></Column>
-          <Column header="Role được duyệt" style="min-width:10rem"><template #body="{ data }"><Dropdown v-model="data.roleName" :options="roles" option-label="name" option-value="name" placeholder="Chọn Role..." class="w-full" /></template></Column>
+          <Column header="Role được duyệt" style="min-width:14rem"><template #body="{ data }"><MultiSelect v-model="data.roleNames" :options="roles" option-label="name" option-value="name" placeholder="Chọn Role..." display="chip" class="w-full" @change="data.roleName = (data.roleNames?.length ? data.roleNames[0] : '')" /></template></Column>
           <Column header="Trả lại về" style="min-width:12rem"><template #body="{ data }"><Dropdown v-model="data.returnTo" :options="returnOptions" option-label="label" option-value="value" class="w-full" /></template></Column>
           <Column header="Duyệt khẩn" style="width:6rem"><template #body="{ data }"><Checkbox v-model="data.allowEmergency" binary /></template></Column>
           <Column header="Key" style="width:8rem"><template #body="{ data }"><span class="text-xs text-neutral-400">{{ data.key }}</span></template></Column>
@@ -102,7 +102,7 @@ function snapshot(d: any) {
     authorRole: d.authorRole ?? null,
     authorLabel: d.authorLabel ?? '',
     enabled: !!d.enabled,
-    steps: (d.steps || []).map((s: any) => ({ key: s.key, label: s.label, roleName: s.roleName, returnTo: s.returnTo || 'creator', allowEmergency: !!s.allowEmergency })),
+    steps: (d.steps || []).map((s: any) => ({ key: s.key, label: s.label, roleName: s.roleName, roleNames: (s.roleNames?.length ? [...s.roleNames] : (s.roleName ? [s.roleName] : [])), returnTo: s.returnTo || 'creator', allowEmergency: !!s.allowEmergency })),
   };
 }
 
@@ -125,7 +125,7 @@ async function loadAll() {
 }
 
 function addStep() {
-  form.value.steps.push({ key: 'step-' + Math.random().toString(36).slice(2, 8), label: '', roleName: '', returnTo: 'creator', allowEmergency: false });
+  form.value.steps.push({ key: 'step-' + Math.random().toString(36).slice(2, 8), label: '', roleName: '', roleNames: [], returnTo: 'creator', allowEmergency: false });
 }
 function removeStep(i: number) {
   form.value.steps.splice(i, 1);
@@ -146,6 +146,8 @@ async function askSave() {
   if (!form.value.steps.length) { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Quy trình phải có ít nhất 1 bước duyệt', life: 3000 }); return; }
   for (const s of form.value.steps) {
     if (!s.label.trim()) { toast.add({ severity: 'error', summary: 'Lỗi', detail: `Bước ${s.key} thiếu tên hiển thị`, life: 3000 }); return; }
+    // roleName chinh luon dong bo tu roleNames[0] (xem cot MultiSelect).
+    s.roleName = (s.roleNames?.length ? s.roleNames[0] : s.roleName) || '';
     if (!s.roleName) { toast.add({ severity: 'error', summary: 'Lỗi', detail: `Bước ${s.key} chưa chọn Role được duyệt`, life: 3000 }); return; }
   }
   const oldKeys = (current.value.steps || []).map((s: any) => s.key).join('|');

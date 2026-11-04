@@ -18,11 +18,21 @@
 export interface EngineStep {
   key: string;
   label: string;
+  /** Role chinh (hien thi + tuong thich nguoc). */
   roleName: string;
+  /** Cac Role duoc duyet buoc nay; rong/thieu = [roleName]. Buoc cuoi
+   *  bai bao in (T.BT-PT.BT) co 2 Role: ['TBT', 'P.TBT']. */
+  roleNames?: string[];
   /** 'creator': tra ve nhap | 'previous': tra ve buoc lien truoc. */
   returnTo: 'creator' | 'previous';
   /** Buoc nay co duoc duyet khan khong. */
   allowEmergency: boolean;
+}
+
+/** Cac Role duoc duyet mot buoc (chuan hoa: roleNames rong -> [roleName]). */
+export function stepRoleNames(s: EngineStep): string[] {
+  const names = (s.roleNames || []).map((r) => String(r).trim()).filter(Boolean);
+  return names.length ? names : [s.roleName];
 }
 
 export interface ModuleProfile {
@@ -66,7 +76,10 @@ export function engineNextStep(steps: EngineStep[], step: number): number | null
   return step === steps.length ? null : step + 1;
 }
 
-/** Actor co duoc duyet buoc hien tai khong (toan quyen luon duoc). */
+/** Actor co duoc duyet buoc hien tai khong (toan quyen luon duoc).
+ *  Buoc nhieu Role: actor thuoc BAT KY Role nao trong roleNames la duoc
+ *  (buoc cuoi bai bao in: TBT hoac P.TBT). So sanh khong phan biet
+ *  hoa/thuong. */
 export function engineCanApprove(
   steps: EngineStep[],
   actorRoleName: string | null,
@@ -76,7 +89,8 @@ export function engineCanApprove(
   if (isFullAdmin) return true;
   const s = stepAt(steps, step);
   if (!s || !actorRoleName) return false;
-  return actorRoleName.toLowerCase() === s.roleName.toLowerCase();
+  const wanted = actorRoleName.toLowerCase();
+  return stepRoleNames(s).some((r) => r.toLowerCase() === wanted);
 }
 
 /** Chuyen trang thai thuan; sai trang thai -> throw Error (service doi thanh 409). */

@@ -37,6 +37,7 @@ import {
   median,
   periodRange,
   sumMediaSizes,
+  sumMembersForStep,
   vnDayRange,
   vnDayStrOffset,
   vnTodayStr,
@@ -49,9 +50,10 @@ import {
   myQueueWhere,
   pendingWhere,
   stepLabelsFromDefinitions,
-  stepRolesFromDefinitions,
+  stepRoleNamesFromDefinitions,
   type DashboardModuleMeta,
 } from './dashboard-queries';
+import { ENFORCE_SEPARATION_OF_DUTIES } from '../workflows/sod';
 
 export interface DashboardActor {
   id: string | null;
@@ -60,7 +62,7 @@ export interface DashboardActor {
 }
 
 interface StepMaps {
-  roles: Record<string, Record<number, string>>;
+  roles: Record<string, Record<number, string[]>>;
   labels: Record<string, Record<number, string>>;
 }
 
@@ -134,7 +136,7 @@ export class DashboardService {
   private async stepMaps(): Promise<StepMaps> {
     const defs = await this.definitions();
     return {
-      roles: stepRolesFromDefinitions(defs),
+      roles: stepRoleNamesFromDefinitions(defs),
       labels: stepLabelsFromDefinitions(defs),
     };
   }
@@ -272,15 +274,26 @@ export class DashboardService {
       const { items, approvals } = await this.pendingWithApprovals(meta);
       const rows = this.toApprovalRows(meta, approvals);
       const actorIdsByItem = new Map<string, string[]>();
+      const myRolesByItem = new Map<string, string[]>();
       for (const r of rows) {
         const arr = actorIdsByItem.get(r.itemId) || [];
         if (r.actorId) arr.push(r.actorId);
         actorIdsByItem.set(r.itemId, arr);
+        // actorRole cac approval do CHINH toi thuc hien (de tinh ngoai le
+        // vong lap cung role: da duyet buoc T.PP thi van thay muc o buoc
+        // T.PP tiep theo trong A1).
+        if (actor.id && r.actorId === actor.id) {
+          const my = myRolesByItem.get(r.itemId) || [];
+          if (r.actorRole) my.push(r.actorRole);
+          myRolesByItem.set(r.itemId, my);
+        }
       }
       const latest = latestApprovalsByItem(rows);
       // Loc hang cho dung dinh nghia dung chung (filterMyQueue): buoc thuoc
       // role cua toi (hoac full-admin thay moi buoc), toi khong phai nguoi
-      // tao va khong co BAT KY approval nao truoc do tren muc.
+      // tao va khong co approval truoc do co role NGOAI role buoc hien tai
+      // (luat 11.2 + ngoai le vong lap cung role). Full-admin + cong tac
+      // TAT thi thay moi muc cho (ban demo).
       // CHU Y: tra role buoc bang meta.workflowKey ('print-article'), KHONG
       // phai meta.key ('printArticle') — stepRoles key theo moduleKey nen
       // dung meta.key se lam A1 cua bai bao in luon rong (loi phat hien
@@ -288,13 +301,15 @@ export class DashboardService {
       const mineRows = items.filter((i: any) => this.inQueue({
         module: meta.workflowKey, workflowStep: i.workflowStep, status: i.status,
         createdBy: i.createdBy ?? null, approvalActorIds: actorIdsByItem.get(i.id) || [],
+        myApprovalRoles: myRolesByItem.get(i.id) || [],
       }, actor, roles));
       const stepCounts = new Map<number, number>();
       for (const r of mineRows) stepCounts.set(r.workflowStep, (stepCounts.get(r.workflowStep) || 0) + 1);
       const steps = [...stepCounts.entries()].sort((a, b) => a[0] - b[0]).map(([step, count]) => ({
         step,
         label: labels[meta.workflowKey]?.[step] || `Bước ${step}`,
-        roleName: roles[meta.workflowKey]?.[step] || null,
+        roleName: (roles[meta.workflowKey]?.[step] || []).join('/'),
+        roleNames: roles[meta.workflowKey]?.[step] || [],
         count,
         drill: { route: meta.route, query: { workflowStep: step, myQueue: 1 } },
       }));
@@ -327,12 +342,13 @@ export class DashboardService {
 
   /** Kiem tra 1 row co trong hang cho (ban don cua inMyQueue cho 1 row). */
   private inQueue(
-    item: { module: string; workflowStep: number; status: string; createdBy: string | null; approvalActorIds: string[] },
+    item: { module: string; workflowStep: number; status: string; createdBy: string | null; approvalActorIds: string[]; myApprovalRoles?: string[] },
     actor: DashboardActor,
-    stepRoles: Record<string, Record<number, string>>,
+    stepRoles: Record<string, Record<number, string[]>>,
   ): boolean {
     // Dung chung logic voi helpers.filterMyQueue (khong viet lai dinh nghia).
-    return filterMyQueue([item], actor, stepRoles).length === 1;
+    // Cong tac SoD lay tu cau hinh: TAT -> full-admin thay moi muc cho.
+    return filterMyQueue([item], actor, stepRoles, { enforceSoD: ENFORCE_SEPARATION_OF_DUTIES }).length === 1;
   }
 
   /** A2: bai cua toi dang bi tra (draft + approval gan nhat la return). */
@@ -800,13 +816,18 @@ export class DashboardService {
       const meta = DASHBOARD_MODULES.find((m) => m.workflowKey === d.moduleKey);
       if (!meta || !moduleKeys.has(meta.key)) continue;
       for (const s of d.steps || []) {
-        const n = memberCount.get((s.roleName || '').toLowerCase()) || 0;
+        // Buoc nhieu Role: tong thanh vien cua CAC Role trong roleNames
+        // (buoc cuoi bai bao in dem ca TBT va P.TBT).
+        const stepRoles = (s.roleNames?.length ? s.roleNames : [s.roleName]).filter(Boolean);
+        const n = sumMembersForStep(memberCount, stepRoles);
         if (n === 1) {
-          singleMemberSteps.push({ module: meta.key, moduleLabel: meta.label, stepLabel: s.label, roleName: s.roleName, memberCount: 1 });
+          singleMemberSteps.push({ module: meta.key, moduleLabel: meta.label, stepLabel: s.label, roleName: stepRoles.join('/'), roleNames: stepRoles, memberCount: 1 });
         } else if (n === 0) {
-          const arr = zeroMemberRoles.get(s.roleName) || [];
-          arr.push(`${meta.label}: ${s.label}`);
-          zeroMemberRoles.set(s.roleName, arr);
+          for (const r of stepRoles) {
+            const arr = zeroMemberRoles.get(r) || [];
+            arr.push(`${meta.label}: ${s.label}`);
+            zeroMemberRoles.set(r, arr);
+          }
         }
       }
     }

@@ -1193,6 +1193,7 @@ model WorkflowStep {
   key            String             // khoa on dinh, KHONG doi khi sua ten hien thi — remap ho so dang chay dua theo key
   label          String             // ten hien thi buoc
   roleName       String             @map("role_name") // ten Role duoc duyet buoc nay (chon tu DB Role, khong nhap tay)
+  roleNames      Json?              @map("role_names") // mang Role duoc duyet buoc nay (buoc nhieu Role, vd buoc cuoi bai bao in: [TBT, P.TBT]); rong/null = [roleName]
   sortOrder      Int                @default(0) @map("sort_order")
   returnTo       String             @default("creator") @map("return_to") // creator: ve thang nguoi tao/nhap | previous: ve buoc lien truoc
   allowEmergency Boolean            @default(false) @map("allow_emergency") // buoc nay co duoc duyet khan (ket thuc luong ngay) khong

@@ -131,6 +131,10 @@ export interface QueueItem {
   createdBy?: string | null;
   /** Tat ca actorId da co approval tren muc (moi buoc, khong chi gan nhat). */
   approvalActorIds: string[];
+  /** actorRole cua cac approval do CHINH user hien tai thuc hien (de tinh
+   *  ngoai le vong lap cung role). Thieu -> dung dinh nghia chat cu
+   *  (bat ky approval nao cua toi cung loai). */
+  myApprovalRoles?: string[];
 }
 
 export interface QueueUser {
@@ -139,25 +143,60 @@ export interface QueueUser {
   isFullAdmin: boolean;
 }
 
+function roleIn(roleName: string | null | undefined, roles: string[]): boolean {
+  if (!roleName) return false;
+  const wanted = roleName.toLowerCase();
+  return roles.some((r) => String(r).toLowerCase() === wanted);
+}
+
+/** Chuan hoa map buoc: gia tri buoc co the la role don (string, tuong
+ *  thich test/caller cu) hoac mang roleNames. */
+function asRoleNamesMap(
+  m: Record<string, Record<number, string | string[]>>,
+): Record<string, Record<number, string[]>> {
+  const out: Record<string, Record<number, string[]>> = {};
+  for (const [mod, steps] of Object.entries(m || {})) {
+    out[mod] = {};
+    for (const [step, v] of Object.entries(steps || {})) {
+      out[mod][Number(step)] = Array.isArray(v) ? v : [v];
+    }
+  }
+  return out;
+}
+
 /**
  * Muc co trong hang cho cua toi khi: dang pending_review, buoc > 0, va
- * (full-admin hoac role cua buoc == role cua toi), dong thoi toi khong
- * phai nguoi tao va khong co BAT KY approval nao truoc do tren muc
- * (tai lieu duyet 11.2 muc 2 — khong chi xet approval gan nhat).
- * stepRoleByModule: { [module]: { [step]: roleName } }.
+ * role buoc (roleNames) chua role cua toi (hoac full-admin), dong thoi:
+ * - full-admin + cong tac TAT -> hien moi muc cho (bo ca loai tru tao
+ *   boi minh va da xu ly) — ban demo;
+ * - con lai: toi khong phai nguoi tao, va khong co approval truoc do co
+ *   actorRole NGOAI roleNames cua buoc hien tai (luat 11.2 + ngoai le
+ *   vong lap cung role: da duyet buoc T.PP thi van thay muc o buoc
+ *   T.PP tiep theo; da duyet buoc khac role thi bi loai).
+ * stepRoleNamesByModule: { [module]: { [step]: roleNames[] } }.
+ * opts.enforceSoD: true = ap loai tru ca full-admin (trien khai that);
+ *   false = full-admin thay moi (ban demo, mac dinh true de an toan neu
+ *   service quen truyen — service luon truyen tu cong tac).
  */
 export function inMyQueue(
   item: QueueItem,
   user: QueueUser,
-  stepRoleByModule: Record<string, Record<number, string>>,
+  stepRoleNamesByModule: Record<string, Record<number, string | string[]>>,
+  opts?: { enforceSoD?: boolean },
 ): boolean {
   if (item.status !== 'pending_review' || !item.workflowStep || item.workflowStep <= 0) return false;
-  if (!user.isFullAdmin) {
-    const role = stepRoleByModule[item.module]?.[item.workflowStep];
-    if (!role || !user.roleName || role.toLowerCase() !== user.roleName.toLowerCase()) return false;
-  }
+  const map = asRoleNamesMap(stepRoleNamesByModule);
+  const roles = map[item.module]?.[item.workflowStep];
+  if (!roles?.length) return false;
+  if (!user.isFullAdmin && !roleIn(user.roleName, roles)) return false;
+  if (user.isFullAdmin && opts?.enforceSoD === false) return true;
   if (user.id && item.createdBy && item.createdBy === user.id) return false;
-  if (user.id && item.approvalActorIds.includes(user.id)) return false;
+  if (item.myApprovalRoles !== undefined) {
+    // actorRole null/rong tinh la ngoai role (fail-closed).
+    if (user.id && item.myApprovalRoles.some((r) => !roleIn(r || null, roles))) return false;
+  } else if (user.id && item.approvalActorIds.includes(user.id)) {
+    return false;
+  }
   return true;
 }
 
@@ -165,9 +204,10 @@ export function inMyQueue(
 export function filterMyQueue(
   items: QueueItem[],
   user: QueueUser,
-  stepRoleByModule: Record<string, Record<number, string>>,
+  stepRoleNamesByModule: Record<string, Record<number, string | string[]>>,
+  opts?: { enforceSoD?: boolean },
 ): QueueItem[] {
-  return items.filter((it) => inMyQueue(it, user, stepRoleByModule));
+  return items.filter((it) => inMyQueue(it, user, stepRoleNamesByModule, opts));
 }
 
 // ---------------------------------------------------------------------------
@@ -181,18 +221,23 @@ export interface SubstituteRow {
 }
 
 /** Nhom cac approval duyet thay theo actor (chi dem, khong ket luan
- *  dung/sai: full-admin bypass la tinh nang hop le, B7 chi thong ke). */
+ *  dung/sai: full-admin bypass la tinh nang hop le, B7 chi thong ke).
+ *  Duyet thay = actorRole KHONG nam trong roleNames cua buoc do
+ *  (buoc cuoi bai bao in: TBT hoac P.TBT deu hop le). Buoc khong co
+ *  trong map thi bo qua (khong ket luan duoc). actorRole null van dem
+ *  (giu hanh vi cu: chi role trung moi loai). */
 export function groupSubstitutes(
   rows: SubstituteRow[],
-  stepRoleByModule: Record<string, Record<number, string>>,
+  stepRoleNamesByModule: Record<string, Record<number, string | string[]>>,
   moduleOf: (row: SubstituteRow) => string,
 ): Array<{ actorId: string | null; actorRole: string | null; count: number }> {
+  const map = asRoleNamesMap(stepRoleNamesByModule);
   const out = new Map<string, { actorId: string | null; actorRole: string | null; count: number }>();
   for (const r of rows) {
     if (r.step <= 0) continue; // hanh dong ngoai buoc (publish/unpublish) khong tinh
-    const role = stepRoleByModule[moduleOf(r)]?.[r.step];
-    if (!role) continue;
-    if (r.actorRole && r.actorRole.toLowerCase() === role.toLowerCase()) continue;
+    const roles = map[moduleOf(r)]?.[r.step];
+    if (!roles?.length) continue;
+    if (r.actorRole && roles.some((x) => x.toLowerCase() === r.actorRole!.toLowerCase())) continue;
     const key = `${r.actorId || ''}|${r.actorRole || ''}`;
     const cur = out.get(key) || { actorId: r.actorId || null, actorRole: r.actorRole || null, count: 0 };
     cur.count += 1;
@@ -350,4 +395,13 @@ export function countMembersByRole(
     out.set(name, (out.get(name) || 0) + 1);
   }
   return out;
+}
+
+/** Tong thanh vien duyet duoc mot buoc = tong thanh vien cua CAC Role
+ *  trong roleNames (moi user chi 1 role nen tong = kich thuoc hop).
+ *  Buoc cuoi bai bao in {TBT, P.TBT} dem ca 2 role, khong chi TBT. */
+export function sumMembersForStep(memberCount: Map<string, number>, roleNames: string[]): number {
+  let n = 0;
+  for (const r of roleNames) n += memberCount.get(String(r).toLowerCase()) || 0;
+  return n;
 }

@@ -22,9 +22,10 @@ export function useWorkflowConfig() {
     return (d?.steps || []).map((s: any) => s.label).join(' → ');
   }
 
-  /** Chuoi ten Role viet tat: "PV → TP → PBĐT → BBT → XB". */
+  /** Chuoi ten Role viet tat: "PV → TP → PBĐT → BBT → XB" (buoc nhieu
+   *  Role noi bang "/": "TBT/P.TBT"). */
   function rolesChain(d: any): string {
-    const parts = [d?.authorRole, ...(d?.steps || []).map((s: any) => s.roleName)].filter(Boolean);
+    const parts = [d?.authorRole, ...(d?.steps || []).map((s: any) => (s.roleNames?.length ? s.roleNames.join('/') : s.roleName))].filter(Boolean);
     return parts.join(' → ');
   }
 

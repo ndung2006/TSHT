@@ -23,7 +23,7 @@ export interface FallbackDefinition {
   profile: ModuleProfile;
 }
 
-function toEngine(steps: { key: string; label: string; roleName: string }[]): EngineStep[] {
+function toEngine(steps: { key: string; label: string; roleName: string; roleNames?: string[] }[]): EngineStep[] {
   // Fallback giu dung hanh vi cu: tra ve nhap + khong duyet khan.
   return steps.map((s) => ({ ...s, returnTo: 'creator' as const, allowEmergency: false }));
 }
@@ -63,8 +63,8 @@ export const WORKFLOW_FALLBACKS: Record<WorkflowModuleKey, FallbackDefinition> =
   'print-article': {
     moduleKey: 'print-article',
     label: 'Bài báo in',
-    authorRole: 'KTV',
-    authorLabel: 'KTV — Kỹ thuật viên (Chế bản/Dàn trang)',
+    authorRole: 'PV',
+    authorLabel: 'PV — Phóng viên',
     enabled: true,
     steps: toEngine(PRINT_ARTICLE_WORKFLOW_STEPS),
     profile: { finalStatus: 'approved', publishDirectFrom: [], unpublishTo: null, allowUnlock: false },

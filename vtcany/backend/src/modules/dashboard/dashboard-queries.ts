@@ -51,6 +51,9 @@ export function pendingWhere(step?: number): Record<string, unknown> {
  * toi hay khong do lop service/controller kiem tra bang stepRole map
  * (widget tinh san; danh sach chi nhan workflowStep tu drill cua widget).
  * Fail-closed: khong co userId -> khong tra dong nao.
+ * (Giu dinh nghia chat cu cho cac phan he chua truyen stepRoleNames;
+ * bai bao in truyen stepRoleNames de vong lap cung role van thay duoc
+ * muc o list drill — xem applyDrillWhere.)
  */
 export function myQueueWhere(userId: string | null | undefined, step?: number): Record<string, unknown> {
   if (!userId) return { id: '___no_user___' };
@@ -83,6 +86,7 @@ export function myReturnedBaseWhere(userId: string | null | undefined): Record<s
  * Map role cua buoc tu cac WorkflowDefinition: { [workflowKey]: { [step]: roleName } }.
  * Buoc k = vi tri thu sortOrder (1-based), dung quy uoc cua workflow-engine
  * (steps('news')[step - 1].roleName). Steps lay tu DB, fallback o service.
+ * (Giu de tuong thich test cu; code moi dung stepRoleNamesFromDefinitions.)
  */
 export function stepRolesFromDefinitions(
   definitions: Array<{ moduleKey: string; steps: Array<{ roleName: string; sortOrder: number }> }>,
@@ -93,6 +97,27 @@ export function stepRolesFromDefinitions(
     out[d.moduleKey] = {};
     sorted.forEach((s, i) => {
       out[d.moduleKey][i + 1] = s.roleName;
+    });
+  }
+  return out;
+}
+
+/**
+ * Map CAC Role cua buoc tu definitions: { [workflowKey]: { [step]: roleNames[] } }.
+ * roleNames rong/thieu -> [roleName]. Dung cho A1 (P.TBT phai thay bai o
+ * buoc cuoi {TBT, P.TBT}) va B7 (duyet thay = actorRole khong nam trong
+ * roleNames cua buoc).
+ */
+export function stepRoleNamesFromDefinitions(
+  definitions: Array<{ moduleKey: string; steps: Array<{ roleName: string; roleNames?: string[]; sortOrder: number }> }>,
+): Record<string, Record<number, string[]>> {
+  const out: Record<string, Record<number, string[]>> = {};
+  for (const d of definitions) {
+    const sorted = [...(d.steps || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    out[d.moduleKey] = {};
+    sorted.forEach((s, i) => {
+      const names = [...new Set((s.roleNames || []).map((r) => String(r).trim()).filter(Boolean))];
+      out[d.moduleKey][i + 1] = names.length ? names : [s.roleName];
     });
   }
   return out;
@@ -195,7 +220,7 @@ export async function applyDrillWhere(
   approvalModel: string,
   fk: string,
   where: Record<string, any>,
-  params: { workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string },
+  params: { workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; stepRoleNames?: string[] },
   actorId: string | null | undefined,
 ): Promise<void> {
   if (params.mine && actorId) where.createdBy = actorId;
@@ -204,7 +229,19 @@ export async function applyDrillWhere(
     where.status = 'pending_review';
     if (Number.isInteger(step) && step > 0) where.workflowStep = step;
     where.createdBy = { not: actorId };
-    where.approvals = { none: { actorId } };
+    // Vong lap cung role: chi loai approval cua toi co actorRole NGOAI
+    // roleNames cua buoc hien tai (de muc vong 2 van hien cho dung
+    // nguoi trong list drill, khop widget A1). Khong co stepRoleNames
+    // thi giu dinh nghia chat cu (loai moi approval cua toi).
+    // actorRole null khong roi vao notIn (NULL khong thoa dieu kien)
+    // nen khong chan — chap nhan duoc vi approval cua user luon ghi
+    // actorRole, va day chi la loc hien thi (cong duyet that o service
+    // van fail-closed).
+    if (params.stepRoleNames?.length) {
+      where.approvals = { none: { actorId, actorRole: { notIn: params.stepRoleNames } } };
+    } else {
+      where.approvals = { none: { actorId } };
+    }
   } else if (params.workflowStep) {
     const step = parseInt(String(params.workflowStep), 10);
     if (Number.isInteger(step) && step >= 0) where.workflowStep = step;

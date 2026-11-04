@@ -43,10 +43,23 @@ interface CachedDefinition {
   source: 'db' | 'fallback';
 }
 
+/** Chuan hoa roleNames luu JSON ve mang chuoi; rong/khong hop le -> [roleName]. */
+function normalizeRoleNames(raw: unknown, roleName: string): string[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  const names = [...new Set(arr.map((r) => String(r).trim()).filter(Boolean))];
+  if (names.length) {
+    if (!names.some((n) => n.toLowerCase() === String(roleName).toLowerCase())) names.unshift(roleName);
+    return names;
+  }
+  return [roleName];
+}
+
 export interface SaveStepInput {
   key?: string;
   label?: string;
   roleName?: string;
+  /** Cac Role duoc duyet buoc nay; thieu/rong = [roleName]. */
+  roleNames?: string[];
   returnTo?: string;
   allowEmergency?: boolean;
 }
@@ -103,6 +116,8 @@ export class WorkflowConfigService implements OnModuleInit {
           key: s.key,
           label: s.label,
           roleName: s.roleName,
+          // roleNames luu JSON: chuan hoa ve mang chuoi, rong -> [roleName].
+          roleNames: normalizeRoleNames((s as any).roleNames, s.roleName),
           returnTo: s.returnTo === 'previous' ? 'previous' : 'creator',
           allowEmergency: !!s.allowEmergency,
         })),
@@ -205,6 +220,7 @@ export class WorkflowConfigService implements OnModuleInit {
           key: s.key,
           label: s.label,
           roleName: s.roleName,
+          roleNames: s.roleNames?.length ? s.roleNames : [s.roleName],
           sortOrder: s.sortOrder ?? i,
           returnTo: s.returnTo ?? 'creator',
           allowEmergency: !!s.allowEmergency,
@@ -244,6 +260,7 @@ export class WorkflowConfigService implements OnModuleInit {
         key: s.key,
         label: s.label,
         roleName: s.roleName,
+        roleNames: normalizeRoleNames((s as any).roleNames, s.roleName),
         sortOrder: s.sortOrder,
         returnTo: s.returnTo,
         allowEmergency: s.allowEmergency,
@@ -303,13 +320,17 @@ export class WorkflowConfigService implements OnModuleInit {
         seen.add(s.key);
         if (!s.label || !String(s.label).trim()) throw new BadRequestException(`buoc ${s.key} thieu ten hien thi`);
         if (!s.roleName || !String(s.roleName).trim()) throw new BadRequestException(`buoc ${s.key} thieu Role duyet`);
+        if (s.roleNames !== undefined && (!Array.isArray(s.roleNames) || !s.roleNames.length)) {
+          throw new BadRequestException(`buoc ${s.key} co danh sach Role duyet rong`);
+        }
         if (s.returnTo !== undefined && s.returnTo !== 'creator' && s.returnTo !== 'previous') {
           throw new BadRequestException(`buoc ${s.key} co huong tra lai khong hop le`);
         }
       }
       // Role phai ton tai trong DB (dropdown o CMS da chan, day la lop chan
-      // thu hai o API de khong bao gio luu ten Role go sai).
-      const names = [...new Set(stepsIn.map((s) => s.roleName as string))];
+      // thu hai o API de khong bao gio luu ten Role go sai). Kiem ca
+      // roleName chinh va moi Role trong roleNames.
+      const names = [...new Set(stepsIn.flatMap((s) => [s.roleName as string, ...((s.roleNames as string[]) || [])]))];
       const found = await this.prisma.role.findMany({ where: { name: { in: names } }, select: { name: true } });
       const have = new Set(found.map((r) => r.name.toLowerCase()));
       const missing = names.filter((n) => !have.has(n.toLowerCase()));
@@ -318,6 +339,7 @@ export class WorkflowConfigService implements OnModuleInit {
         key: s.key as string,
         label: String(s.label).trim(),
         roleName: s.roleName as string,
+        roleNames: normalizeRoleNames(s.roleNames, s.roleName as string),
         returnTo: s.returnTo === 'previous' ? 'previous' : 'creator',
         allowEmergency: !!s.allowEmergency,
       }));
@@ -399,6 +421,7 @@ export class WorkflowConfigService implements OnModuleInit {
               key: s.key,
               label: s.label,
               roleName: s.roleName,
+              roleNames: s.roleNames as any,
               sortOrder: i,
               returnTo: s.returnTo,
               allowEmergency: s.allowEmergency,
