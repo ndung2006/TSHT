@@ -31,6 +31,22 @@ class CategoryDto implements CreateCategoryDto {
   @IsOptional() @IsArray() appliesTo?: string[];
 }
 
+// DTO riêng cho PATCH: service update() đã nhận Partial nên mọi trường
+// đều optional ở đây. Dùng chung CategoryDto cho PATCH sẽ bắt buộc name,
+// làm công tắc Ẩn/Hiện (chỉ gửi { isVisible }) luôn rớt validation 400.
+class UpdateCategoryDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() slug?: string;
+  @IsOptional() @IsString() parentId?: string | null;
+  @IsOptional() @IsString() icon?: string;
+  @IsOptional() @IsString() thumbnail?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsInt() sortOrder?: number;
+  @IsOptional() @IsBoolean() isVisible?: boolean;
+  @IsOptional() @IsArray() platforms?: string[];
+  @IsOptional() @IsArray() appliesTo?: string[];
+}
+
 @UseGuards(PermissionsGuard)
 @Controller('admin')
 export class AdminController {
@@ -68,7 +84,7 @@ export class AdminController {
 
   @RequirePerms('category:update')
   @Patch('categories/:id')
-  async updateCategory(@Param('id') id: string, @Body() dto: CategoryDto, @Req() req: any) {
+  async updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto, @Req() req: any) {
     try {
       const c = await this.categories.update(id, dto);
       this.audit.record({ at: Date.now(), ...this.actor(req), action: 'category.update', resource: id });
