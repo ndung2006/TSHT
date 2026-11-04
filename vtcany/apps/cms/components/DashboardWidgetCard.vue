@@ -119,12 +119,12 @@
             <span class="shrink-0 text-xs text-neutral-500">{{ ch.audioOnly ? 'Phát thanh' : 'Truyền hình' }}</span>
           </div>
           <div class="flex flex-wrap gap-4 text-xs">
-            <span>Hôm nay: <NuxtLink :to="drillTo(ch.drillToday)" class="hover:underline"><b>{{ ch.today.state === 'ok' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : 'Lỗi' }}</b></NuxtLink>
+            <span>Hôm nay: <NuxtLink :to="drillTo(ch.drillToday)" class="hover:underline"><b :class="ch.today.state === 'empty' ? 'font-normal text-neutral-400' : ''">{{ ch.today.state === 'ok' || ch.today.state === 'stale' ? fmtNum(ch.today.programs) : ch.today.state === 'no-source' ? '—' : ch.today.state === 'empty' ? 'Chưa có lịch' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.today.state === 'stale'" class="text-neutral-500"> (bản cũ, cập nhật lúc {{ fmtTime(ch.today.updatedAt) }})</span>
               <span v-if="ch.today.state === 'no-source'" class="text-neutral-500"> ({{ ch.today.reason }})</span>
               <span v-if="ch.today.state === 'error'" class="text-red-400"> ({{ ch.today.reason }})</span>
             </span>
-            <span>Ngày mai: <NuxtLink :to="drillTo(ch.drillTomorrow)" class="hover:underline"><b>{{ ch.tomorrow.state === 'ok' ? fmtNum(ch.tomorrow.programs) : ch.tomorrow.state === 'no-source' ? '—' : 'Lỗi' }}</b></NuxtLink>
+            <span>Ngày mai: <NuxtLink :to="drillTo(ch.drillTomorrow)" class="hover:underline"><b :class="ch.tomorrow.state === 'empty' ? 'font-normal text-neutral-400' : ''">{{ ch.tomorrow.state === 'ok' || ch.tomorrow.state === 'stale' ? fmtNum(ch.tomorrow.programs) : ch.tomorrow.state === 'no-source' ? '—' : ch.tomorrow.state === 'empty' ? 'Chưa có lịch' : 'Lỗi' }}</b></NuxtLink>
               <span v-if="ch.tomorrow.state === 'stale'" class="text-neutral-500"> (bản cũ)</span>
               <span v-if="ch.tomorrow.state === 'no-source'" class="text-neutral-500"> ({{ ch.tomorrow.reason }})</span>
               <span v-if="ch.tomorrow.state === 'error'" class="text-red-400"> ({{ ch.tomorrow.reason }})</span>
@@ -246,7 +246,6 @@
       <!-- D3: luu tru (GĐ2) -->
       <template v-else-if="state.code === 'D3'">
         <div class="text-xs text-neutral-500">{{ state.data.note }}</div>
-        <div class="text-3xl font-bold">{{ fmtBytes(state.data.totalBytes) }} <span class="text-base font-normal text-neutral-400">/ {{ fmtNum(state.data.totalFiles) }} file</span></div>
         <div v-for="r in state.data.rows" :key="r.type" class="flex items-center justify-between gap-2">
           <NuxtLink v-if="r.drill" :to="drillTo(r.drill)" class="truncate hover:underline">{{ r.label }}</NuxtLink>
           <span v-else class="truncate">{{ r.label }}</span>

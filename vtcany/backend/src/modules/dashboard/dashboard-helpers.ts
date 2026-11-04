@@ -232,6 +232,21 @@ export function epgDayState(
 // Dinh dang kieu Viet Nam (hien thi)
 // ---------------------------------------------------------------------------
 
+/** Gio VN (0-23) cua mot thoi diem — dung cho gio chot canh bao D5.
+ *  Dung formatToParts vi dinh dang vi-VN tra '10 giờ', Number() truc
+ *  tiep se ra NaN. */
+export function vnHourOf(d: Date): number {
+  const parts = new Intl.DateTimeFormat('vi-VN', {
+    hour: 'numeric', hour12: false, timeZone: VN_TZ,
+  }).formatToParts(d);
+  return Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+}
+
+/** Da qua gio chot trong ngay (gio VN) hay chua. */
+export function isPastDailyCutoff(now: Date, cutoffHour: number): boolean {
+  return vnHourOf(now) >= cutoffHour;
+}
+
 export function fmtVnNumber(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n);
 }

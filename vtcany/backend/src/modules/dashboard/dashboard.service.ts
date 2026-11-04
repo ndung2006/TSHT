@@ -15,6 +15,7 @@ import { channelPublicId, groupForChannel } from '../tv/tv.catalog';
 import {
   ALL_WIDGETS,
   EPG_CACHE_TTL_MS,
+  EPG_TOMORROW_ALERT_CUTOFF_HOUR,
   OPS_WINDOW_DAYS,
   STUCK_THRESHOLD_HOURS,
   WIDGET_META,
@@ -28,6 +29,7 @@ import {
   fmtVnDate,
   groupSubstitutes,
   isOverdue,
+  isPastDailyCutoff,
   isReturnedDraft,
   isStrictDraft,
   latestApprovalsByItem,
@@ -937,13 +939,14 @@ export class DashboardService {
     };
   }
 
-  /** D3 (GĐ2): dung luong luu tru theo loai file — MediaAsset.sizeBytes
-   *  gom theo fileType + PDF bao in (epaper_issues.pdfSizeBytes).
-   *  Pham vi: TOAN BO file trong CSDL (ke ca dang xu ly/loi) vi van
-   *  chiem cho luu tru; PDF tinh tren so bao co pdfSizeBytes.
-   *  Drill: anh/video/audio ve Thu vien loc theo kind; PDF ve Bao in;
-   *  phu de / loai khac / chua phan loai khong co drill loc vi Thu vien
-   *  chi loc duoc image/video/audio. */
+  /** D3 (GĐ2): dung luong FILE GOC da dung theo loai — chi 4 loai hien
+   *  tren widget: anh, video, audio (tu MediaAsset.sizeBytes) + PDF bao in
+   *  (tu epaper_issues.pdfSizeBytes). XAC MINH: sizeBytes chi ghi dung
+   *  luong file goc luc tai len (planUpload / anh truc tiep); webhook
+   *  transcode xong KHONG cap nhat sizeBytes nen cac ban HLS + poster
+   *  khong nam trong so nay — widget phai ghi ro 'dung luong file goc'.
+   *  Drill: anh/video/audio ve Thu vien loc theo kind; PDF ve Bao in
+   *  (Thu vien khong loc duoc PDF). */
   private async wD3() {
     const db: any = this.prisma as any;
     const assets = await db.mediaAsset.findMany({
@@ -951,7 +954,7 @@ export class DashboardService {
     }).catch(() => []);
     const rows = sumMediaSizes(assets.map((r: any) => ({
       fileType: r.fileType ?? null, sizeBytes: r.sizeBytes ?? null,
-    })));
+    }))).filter((r) => ['image', 'video', 'audio'].includes(r.type));
     const pdfRows = await db.epaperIssue.findMany({
       where: { pdfSizeBytes: { not: null } },
       select: { pdfSizeBytes: true },
@@ -959,20 +962,16 @@ export class DashboardService {
     const pdfBytes = pdfRows.reduce((a: number, r: any) => a + Number(r.pdfSizeBytes || 0), 0);
     const out: Array<{ type: string; label: string; files: number; bytes: number; drill: { route: string; query: Record<string, string> } | null }> = rows.map((r) => ({
       ...r,
-      drill: (r.type === 'image' || r.type === 'video' || r.type === 'audio')
-        ? { route: '/thu-vien', query: { kind: r.type } }
-        : null,
+      drill: { route: '/thu-vien', query: { kind: r.type } },
     }));
     out.push({
       type: 'pdf', label: 'PDF báo in', files: pdfRows.length, bytes: pdfBytes,
       drill: { route: '/bao-in', query: {} },
     });
-    const totalBytes = out.reduce((a, r) => a + r.bytes, 0);
-    const totalFiles = out.reduce((a, r) => a + r.files, 0);
     return {
       data: {
-        totalBytes, totalFiles, rows: out,
-        note: 'Tính toàn bộ file trong CSDL (kể cả đang xử lý/lỗi) + PDF các số báo. Thư viện chỉ lọc được Ảnh/Video/Audio nên các loại còn lại không có drill lọc riêng.',
+        rows: out,
+        note: 'Dung lượng file gốc theo loại (sizeBytes ghi lúc tải lên, chưa tính các bản transcode HLS). Dòng PDF dẫn ra Báo in vì Thư viện không lọc được PDF.',
       },
       drill: { route: '/thu-vien', query: {} },
     };
@@ -1001,16 +1000,19 @@ export class DashboardService {
     };
   }
 
-  /** D5: canh bao van hanh — EPG ngay mai trong, so bao 7 ngay toi chua
-   *  duyet, quang cao het han 7 ngay toi. Radio khong co nguon EPG KHONG
-   *  ban canh bao (state 'no-source' bi loai). */
+  /** D5: canh bao van hanh — EPG ngay mai trong (CHI sau gio chot hang
+   *  ngay EPG_TOMORROW_ALERT_CUTOFF_HOUR, vi truoc gio chot lich ngay mai
+   *  co the chua ve tu AIO), so bao 7 ngay toi chua duyet, quang cao het
+   *  han 7 ngay toi. Radio khong co nguon EPG KHONG ban canh bao (state
+   *  'no-source' bi loai). */
   private async wD5() {
     const db: any = this.prisma as any;
     const today = vnTodayStr();
     const tomorrow = vnDayStrOffset(1);
     const channels = await this.tvChannels();
     const epgEmpty: any[] = [];
-    for (const ch of channels) {
+    const epgAlertActive = isPastDailyCutoff(new Date(), EPG_TOMORROW_ALERT_CUTOFF_HOUR);
+    if (epgAlertActive) for (const ch of channels) {
       const m = await this.epgDay(ch.publicId, tomorrow);
       if (m.error) continue;
       const st = epgDayState(m.programs, ch.audioOnly, m.stale);

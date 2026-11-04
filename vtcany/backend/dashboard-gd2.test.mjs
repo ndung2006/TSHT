@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 
 import {
   ALL_WIDGETS,
+  EPG_TOMORROW_ALERT_CUTOFF_HOUR,
   ROLE_LAYOUT,
   WIDGET_META,
   resolveLayout,
 } from './src/modules/dashboard/dashboard-layout.config.ts';
-import { fmtBytes, sumMediaSizes } from './src/modules/dashboard/dashboard-helpers.ts';
+import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf } from './src/modules/dashboard/dashboard-helpers.ts';
 
 describe('D3 thuoc tap widget tu GĐ2, dung role moi thay', () => {
   it('ALL_WIDGETS = 16 GĐ1 + D3, meta D3 tier D', () => {
@@ -53,6 +54,20 @@ describe('gom sizeBytes theo fileType (D3)', () => {
   });
   it('rong -> khong co dong nao', () => {
     assert.deepEqual(sumMediaSizes([]), []);
+  });
+});
+
+describe('gio chot canh bao EPG ngay mai (D5)', () => {
+  it('gio chot nam trong 0-23 (gia tri cu the do user chot, test khong khoa)', () => {
+    assert.ok(Number.isInteger(EPG_TOMORROW_ALERT_CUTOFF_HOUR));
+    assert.ok(EPG_TOMORROW_ALERT_CUTOFF_HOUR >= 0 && EPG_TOMORROW_ALERT_CUTOFF_HOUR <= 23);
+  });
+  it('vnHourOf lay gio VN, isPastDailyCutoff so dung gio', () => {
+    assert.equal(vnHourOf(new Date('2026-11-04T10:00:00+07:00')), 10);
+    assert.equal(vnHourOf(new Date('2026-11-04T18:30:00+07:00')), 18);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T10:00:00+07:00'), 17), false);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T17:00:00+07:00'), 17), true);
+    assert.equal(isPastDailyCutoff(new Date('2026-11-04T18:30:00+07:00'), 17), true);
   });
 });
 
