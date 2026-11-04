@@ -17,6 +17,8 @@ export const HOME_BLOCK_TYPES = [
 ] as const;
 export type HomeBlockType = (typeof HOME_BLOCK_TYPES)[number];
 export type HomeBlockColumn = 'full' | 'left' | 'right';
+// Danh sách string[] cho query Prisma (tuple readonly không cast thẳng được).
+const HOME_BLOCK_TYPE_VALUES: string[] = [...HOME_BLOCK_TYPES];
 
 export interface HomeBlockSeed {
   order: number;
@@ -71,16 +73,21 @@ export class HomeBlocksService implements OnModuleInit {
   private readonly logger = new Logger(HomeBlocksService.name);
   constructor(private prisma: PrismaService) {}
 
+  // NOTE: @prisma/client trong VM chua duoc regenerate (can mang de tai
+  // Prisma engine; Docker build tren production tu chay `prisma generate`
+  // day du). Dung cast tam, giong CategoryService.
+  private get db(): any { return (this.prisma as any).layoutBlock; }
+
   // Seed 1 lần duy nhất khi bảng chưa có khối trang chủ nào (giữ nguyên
   // mọi sửa đổi của admin sau đó, kể cả khi backend restart).
   async onModuleInit(): Promise<void> {
     try {
-      const n = await this.prisma.layoutBlock.count({
-        where: { platform: 'WEB', type: { in: [...HOME_BLOCK_TYPES] } },
+      const n = await this.db.count({
+        where: { platform: 'WEB', type: { in: HOME_BLOCK_TYPE_VALUES } },
       });
       if (n > 0) return;
       for (const s of SEED) {
-        await this.prisma.layoutBlock.create({
+        await this.db.create({
           data: {
             platform: 'WEB',
             order: s.order,
@@ -98,8 +105,8 @@ export class HomeBlocksService implements OnModuleInit {
   }
 
   async listAdmin() {
-    const rows = await this.prisma.layoutBlock.findMany({
-      where: { platform: 'WEB', type: { in: [...HOME_BLOCK_TYPES] } },
+    const rows = await this.db.findMany({
+      where: { platform: 'WEB', type: { in: HOME_BLOCK_TYPE_VALUES } },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map(toPublic);
@@ -107,8 +114,8 @@ export class HomeBlocksService implements OnModuleInit {
 
   // FE public: chỉ khối đang bật, xếp theo order.
   async listPublic() {
-    const rows = await this.prisma.layoutBlock.findMany({
-      where: { platform: 'WEB', type: { in: [...HOME_BLOCK_TYPES] }, isActive: true },
+    const rows = await this.db.findMany({
+      where: { platform: 'WEB', type: { in: HOME_BLOCK_TYPE_VALUES }, isActive: true },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     });
     return { blocks: rows.map(toPublic) };
@@ -116,7 +123,7 @@ export class HomeBlocksService implements OnModuleInit {
 
   private checkDto(dto: HomeBlockDto, forCreate: boolean) {
     if (forCreate && !dto.type) throw new Error('type is required');
-    if (dto.type !== undefined && !(HOME_BLOCK_TYPES as string[]).includes(dto.type))
+    if (dto.type !== undefined && !HOME_BLOCK_TYPE_VALUES.includes(dto.type))
       throw new Error('invalid type');
     if (dto.column !== undefined && !['full', 'left', 'right'].includes(dto.column))
       throw new Error('invalid column');
@@ -128,11 +135,11 @@ export class HomeBlocksService implements OnModuleInit {
     this.checkDto(dto, true);
     const order =
       dto.order ??
-      ((await this.prisma.layoutBlock.aggregate({
-        where: { platform: 'WEB', type: { in: [...HOME_BLOCK_TYPES] } },
+      ((await this.db.aggregate({
+        where: { platform: 'WEB', type: { in: HOME_BLOCK_TYPE_VALUES } },
         _max: { order: true },
       })._max.order) ?? 0) + 1;
-    const r = await this.prisma.layoutBlock.create({
+    const r = await this.db.create({
       data: {
         platform: 'WEB',
         order,
@@ -147,14 +154,14 @@ export class HomeBlocksService implements OnModuleInit {
 
   async update(id: string, dto: HomeBlockDto) {
     this.checkDto(dto, false);
-    const cur = await this.prisma.layoutBlock.findUnique({ where: { id } });
-    if (!cur || cur.platform !== 'WEB' || !(HOME_BLOCK_TYPES as string[]).includes(cur.type))
+    const cur = await this.db.findUnique({ where: { id } });
+    if (!cur || cur.platform !== 'WEB' || !HOME_BLOCK_TYPE_VALUES.includes(cur.type))
       throw new Error('not found');
     const cfg = (cur.config || {}) as any;
     const nextCfg: any = { ...cfg };
     if (dto.column !== undefined) nextCfg.column = dto.column;
     if (dto.categorySlug !== undefined) nextCfg.categorySlug = dto.categorySlug || null;
-    const r = await this.prisma.layoutBlock.update({
+    const r = await this.db.update({
       where: { id },
       data: {
         ...(dto.order !== undefined ? { order: dto.order } : {}),
@@ -168,10 +175,10 @@ export class HomeBlocksService implements OnModuleInit {
   }
 
   async remove(id: string) {
-    const cur = await this.prisma.layoutBlock.findUnique({ where: { id } });
-    if (!cur || cur.platform !== 'WEB' || !(HOME_BLOCK_TYPES as string[]).includes(cur.type))
+    const cur = await this.db.findUnique({ where: { id } });
+    if (!cur || cur.platform !== 'WEB' || !HOME_BLOCK_TYPE_VALUES.includes(cur.type))
       throw new Error('not found');
-    await this.prisma.layoutBlock.delete({ where: { id } });
+    await this.db.delete({ where: { id } });
     return { id };
   }
 }
