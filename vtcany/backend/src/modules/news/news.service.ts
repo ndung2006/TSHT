@@ -848,7 +848,7 @@ export class NewsService {
     return { status: 'published', publishAt: { lte: now } };
   }
 
-  async listPublic(params: { category?: string; q?: string; featured?: string; spotlight?: string; page?: number; limit?: number }) {
+  async listPublic(params: { category?: string; q?: string; featured?: string; spotlight?: string; contentType?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const now = new Date();
@@ -857,6 +857,10 @@ export class NewsService {
     // Goi Tieu diem rieng: chi bai da xuat ban + tick Tieu diem, moi
     // nhat truoc (orderBy publishAt desc chung). Mirror filter featured.
     if (params.spotlight === '1') where.isSpotlight = true;
+    // Loc theo dinh dang noi dung (fix goi khep nho: truoc day list
+    // cong khai bo qua contentType trong khi list admin da ho tro).
+    // Gia tri la -> khong khop dong nao (0 dong), giong hanh vi admin.
+    if (params.contentType) where.contentType = params.contentType;
     if (params.category) {
       const cat = await this.prisma.newsCategory.findUnique({ where: { slug: params.category } });
       if (!cat) return { data: [], total: 0, page, limit };

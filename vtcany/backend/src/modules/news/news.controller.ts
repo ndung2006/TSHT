@@ -271,7 +271,7 @@ export class NewsPublicController {
 
   @Get()
   async list(@Query() q: any) {
-    return this.news.listPublic({ category: q?.category, q: q?.q, featured: q?.featured, spotlight: q?.spotlight, page: q?.page, limit: q?.limit });
+    return this.news.listPublic({ category: q?.category, q: q?.q, featured: q?.featured, spotlight: q?.spotlight, contentType: q?.contentType, page: q?.page, limit: q?.limit });
   }
 
   @Get(':slug')
