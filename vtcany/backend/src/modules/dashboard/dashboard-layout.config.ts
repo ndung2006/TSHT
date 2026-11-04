@@ -46,9 +46,9 @@ export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 
 
 export const ROLE_LAYOUT: Record<string, WidgetCode[]> = {
   // Ban bien tap / Tong bien tap
-  TBT: ['A1', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
-  'P.TBT': ['A1', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
-  BBT: ['A1', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
+  TBT: ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
+  'P.TBT': ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
+  BBT: ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
   // Thu ky toa soan / Phong Bao dien tu
   'T.PP': ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'E1'],
   // Truong phong
