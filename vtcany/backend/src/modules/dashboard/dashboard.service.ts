@@ -280,8 +280,12 @@ export class DashboardService {
       // Loc hang cho dung dinh nghia dung chung (filterMyQueue): buoc thuoc
       // role cua toi (hoac full-admin thay moi buoc), toi khong phai nguoi
       // tao va khong co BAT KY approval nao truoc do tren muc.
+      // CHU Y: tra role buoc bang meta.workflowKey ('print-article'), KHONG
+      // phai meta.key ('printArticle') — stepRoles key theo moduleKey nen
+      // dung meta.key se lam A1 cua bai bao in luon rong (loi phat hien
+      // khi kiem chung live 2026-11-04).
       const mineRows = items.filter((i: any) => this.inQueue({
-        module: meta.key, workflowStep: i.workflowStep, status: i.status,
+        module: meta.workflowKey, workflowStep: i.workflowStep, status: i.status,
         createdBy: i.createdBy ?? null, approvalActorIds: actorIdsByItem.get(i.id) || [],
       }, actor, roles));
       const stepCounts = new Map<number, number>();

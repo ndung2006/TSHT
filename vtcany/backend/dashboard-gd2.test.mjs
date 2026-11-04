@@ -10,7 +10,8 @@ import {
   WIDGET_META,
   resolveLayout,
 } from './src/modules/dashboard/dashboard-layout.config.ts';
-import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf } from './src/modules/dashboard/dashboard-helpers.ts';
+import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf, filterMyQueue } from './src/modules/dashboard/dashboard-helpers.ts';
+import { stepRolesFromDefinitions } from './src/modules/dashboard/dashboard-queries.ts';
 
 describe('D3 thuoc tap widget tu GĐ2, dung role moi thay', () => {
   it('ALL_WIDGETS = 16 GĐ1 + D3, meta D3 tier D', () => {
@@ -68,6 +69,22 @@ describe('gio chot canh bao EPG ngay mai (D5)', () => {
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T10:00:00+07:00'), 17), false);
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T17:00:00+07:00'), 17), true);
     assert.equal(isPastDailyCutoff(new Date('2026-11-04T18:30:00+07:00'), 17), true);
+  });
+});
+
+describe('A1 phai tra role buoc bang workflowKey (loi bai bao in 2026-11-04)', () => {
+  it("module 'print-article' (workflowKey) thay MD o buoc 1; meta.key 'printArticle' thi khong", () => {
+    const roles = stepRolesFromDefinitions([
+      { moduleKey: 'print-article', steps: [
+        { roleName: 'MD', sortOrder: 1 }, { roleName: 'T.PP', sortOrder: 2 },
+        { roleName: 'P.TBT', sortOrder: 3 }, { roleName: 'TBT', sortOrder: 4 },
+      ] },
+    ]);
+    const item = { module: 'print-article', workflowStep: 1, status: 'pending_review', createdBy: 'ktv-1', approvalActorIds: [] };
+    const md = { id: 'md-1', roleName: 'MD', isFullAdmin: false };
+    assert.equal(filterMyQueue([item], md, roles).length, 1);
+    // Bay cu: wA1 truyen meta.key 'printArticle' -> tra role ra undefined -> A1 luon rong.
+    assert.equal(filterMyQueue([{ ...item, module: 'printArticle' }], md, roles).length, 0);
   });
 });
 
