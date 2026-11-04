@@ -12,9 +12,15 @@ import {
 // - Bot UA -> tra { ok: true } gia nhu ghi thanh cong nhung KHONG ghi
 //   row (giong PageView); UA khong bao gio duoc luu.
 // - Kênh: backend tu quy doi ten kenh client gui -> ma kenh chuan qua
-//   danh sach kenh (cache 10 phut, kem override tu DB). Ten khong co
-//   trong danh sach (kenh khong ton tai / da dung) -> tra { ok: true }
-//   nhung KHONG ghi row. AIO loi + cache rong -> tam thoi khong ghi
+//   danh sach kenh (cache 10 phut, kem override tu DB). Doi chieu theo
+//   ten CHUAN HOA (bo dau, bo khoang trang, viet hoa — cung quy tac
+//   normKey cua portal): portal gui ten kieu AIO (TUYENQUANG,
+//   TUYENQUANGRadio) trong khi listGroups tra ten hien thi sau
+//   override (Tuyen Quang, Tuyen Quang Radio); doi chieu thuong
+//   (lowercase) lech dau/cach nen live bi bo dong im lang.
+//   Ten khong co trong danh sach (kenh khong ton tai / da dung) ->
+//   tra { ok: true } nhung KHONG ghi row. AIO loi + cache rong ->
+//   tam thoi khong ghi
 //   (fail-closed; telemetry mat vai nhip la chap nhan duoc, khong phai
 //   billing). Khong luu IP/user id.
 // - Gop ngay: chi gop ngay VN < hom nay (ngay hom nay chua du), chi row
@@ -28,6 +34,16 @@ import {
 
 const CHANNEL_CACHE_TTL_MS = 10 * 60 * 1000;
 const RAW_RETENTION_DAYS = 90;
+
+// Chuan hoa ten kenh de doi chieu (xem ghi chu dau file). Chu Đ
+// khong bi tach dau boi NFD nen khong gay khop nham voi D.
+function normalizeChannelKey(s: string): string {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^A-Z0-9]/gi, '')
+    .toUpperCase();
+}
 
 function nextVnDay(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00+07:00`);
@@ -54,8 +70,9 @@ export class ChannelTelemetryService {
       for (const grp of g.groups || []) {
         for (const c of (grp as any).channels || []) {
           const item = (c as any)?.item || c;
-          const name = typeof item?.name === 'string' ? item.name.trim().toLowerCase() : '';
+          const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
           const pid = typeof item?.public_id === 'string' ? item.public_id : '';
+          const name = normalizeChannelKey(rawName);
           if (name && pid) byName.set(name, pid);
         }
       }
@@ -81,7 +98,7 @@ export class ChannelTelemetryService {
     let channelPublicId: string | null = null;
     if (data.viewType !== 'vod') {
       const known = await this.knownChannels();
-      const hit = known.get((data.channelName || '').toLowerCase());
+      const hit = known.get(normalizeChannelKey(data.channelName || ''));
       if (!hit) return { ok: true };
       channelPublicId = hit;
     }
