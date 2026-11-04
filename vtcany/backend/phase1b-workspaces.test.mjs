@@ -9,14 +9,13 @@ const routes = (groups) => groups.flatMap((g) => g.items.map((i) => i.to));
 const labels = (groups) => groups.map((g) => g.label);
 const itemByTo = (to) => MENU_ITEMS.find((i) => i.to === to);
 
-test('toan quyen (*) thay du 5 workspace va 35 muc cap 1', () => {
+test('toan quyen (*) thay du 6 workspace va 40 muc cap 1', () => {
   const groups = visibleMenu(['*']);
   assert.deepEqual(labels(groups), WORKSPACES.map((w) => w.label));
-  // Tong muc cap 1 giam tu 43 xuong 35 sau don dep sidebar 2026-11-04:
-  // xoa 7 muc (Phim, The loai phim, Dien vien, Bai viet lap, Su kien
-  // lap, Giao dien lap, Goi cuoc) va gop Tap tin + Thu vien thanh 1
-  // muc Kho Media (DAM). 3 muc cha accordion van tinh la 1 muc cap 1.
-  assert.equal(routes(groups).length, 35);
+  // Tong muc cap 1 tang tu 35 len 40 sau sua sidebar 2026-11-04:
+  // them Upload video (nhom TV) + 4 muc OTT gom vao nhom moi
+  // "Nen tang so (OTT)". 3 muc cha accordion van tinh la 1 muc cap 1.
+  assert.equal(routes(groups).length, 40);
 });
 
 test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong gate quyen', () => {
@@ -33,14 +32,19 @@ test('chi co quyen articles thi thay Tin bai o workspace Bao dien tu, khong thay
   assert.ok(!tv || !tv.items.some((i) => i.to === '/bai-viet'));
 });
 
-test('quyen catalog thi chi thay 1 muc Kho Media (DAM) trong workspace Truyen hinh/Phat thanh', () => {
-  const groups = visibleMenu(['catalog:read']);
-  const tv = groups.find((g) => g.label === 'Xuất bản Truyền hình/Phát thanh');
-  assert.deepEqual(routes([tv]), ['/thu-vien']);
-  assert.equal(tv.items[0].label, 'Kho Media (DAM)');
-  assert.equal(tv.items[0].module, 'catalog');
-  assert.ok(!tv.items.some((i) => i.to === '/tap-tin'));
-  assert.ok(!tv.items.some((i) => i.to === '/truyen-hinh'));
+test('Kho Media (DAM) gate bang media:view, Upload video gate bang catalog', () => {
+  const mediaGroups = visibleMenu(['media:view']);
+  const tvMedia = mediaGroups.find((g) => g.label === 'Xuất bản Truyền hình/Phát thanh');
+  assert.deepEqual(routes([tvMedia]), ['/thu-vien']);
+  assert.equal(tvMedia.items[0].label, 'Kho Media (DAM)');
+  assert.equal(tvMedia.items[0].module, 'media');
+  const catGroups = visibleMenu(['catalog:read']);
+  const tvCat = catGroups.find((g) => g.label === 'Xuất bản Truyền hình/Phát thanh');
+  assert.deepEqual(routes([tvCat]), ['/tap-tin']);
+  assert.equal(tvCat.items[0].label, 'Upload video');
+  assert.equal(tvCat.items[0].module, 'catalog');
+  assert.ok(!tvCat.items.some((i) => i.to === '/thu-vien'));
+  assert.ok(!tvMedia.items.some((i) => i.to === '/tap-tin'));
 });
 
 test('khong co quyen nao thi chi thay trang khong gate (Thong ke)', () => {
@@ -61,14 +65,28 @@ test('chi co quyen distribution thi thay Phan phoi o workspace Bao dien tu, khon
   assert.deepEqual(routes([online]), ['/phan-phoi']);
 });
 
-test('don dep sidebar: muc OTT va muc lap khong con tren menu', () => {
+test('muc lap khong con tren menu; muc OTT chi o nhom OTT va chi Super Admin thay', () => {
   const all = routes(visibleMenu(['*']));
-  for (const dead of ['/phim', '/the-loai', '/dien-vien', '/bai-viet', '/su-kien', '/giao-dien', '/goi-cuoc', '/tap-tin']) {
+  for (const dead of ['/bai-viet', '/su-kien', '/giao-dien']) {
     assert.ok(!all.includes(dead), `${dead} phai bien khoi menu`);
   }
   // Ban chinh van giu: tin bai + su kien toa soan o Bao dien tu.
   assert.ok(all.includes('/tin-bai'));
   assert.ok(all.includes('/su-kien-toa-soan'));
+  // OTT: co o nhom OTT khi toan quyen, khong co o nhom TV/Quan tri.
+  const groups = visibleMenu(['*']);
+  const ott = groups.find((g) => g.id === 'ott');
+  assert.equal(ott.label, 'Nền tảng số (OTT)');
+  assert.deepEqual(ott.items.map((i) => i.to), ['/phim', '/the-loai', '/dien-vien', '/goi-cuoc']);
+  assert.ok(ott.items.every((i) => i.adminOnly === true));
+  const tv = groups.find((g) => g.id === 'tv');
+  const admin = groups.find((g) => g.id === 'admin');
+  assert.ok(!tv.items.some((i) => ['/phim', '/the-loai', '/dien-vien'].includes(i.to)));
+  assert.ok(!admin.items.some((i) => i.to === '/goi-cuoc'));
+  // Role co du quyen module OTT nhung khong co '*' thi khong thay nhom OTT.
+  const noOtt = visibleMenu(['movies:view', 'genres:view', 'actors:view', 'plans:view']);
+  assert.ok(!noOtt.some((g) => g.id === 'ott'));
+  assert.ok(!routes(noOtt).includes('/phim'));
 });
 
 test('Vung hien thi doi ve cuoi nhom Quan ly giao dien, giu quyen zones', () => {

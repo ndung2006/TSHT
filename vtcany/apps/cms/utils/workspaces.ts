@@ -7,13 +7,17 @@
 //   tung endpoint) va nut hanh dong can() trong tung trang. An menu khong
 //   thay the guard.
 // - KHONG doi ten role: ten viet tat la khoa chan buoc duyet.
-// - Don dep sidebar 2026-11-04: cac muc thuan OTT (Phim, The loai phim,
-//   Dien vien, Goi cuoc) va cac muc lap (Bai viet, Su kien trong nhom TV,
-//   Giao dien trong nhom Bao dien tu) da bi xoa khoi menu — trang page
-//   van ton tai de deep-link cu khong vo, chi khong hien tren sidebar.
-//   Tap tin + Thu vien (cung module catalog) gop thanh 1 muc Kho Media
-//   (DAM) tro ve /thu-vien (thu vien media that); trang /tap-tin (hang
-//   doi upload/transcode VOD) van hoat dong qua URL truc tiep.
+// - Don dep sidebar 2026-11-04: cac muc lap (Bai viet, Su kien trong
+//   nhom TV, Giao dien trong nhom Bao dien tu) da bi xoa khoi menu —
+//   trang page van ton tai de deep-link cu khong vo, chi khong hien
+//   tren sidebar. Cac muc thuan OTT (Phim, The loai phim, Dien vien,
+//   Goi cuoc) gom vao nhom "Nen tang so (OTT)" chi Super Admin thay
+//   (co adminOnly, gate bang quyen '*').
+//   Tap tin + Thu vien gop thanh 1 muc Kho Media (DAM) tro ve /thu-vien
+//   (thu vien media that), gate bang media:* (role toa soan chi co
+//   media:*); trang /tap-tin (hang doi upload/transcode VOD) co lai
+//   cua vao rieng "Upload video" trong nhom TV, gate bang catalog:*
+//   theo endpoint /admin/catalog/files/all ma trang do dang dung.
 // - Vung hien thi (Zones) giu quyen zones:* rieng, chi doi vi tri hien
 //   thi: cuoi nhom Quan ly giao dien.
 // - Trang khong gate quyen (Thong ke, module = null) luon hien nhu hien
@@ -41,6 +45,8 @@ export interface MenuItem {
   workspace: string;
   /** Module quyen (catalog quyen); null = luon hien. */
   module: string | null;
+  /** Chi Super Admin (quyen '*') thay; dung cho nhom OTT. */
+  adminOnly?: boolean;
   /** Menu con accordion; chi muc cha tac nghiep moi co. */
   children?: MenuChild[];
 }
@@ -51,6 +57,7 @@ export const WORKSPACES: Workspace[] = [
   { id: 'print', label: 'Xuất bản Báo in' },
   { id: 'interface', label: 'Quản lý giao diện' },
   { id: 'admin', label: 'Quản trị chung' },
+  { id: 'ott', label: 'Nền tảng số (OTT)' },
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
@@ -58,10 +65,11 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/truyen-hinh', label: 'Truyền hình & EPG', icon: 'pi-tv', workspace: 'tv', module: 'tv' },
   { to: '/livestream', label: 'Livestream', icon: 'pi-broadcast-tower', workspace: 'tv', module: 'livestream' },
   { to: '/videos', label: 'Videos', icon: 'pi-play', workspace: 'tv', module: 'videos' },
+  { to: '/tap-tin', label: 'Upload video', icon: 'pi-upload', workspace: 'tv', module: 'catalog' },
   { to: '/danh-muc?tab=video', label: 'Chuyên mục Video', icon: 'pi-folder', workspace: 'tv', module: 'categories' },
   { to: '/short', label: 'Short', icon: 'pi-bolt', workspace: 'tv', module: 'shorts' },
   { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list', workspace: 'tv', module: 'playlists' },
-  { to: '/thu-vien', label: 'Kho Media (DAM)', icon: 'pi-images', workspace: 'tv', module: 'catalog' },
+  { to: '/thu-vien', label: 'Kho Media (DAM)', icon: 'pi-images', workspace: 'tv', module: 'media' },
   // (2) Xuat ban Bao in
   { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
   {
@@ -119,6 +127,11 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/quy-trinh-duyet', label: 'Quy trình duyệt', icon: 'pi-list-check', workspace: 'admin', module: 'workflows' },
   { to: '/admins', label: 'Quản trị viên', icon: 'pi-user-edit', workspace: 'admin', module: 'admins' },
   { to: '/phong-ban', label: 'Phòng ban', icon: 'pi-sitemap', workspace: 'admin', module: 'departments' },
+  // (5) Nen tang so (OTT): chi Super Admin thay (adminOnly, gate '*').
+  { to: '/phim', label: 'Phim', icon: 'pi-video', workspace: 'ott', module: 'movies', adminOnly: true },
+  { to: '/the-loai', label: 'Thể loại phim', icon: 'pi-tags', workspace: 'ott', module: 'genres', adminOnly: true },
+  { to: '/dien-vien', label: 'Diễn viên', icon: 'pi-user', workspace: 'ott', module: 'actors', adminOnly: true },
+  { to: '/goi-cuoc', label: 'Gói cước', icon: 'pi-credit-card', workspace: 'ott', module: 'plans', adminOnly: true },
 ];
 
 /** Item hien khi: khong gan module, hoac toan quyen ('*'), hoac co bat ky
@@ -148,11 +161,13 @@ export interface WorkspaceGroup {
   items: MenuItem[];
 }
 
-/** Nhom menu theo workspace, chi giu workspace co it nhat 1 item hien. */
+/** Nhom menu theo workspace, chi giu workspace co it nhat 1 item hien.
+ *  Muc adminOnly chi hien khi co quyen '*' (Super Admin). */
 export function visibleMenu(permissions: string[]): WorkspaceGroup[] {
   const out: WorkspaceGroup[] = [];
+  const isSuperAdmin = (permissions || []).includes('*');
   for (const ws of WORKSPACES) {
-    const items = MENU_ITEMS.filter((m) => m.workspace === ws.id && hasModulePermission(permissions, m.module));
+    const items = MENU_ITEMS.filter((m) => m.workspace === ws.id && (!m.adminOnly || isSuperAdmin) && hasModulePermission(permissions, m.module));
     if (items.length) out.push({ id: ws.id, label: ws.label, items });
   }
   return out;

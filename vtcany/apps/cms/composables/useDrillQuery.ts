@@ -50,5 +50,12 @@ export function useDrillQuery() {
   const drillLabel = computed(() => Object.entries(drill.value)
     .map(([k, v]) => (LABELS[k] ? LABELS[k](v) : `${k}=${v}`)).join(' · '));
 
-  return { drill, hasDrill, initDrill, clearDrill, drillLabel };
+  // Chip loc: khi drill chi co duy nhat status (truong hop vao tu menu
+  // sidebar ?status=), hien "Dang loc: <trang thai>" thay cho "Dang loc
+  // theo dashboard". Dashboard drill thuong kem q/myQueue/... nen van
+  // giu chu cu khi co them khoa khac.
+  const isStatusOnlyDrill = computed(() => Object.keys(drill.value).length === 1 && drill.value.status !== undefined);
+  const chipPrefix = computed(() => (isStatusOnlyDrill.value ? 'Đang lọc:' : 'Đang lọc theo dashboard:'));
+
+  return { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix };
 }

@@ -15,7 +15,7 @@
     </div>
 
     <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
-      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <span class="text-sm">{{ chipPrefix }} <b>{{ drillLabel }}</b></span>
       <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
     </div>
 
@@ -242,7 +242,7 @@ const loading = ref(false);
 const q = ref('');
 const statusFilter = ref('');
 // Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
-const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
+const { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix } = useDrillQuery();
 const events = ref<any[]>([]);
 
 const statusOptions = [
