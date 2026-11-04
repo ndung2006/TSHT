@@ -362,10 +362,16 @@ export class CatalogController {
   // ---- Media library (Tap tin) ----
   @RequirePerms('catalog:read')
   @Get('files/all')
-  listFiles(@Query('page') page?: string, @Query('limit') limit?: string) {
+  listFiles(@Query('page') page?: string, @Query('limit') limit?: string, @Query('status') status?: string) {
     const p = Math.max(1, Number(page) || 1);
     const l = Math.min(100, Math.max(1, Number(limit) || 20));
-    const all = this.uploads.listUploads();
+    // Drill-down tu widget D2 dashboard GĐ1: loc theo trang thai upload
+    // (pending/uploaded/processing/done/error) tren cung nguon in-memory
+    // ma trang Tap tin dung, de so tren widget = so dong danh sach.
+    let all = this.uploads.listUploads();
+    if (status && ['pending', 'uploaded', 'processing', 'done', 'error'].includes(status)) {
+      all = all.filter((r: any) => r.status === status);
+    }
     return { data: all.slice((p - 1) * l, p * l), meta: { page: p, limit: l, total: all.length } };
   }
 

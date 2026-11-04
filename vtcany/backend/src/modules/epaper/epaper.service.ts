@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { UploadsService } from '../uploads/uploads.service';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -224,7 +225,7 @@ export class EpaperService {
     });
   }
 
-  async list(query: { issueType?: string; q?: string; status?: string; page?: number; limit?: number }) {
+  async list(query: { issueType?: string; q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; issueNumber?: string; publishDate?: string }) {
     const page = Math.max(1, Math.trunc(Number(query.page) || 1));
     const limit = Math.min(100, Math.max(1, Math.trunc(Number(query.limit) || 20)));
     const where: any = {};
@@ -238,6 +239,16 @@ export class EpaperService {
         ...(Number.isInteger(n) ? [{ issueNumber: n }] : []),
       ];
     }
+    // Drill-down tu dashboard GĐ1 (dung chung dinh nghia voi widget).
+    if (query.issueNumber) {
+      const n = Number(query.issueNumber);
+      if (Number.isInteger(n)) where.issueNumber = n;
+    }
+    if (query.publishDate && /^\d{4}-\d{2}-\d{2}$/.test(query.publishDate)) {
+      const from = new Date(`${query.publishDate}T00:00:00Z`);
+      where.publishDate = { gte: from, lt: new Date(from.getTime() + 24 * 3600_000) };
+    }
+    await applyDrillWhere(this.prisma, 'epaperIssue', 'epaperIssueApproval', 'issueId', where, query, query.actorId);
     const [rows, total] = await Promise.all([
       this.prisma.epaperIssue.findMany({
         where, orderBy: [{ publishDate: 'desc' }, { issueNumber: 'desc' }],

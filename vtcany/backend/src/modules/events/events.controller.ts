@@ -59,8 +59,8 @@ export class EventsController {
 
   @RequirePerms('newsroom_events:view')
   @Get()
-  async list(@Query() q: any) {
-    return this.events.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, page: q?.page, limit: q?.limit });
+  async list(@Query() q: any, @Req() req: any) {
+    return this.events.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, page: q?.page, limit: q?.limit, workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned, neverSubmitted: q?.neverSubmitted, actorId: req.user?.sub || null, scheduled: q?.scheduled });
   }
 
   @RequirePerms('newsroom_events:view')

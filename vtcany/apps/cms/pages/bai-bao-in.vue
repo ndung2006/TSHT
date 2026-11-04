@@ -13,6 +13,11 @@
       <Button v-if="can('print_articles:create')" label="Thêm bài báo in" icon="pi pi-plus" size="small" @click="openAdd" />
     </div>
 
+    <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
+      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
+    </div>
+
     <div class="surface-card p-4 overflow-x-auto">
       <DataTable :value="items" :loading="loading" paginator :rows="meta.limit" :total-records="meta.total"
         lazy :first="(meta.page - 1) * meta.limit" @page="onPage" size="small" class="print-list">
@@ -200,6 +205,8 @@ const meta = ref({ total: 0, page: 1, limit: 20 });
 const loading = ref(false);
 const q = ref('');
 const statusFilter = ref('');
+// Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
+const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 
 const statusOptions = [
   { label: 'Tất cả trạng thái', value: '' },
@@ -258,6 +265,7 @@ async function load(page = 1) {
   try {
     const r = await api.get<any>('/admin/print-articles', {
       q: q.value || undefined, status: statusFilter.value || undefined, page, limit: meta.value.limit,
+      ...drill.value,
     });
     items.value = r.data || [];
     meta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
@@ -284,7 +292,7 @@ async function loadCats() {
   try { cats.value = await api.get<any[]>('/admin/news-categories') || []; }
   catch { cats.value = []; }
 }
-onMounted(() => { load(1); loadCats(); });
+onMounted(() => { initDrill(['q', 'status', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']); load(1); loadCats(); });
 
 const editDlg = ref(false);
 const editItem = ref<any>(null);

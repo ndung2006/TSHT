@@ -15,6 +15,11 @@
       <Button v-if="can('epaper:create')" label="Thêm số báo" icon="pi pi-plus" @click="openAdd" />
     </div>
 
+    <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
+      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
+    </div>
+
     <div class="surface-card p-4">
       <DataTable :value="items" :loading="loading" paginator :rows="meta.limit" :total-records="meta.total"
         lazy :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
@@ -287,6 +292,8 @@ const loading = ref(false);
 const q = ref('');
 const issueType = ref('');
 const statusFilter = ref('');
+// Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
+const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 
 async function load(page = 1) {
   loading.value = true;
@@ -294,6 +301,7 @@ async function load(page = 1) {
     const r = await api.get<any>('/admin/epaper', {
       issueType: issueType.value || undefined, status: statusFilter.value || undefined,
       q: q.value || undefined, page, limit: meta.value.limit,
+      ...drill.value,
     });
     items.value = r.data || [];
     meta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
@@ -770,5 +778,6 @@ async function removeItem(it: any) {
   }
 }
 
+initDrill(['q', 'status', 'issueType', 'issueNumber', 'publishDate', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
 load(1);
 </script>

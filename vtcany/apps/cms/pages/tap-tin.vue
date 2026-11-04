@@ -10,6 +10,11 @@
 
     <p class="text-sm text-neutral-400">Tổng: {{ meta.total }} tập tin</p>
 
+    <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
+      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load();" />
+    </div>
+
     <div class="surface-card p-4">
       <DataTable :value="items" :loading="loading" paginator :rows="20" :total-records="meta.total"
         lazy :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
@@ -47,6 +52,8 @@ const items = ref<any[]>([]);
 const meta = ref({ page: 1, limit: 20, total: 0 });
 const loading = ref(true);
 const lastUploadId = ref('');
+// Drill-down tu dashboard GĐ1 (widget D2: loc theo trang thai upload).
+const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 
 function transcodeSev(t: string) {
   return { pending: 'warn', processing: 'info', done: 'success', error: 'danger' }[t] || 'secondary';
@@ -63,7 +70,7 @@ async function onUploaded(uploadId: string) {
 async function load() {
   loading.value = true;
   try {
-    const r = await api.get<any>('/admin/catalog/files/all', { page: meta.value.page, limit: meta.value.limit });
+    const r = await api.get<any>('/admin/catalog/files/all', { page: meta.value.page, limit: meta.value.limit, ...drill.value });
     items.value = r.data || [];
     meta.value = { ...meta.value, ...r.meta };
   } finally { loading.value = false; }
@@ -78,6 +85,7 @@ function statusLabel(d: any) {
 // Tu lam moi 10s khi con file dang transcode de theo doi tien do.
 let refreshTimer: any = null;
 onMounted(() => {
+  initDrill(['status']);
   load();
   refreshTimer = setInterval(() => {
     if (items.value.some((x: any) => x.status === 'processing' || x.status === 'uploaded')) load();

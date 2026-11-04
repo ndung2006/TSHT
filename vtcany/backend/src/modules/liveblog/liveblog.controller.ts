@@ -62,8 +62,8 @@ export class LiveblogController {
 
   @RequirePerms('liveblog:view')
   @Get()
-  async list(@Query() q: any) {
-    return this.liveblog.listAdmin({ q: q?.q, status: q?.status, eventId: q?.eventId, page: q?.page, limit: q?.limit });
+  async list(@Query() q: any, @Req() req: any) {
+    return this.liveblog.listAdmin({ q: q?.q, status: q?.status, eventId: q?.eventId, page: q?.page, limit: q?.limit, workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned, neverSubmitted: q?.neverSubmitted, actorId: req.user?.sub || null });
   }
 
   @RequirePerms('liveblog:view')

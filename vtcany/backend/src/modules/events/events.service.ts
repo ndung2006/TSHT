@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './events-workflow';
@@ -173,7 +174,7 @@ export class EventsService {
 
   // ---------------- Admin: su kien ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; scheduled?: string }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where: any = {};
@@ -191,6 +192,12 @@ export class EventsService {
         { description: { contains: params.q, mode: 'insensitive' } },
       ];
     }
+    // Drill A4 dashboard GĐ1: da xuat ban nhung publishAt con o tuong lai.
+    if (params.scheduled) {
+      where.status = 'published';
+      where.publishAt = { gt: new Date() };
+    }
+    await applyDrillWhere(this.prisma, 'newsroomEvent', 'newsroomEventApproval', 'eventId', where, params, params.actorId);
     const [total, rows] = await Promise.all([
       this.prisma.newsroomEvent.count({ where }),
       this.prisma.newsroomEvent.findMany({

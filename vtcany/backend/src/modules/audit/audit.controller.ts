@@ -10,7 +10,7 @@ export class AuditController {
 
   @RequirePerms('audit:read')
   @Get()
-  list(@Query('limit') limit?: string) {
-    return this.audit.list(limit ? Number(limit) : 100);
+  list(@Query('limit') limit?: string, @Query('actor') actor?: string, @Query('action') action?: string) {
+    return this.audit.list(limit ? Number(limit) : 100, { actor, action });
   }
 }

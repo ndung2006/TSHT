@@ -8,6 +8,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { slugify, type Actor } from '../news/news.service';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
@@ -269,12 +270,13 @@ export class PrintArticleService {
 
   // ---------------- Admin: danh sach / chi tiet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; page?: number; limit?: number }) {
+  async listAdmin(params: { q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null }) {
     const page = Math.max(1, parseInt(String(params.page ?? 1), 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(String(params.limit ?? 20), 10) || 20));
     const where: any = {};
     if (params.q?.trim()) where.title = { contains: params.q.trim(), mode: 'insensitive' };
     if (params.status) where.status = params.status;
+    await applyDrillWhere(this.prisma, 'printArticle', 'printArticleApproval', 'articleId', where, params, params.actorId);
     const [rows, total] = await Promise.all([
       this.prisma.printArticle.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       this.prisma.printArticle.count({ where }),

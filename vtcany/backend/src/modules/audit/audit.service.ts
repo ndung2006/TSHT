@@ -19,7 +19,18 @@ export class AuditService {
     return entry;
   }
 
-  list(limit = 100): AuditEntry[] {
-    return this.entries.slice(-limit).reverse();
+  list(limit = 100, filters: { actor?: string; action?: string } = {}): AuditEntry[] {
+    let rows = this.entries;
+    // Loc phuc vu widget D4 dashboard GĐ1 (actor/action, chuoi con, khong
+    // phan biet hoa thuong); loc truoc khi cat limit de trang co du dong.
+    if (filters.actor && filters.actor.trim()) {
+      const needle = filters.actor.trim().toLowerCase();
+      rows = rows.filter((e) => String((e as any).actor || '').toLowerCase().includes(needle));
+    }
+    if (filters.action && filters.action.trim()) {
+      const needle = filters.action.trim().toLowerCase();
+      rows = rows.filter((e) => String((e as any).action || '').toLowerCase().includes(needle));
+    }
+    return rows.slice(-limit).reverse();
   }
 }

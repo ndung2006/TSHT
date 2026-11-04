@@ -25,6 +25,7 @@ import { RoyaltiesModule } from './modules/royalties/royalties.module';
 import { PrintArticleModule } from './modules/print-articles/print-article.module';
 import { SiteInterfaceModule } from './modules/site-interface/site-interface.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -55,6 +56,7 @@ import { HealthController } from './health.controller';
     PrintArticleModule,
     SiteInterfaceModule,
     WorkflowsModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
 })

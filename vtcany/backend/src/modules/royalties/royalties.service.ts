@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { drillNeverSubmittedIds, drillReturnedIds } from '../dashboard/dashboard-queries';
 import {
   WORKFLOW_ACTION_LABELS, canUnlock, checkSeparationOfDuties,
 } from './royalties-workflow';
@@ -149,13 +150,52 @@ export class RoyaltiesService {
 
   // ---------------- Panel: bai da xuat ban + ban cham ----------------
 
-  async listArticles(params: { q?: string; royaltyStatus?: string; page?: number; limit?: number }) {
+  async listArticles(params: { q?: string; royaltyStatus?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where: any = { status: 'published' };
     if (params.q) where.title = { contains: params.q, mode: 'insensitive' };
     if (params.royaltyStatus === 'none') where.royalty = { is: null };
     else if (params.royaltyStatus) where.royalty = { is: { status: params.royaltyStatus } };
+    // Drill-down tu dashboard GĐ1: danh sach nhuan but truy van qua
+    // newsArticle -> royalty (khong co bang rieng), nen loc drill ap vao
+    // royalty.is thay vi where truc tiep (dinh nghia giong widget B1/A1).
+    // Drill khong kem royaltyStatus thi khoi tao royalty.is rong (neu
+    // royaltyStatus='none' — bai chua co nhuan but — thi drill vo nghia
+    // nen bo qua, trang khong gui to hop nay).
+    if (params.workflowStep || params.myQueue || params.mine || params.returned || params.neverSubmitted) {
+      if (!where.royalty) where.royalty = { is: {} };
+    }
+    if ((params.workflowStep || params.myQueue || params.mine || params.returned || params.neverSubmitted) && where.royalty?.is && typeof where.royalty.is === 'object') {
+      const rWhere: any = {};
+      if (params.mine && params.actorId) rWhere.createdBy = params.actorId;
+      if (params.myQueue && params.actorId) {
+        const step = parseInt(String(params.workflowStep || ''), 10);
+        rWhere.status = 'pending_review';
+        if (Number.isInteger(step) && step > 0) rWhere.workflowStep = step;
+        rWhere.createdBy = { not: params.actorId };
+        rWhere.approvals = { none: { actorId: params.actorId } };
+      } else if (params.workflowStep) {
+        const step = parseInt(String(params.workflowStep), 10);
+        if (Number.isInteger(step) && step >= 0) rWhere.workflowStep = step;
+      }
+      if (params.returned) {
+        const drafts = await this.prisma.articleRoyalty.findMany({ where: { status: 'draft' }, select: { id: true } });
+        const ids = await drillReturnedIds(this.prisma, 'articleRoyaltyApproval', 'royaltyId', drafts.map((d: any) => d.id));
+        rWhere.id = { in: ids };
+        rWhere.status = 'draft';
+      }
+      if (params.neverSubmitted) {
+        const drafts = await this.prisma.articleRoyalty.findMany({
+          where: { status: 'draft', ...(params.actorId && params.mine ? { createdBy: params.actorId } : {}) },
+          select: { id: true },
+        });
+        const ids = await drillNeverSubmittedIds(this.prisma, 'articleRoyaltyApproval', 'royaltyId', drafts.map((d: any) => d.id));
+        rWhere.id = { in: ids };
+        rWhere.status = 'draft';
+      }
+      where.royalty = { is: { ...where.royalty.is, ...rWhere } };
+    }
     const [total, rows] = await Promise.all([
       this.prisma.newsArticle.count({ where }),
       this.prisma.newsArticle.findMany({

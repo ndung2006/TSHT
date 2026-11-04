@@ -14,6 +14,11 @@
       <Button label="Tìm" size="small" @click="load(1)" />
     </div>
 
+    <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
+      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
+    </div>
+
     <div class="surface-card p-4">
       <DataTable :value="items" :loading="loading" paginator :rows="20" :total-records="meta.total" lazy
         :first="(meta.page - 1) * meta.limit" @page="onPage" size="small">
@@ -209,6 +214,8 @@ const meta = ref({ total: 0, page: 1, limit: 20 });
 const loading = ref(false);
 const q = ref('');
 const statusFilter = ref('');
+// Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
+const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 const cats = ref<any[]>([]);
 
 const statusOptions = [
@@ -270,6 +277,7 @@ async function load(page = 1) {
   try {
     const r = await api.get<any>('/admin/events', {
       q: q.value || undefined, status: statusFilter.value || undefined, page, limit: meta.value.limit,
+      ...drill.value,
     });
     items.value = r.data || [];
     meta.value = { total: r.total || 0, page: r.page || 1, limit: r.limit || 20 };
@@ -569,6 +577,7 @@ watch(returnDlg, async (v) => {
   if (!v && reviewDlg.value && reviewItem.value && returnTarget.value?.publicId === reviewItem.value.publicId) await refreshReview();
 });
 
+initDrill(['q', 'status', 'categoryId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted', 'scheduled']);
 loadCats();
 load(1);
 </script>

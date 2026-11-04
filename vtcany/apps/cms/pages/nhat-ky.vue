@@ -4,6 +4,10 @@
       <p class="text-sm text-neutral-400">Hiển thị {{ logs.length }} bản ghi gần nhất</p>
       <Button label="Tải lại" icon="pi pi-refresh" size="small" severity="secondary" @click="load" />
     </div>
+    <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
+      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load();" />
+    </div>
     <div class="surface-card p-4">
       <DataTable :value="logs" :loading="loading" paginator :rows="20" size="small" sort-field="at" :sort-order="-1">
         <Column header="Thời gian" sortable field="at">
@@ -26,6 +30,8 @@ const api = useApi();
 const toast = useToast();
 const logs = ref<any[]>([]);
 const loading = ref(true);
+// Drill-down tu dashboard GĐ1 (widget D4: loc theo actor/action).
+const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 
 function fmtTime(at: number) {
   return at ? new Date(at).toLocaleString('vi-VN') : '';
@@ -33,10 +39,10 @@ function fmtTime(at: number) {
 async function load() {
   loading.value = true;
   try {
-    const r = await api.get<any[]>('/audit-logs', { limit: 100 });
+    const r = await api.get<any[]>('/audit-logs', { limit: 100, ...drill.value });
     logs.value = Array.isArray(r) ? r : [];
   } catch { toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không tải được nhật ký', life: 3000 }); }
   finally { loading.value = false; }
 }
-onMounted(load);
+onMounted(() => { initDrill(['actor', 'action']); load(); });
 </script>

@@ -58,8 +58,8 @@ export class RoyaltiesController {
 
   @RequirePerms('royalties:view')
   @Get('articles')
-  async list(@Query() q: any) {
-    return this.royalties.listArticles({ q: q?.q, royaltyStatus: q?.royaltyStatus, page: q?.page, limit: q?.limit });
+  async list(@Query() q: any, @Req() req: any) {
+    return this.royalties.listArticles({ q: q?.q, royaltyStatus: q?.royaltyStatus, page: q?.page, limit: q?.limit, workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned, neverSubmitted: q?.neverSubmitted, actorId: req.user?.sub || null });
   }
 
   @RequirePerms('royalties:view')

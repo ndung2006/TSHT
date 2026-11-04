@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
+import { drillNeverSubmittedIds, drillReturnedIds } from '../dashboard/dashboard-queries';
 import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
@@ -329,7 +330,7 @@ export class NewsService {
 
   // ---------------- Admin: bai viet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where = await this.buildListWhere(params);
@@ -355,7 +356,7 @@ export class NewsService {
    * publishAt); ngay sai dinh dang thi bo qua (giong cach loc lenh lac
    * hien co: status la cung tra 0 dong chu khong 400).
    */
-  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null }) {
+  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string }) {
     const where: any = {};
     if (params.status) where.status = params.status;
     // Loc "cua toi" (day so lieu ca nhan, 2026-11-01): mine = bai do chinh
@@ -367,6 +368,46 @@ export class NewsService {
       if (params.scope === 'mine') where.createdBy = params.actorId;
       else if (params.scope === 'approved') where.approvals = { some: { actorId: params.actorId, action: 'approve' } };
       else if (params.scope === 'published') where.approvals = { some: { actorId: params.actorId, action: 'publish' } };
+    }
+    // Drill-down tu dashboard GĐ1 (dung chung dinh nghia voi widget):
+    // myQueue = hang cho cua toi (buoc + tach nhiem vu: khong phai nguoi
+    // tao, khong co approval truoc do); mine = bai cua toi; returned =
+    // nhap ma approval gan nhat la return; neverSubmitted = nhap chua tung
+    // gui; scheduled = da xuat ban nhung publishAt con o tuong lai.
+    if (params.mine && params.actorId) where.createdBy = params.actorId;
+    if (params.myQueue && params.actorId) {
+      const step = parseInt(String(params.workflowStep || ''), 10);
+      where.status = 'pending_review';
+      if (Number.isInteger(step) && step > 0) where.workflowStep = step;
+      where.createdBy = { not: params.actorId };
+      where.approvals = { none: { actorId: params.actorId } };
+    } else if (params.workflowStep) {
+      const step = parseInt(String(params.workflowStep), 10);
+      if (Number.isInteger(step) && step >= 0) where.workflowStep = step;
+    }
+    if (params.scheduled) {
+      where.status = 'published';
+      where.publishAt = { gt: new Date() };
+    }
+    if (params.publishFrom || params.publishTo) {
+      where.publishAt = { ...(where.publishAt || {}) };
+      if (params.publishFrom) where.publishAt.gte = new Date(params.publishFrom);
+      if (params.publishTo) where.publishAt.lt = new Date(params.publishTo);
+    }
+    if (params.returned) {
+      const drafts = await this.prisma.newsArticle.findMany({ where: { status: 'draft' }, select: { id: true } });
+      const ids = await drillReturnedIds(this.prisma, 'newsArticleApproval', 'articleId', drafts.map((d: any) => d.id));
+      where.id = { in: ids };
+      where.status = 'draft';
+    }
+    if (params.neverSubmitted) {
+      const drafts = await this.prisma.newsArticle.findMany({
+        where: { status: 'draft', ...(params.actorId && (params.scope === 'mine' || params.mine) ? { createdBy: params.actorId } : {}) },
+        select: { id: true },
+      });
+      const ids = await drillNeverSubmittedIds(this.prisma, 'newsArticleApproval', 'articleId', drafts.map((d: any) => d.id));
+      where.id = { in: ids };
+      where.status = 'draft';
     }
     if (params.categoryId) {
       const cat = await this.prisma.newsCategory.findFirst({

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './liveblog-workflow';
@@ -194,7 +195,7 @@ export class LiveblogService {
 
   // ---------------- Admin: liveblog ----------------
 
-  async listAdmin(params: { q?: string; status?: string; eventId?: string; page?: number; limit?: number }) {
+  async listAdmin(params: { q?: string; status?: string; eventId?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where: any = {};
@@ -212,6 +213,7 @@ export class LiveblogService {
         { description: { contains: params.q, mode: 'insensitive' } },
       ];
     }
+    await applyDrillWhere(this.prisma, 'liveblog', 'liveblogApproval', 'liveblogId', where, params, params.actorId);
     const [total, rows] = await Promise.all([
       this.prisma.liveblog.count({ where }),
       this.prisma.liveblog.findMany({
