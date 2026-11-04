@@ -1,9 +1,9 @@
-// Cau hinh bo cuc dashboard theo vai tro (GĐ1) — file thuần, KHONG import
+// Cau hinh bo cuc dashboard theo vai tro (GĐ1 + D3 tu GĐ2) — file thuần, KHONG import
 // Nest/Prisma de test truc tiep bang node --test (khuon retry-policy.ts).
 // Quy tac (tai lieu duyet, muc 5 + muc 11):
-// - Ma tran roleName -> widget, chi lay subset GĐ1 (16 widget). C4, C1, C2,
-//   C3, C5, C6, C7, D3 la giai doan sau, KHONG liet ke o GĐ1.
-// - Full-admin (quyen '*':'*') thay toan bo 16 widget GĐ1, nhung van chiu
+// - Ma tran roleName -> widget, gom 16 widget GĐ1 + D3 (GĐ2). C4, C1, C2,
+//   C3, C5, C6, C7 la giai doan sau, KHONG liet ke.
+// - Full-admin (quyen '*':'*') thay toan bo widget, nhung van chiu
 //   quy tac tach nhiem vu o A1 (xem dashboard-helpers.ts).
 // - Role khong co trong ma tran -> fallback A1, A2, A3, E1.
 // - He thong chi co 1 role / tai khoan (AdminUser.roleId duy nhat) nen
@@ -19,7 +19,10 @@ export const ALL_GD1_WIDGETS = [
   'D1', 'D2', 'D4', 'D5', 'E1',
 ] as const;
 
-export type WidgetCode = (typeof ALL_GD1_WIDGETS)[number];
+/** Tap widget tu GĐ2 tro di (GĐ1 giu nguyen 16 ma de test GĐ1 khong doi). */
+export const ALL_WIDGETS = [...ALL_GD1_WIDGETS, 'D3'] as const;
+
+export type WidgetCode = (typeof ALL_WIDGETS)[number];
 
 export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 'D' | 'E' }> = {
   A1: { title: 'Hàng chờ của tôi', tier: 'A' },
@@ -35,6 +38,7 @@ export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 
   B7: { title: 'Cảnh báo quy trình', tier: 'B' },
   D1: { title: 'Trạng thái kênh', tier: 'D' },
   D2: { title: 'Xử lý media', tier: 'D' },
+  D3: { title: 'Lưu trữ', tier: 'D' },
   D4: { title: 'Nhật ký hoạt động', tier: 'D' },
   D5: { title: 'Cảnh báo vận hành', tier: 'D' },
   E1: { title: 'Quản lý nhanh', tier: 'E' },
@@ -60,17 +64,17 @@ export const ROLE_LAYOUT: Record<string, WidgetCode[]> = {
   PVTT: ['A1', 'A2', 'A3', 'E1'],
   PTTT: ['A1', 'A2', 'A3', 'E1'],
   'QL-QC': ['A1', 'A2', 'A3', 'E1'],
-  // Quan tri chung (khi khong co quyen '*'): D5, B7, D1, D2, D4, E1.
-  // Role seed 'Admin' co '*' nen thuc te ve toan bo 16 widget (xem ghi
+  // Quan tri chung (khi khong co quyen '*'): D5, B7, D1, D2, D3, D4, E1.
+  // Role seed 'Admin' co '*' nen thuc te ve toan bo widget (xem ghi
   // chu o dau file); dong nay la du phong cho role quan tri khong '*'.
-  Admin: ['D5', 'B7', 'D1', 'D2', 'D4', 'E1'],
+  Admin: ['D5', 'B7', 'D1', 'D2', 'D3', 'D4', 'E1'],
 };
 
 export const FALLBACK_LAYOUT: WidgetCode[] = ['A1', 'A2', 'A3', 'E1'];
 
-/** Thu tu widget cua nguoi dang nhap. Full-admin -> toan bo 16 widget. */
+/** Thu tu widget cua nguoi dang nhap. Full-admin -> toan bo widget (16 GĐ1 + D3 tu GĐ2). */
 export function resolveLayout(roleName: string | null | undefined, isFullAdmin: boolean): WidgetCode[] {
-  if (isFullAdmin) return [...ALL_GD1_WIDGETS];
+  if (isFullAdmin) return [...ALL_WIDGETS];
   if (!roleName) return [...FALLBACK_LAYOUT];
   const found = ROLE_LAYOUT[roleName];
   if (found) return [...found];

@@ -236,6 +236,69 @@ export function fmtVnNumber(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n);
 }
 
+/** Dinh dang dung luong (B, KB, MB, GB, TB — 1 so le, kieu Viet Nam). */
+export function fmtBytes(n: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = Math.max(0, n || 0);
+  let u = 0;
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+  const s = v >= 100 || u === 0
+    ? new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(v)
+    : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(v);
+  return `${s} ${units[u]}`;
+}
+
+// ---------------------------------------------------------------------------
+// D3 (GĐ2): tong hop dung luong luu tru theo loai file
+// ---------------------------------------------------------------------------
+
+export interface MediaSizeRow {
+  fileType: string | null;
+  sizeBytes: number | bigint | null;
+}
+
+export interface MediaSizeAgg {
+  type: string;
+  label: string;
+  files: number;
+  bytes: number;
+}
+
+const MEDIA_TYPE_LABELS: Record<string, string> = {
+  image: 'Ảnh',
+  video: 'Video',
+  audio: 'Âm thanh',
+  subtitle: 'Phụ đề',
+};
+
+/** Gom sizeBytes theo fileType (DB tra BigInt, doi sang Number — tong o muc
+ *  GB, xa duoi gioi han so nguyen an toan). Row khong co sizeBytes van
+ *  dem vao files, dong gop 0 byte. Thu tu: image, video, audio, subtitle,
+ *  loai la, chua phan loai. */
+export function sumMediaSizes(rows: MediaSizeRow[]): MediaSizeAgg[] {
+  const order = ['image', 'video', 'audio', 'subtitle'];
+  const map = new Map<string, MediaSizeAgg>();
+  const keyOf = (t: string | null): string => {
+    if (!t) return '__null__';
+    return order.includes(t) ? t : '__other__';
+  };
+  const labelOf = (k: string): string => {
+    if (k === '__null__') return 'Chưa phân loại';
+    if (k === '__other__') return 'Loại khác';
+    return MEDIA_TYPE_LABELS[k] || k;
+  };
+  for (const r of rows) {
+    const k = keyOf(r.fileType);
+    const cur = map.get(k) || { type: k, label: labelOf(k), files: 0, bytes: 0 };
+    cur.files += 1;
+    cur.bytes += Number(r.sizeBytes || 0);
+    map.set(k, cur);
+  }
+  return [...order, '__other__', '__null__']
+    .filter((k) => map.has(k))
+    .map((k) => map.get(k) as MediaSizeAgg);
+}
+
 /** dd/MM/yyyy theo gio VN. */
 export function fmtVnDate(d: Date | string | number): string {
   const date = d instanceof Date ? d : new Date(d);

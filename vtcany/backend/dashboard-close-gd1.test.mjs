@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  ALL_GD1_WIDGETS,
+  ALL_WIDGETS,
   NEWSROOM_WIDE_ROLES,
   ROLE_LAYOUT,
   STUCK_THRESHOLD_HOURS,
@@ -19,7 +19,7 @@ describe('403: role goi widget khong co trong layout phai bi chan (controller ch
     for (const [role, layout] of Object.entries(ROLE_LAYOUT)) {
       const resolved = resolveLayout(role, false);
       assert.deepEqual(resolved, layout, role);
-      for (const w of ALL_GD1_WIDGETS) {
+      for (const w of ALL_WIDGETS) {
         if (!layout.includes(w)) {
           assert.ok(!resolved.includes(w), `${role} le ra khong duoc xem ${w}`);
         }
@@ -27,19 +27,19 @@ describe('403: role goi widget khong co trong layout phai bi chan (controller ch
     }
   });
   it('full-admin thay toan bo, khong bi 403 widget nao', () => {
-    assert.deepEqual(resolveLayout('PV', true), [...ALL_GD1_WIDGETS]);
+    assert.deepEqual(resolveLayout('PV', true), [...ALL_WIDGETS]);
   });
   it('role la / khong co trong ma tran -> fallback, cac widget ngoai fallback bi chan', () => {
     for (const role of ['ROLE_LA_NAO_DO', null, undefined]) {
       const resolved = resolveLayout(role, false);
-      for (const w of ALL_GD1_WIDGETS) {
+      for (const w of ALL_WIDGETS) {
         if (!['A1', 'A2', 'A3', 'E1'].includes(w)) assert.ok(!resolved.includes(w));
       }
     }
   });
-  it('widget khong ton tai (ngoai 16 ma GĐ1) -> controller tra 404, khong phai 403', () => {
-    assert.ok(!ALL_GD1_WIDGETS.includes('C1'));
-    assert.ok(!ALL_GD1_WIDGETS.includes('Z9'));
+  it('widget khong ton tai (ngoai tap widget) -> controller tra 404, khong phai 403', () => {
+    assert.ok(!ALL_WIDGETS.includes('C1'));
+    assert.ok(!ALL_WIDGETS.includes('Z9'));
   });
 });
 

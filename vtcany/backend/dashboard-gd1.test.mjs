@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import {
   ALL_GD1_WIDGETS,
+  ALL_WIDGETS,
   FALLBACK_LAYOUT,
   ROLE_LAYOUT,
   STUCK_THRESHOLD_HOURS,
@@ -58,9 +59,9 @@ describe('GĐ1 gom dung 16 widget, khong them khong bot', () => {
 });
 
 describe('bo cuc theo role (backend config, khong hardcode UI)', () => {
-  it('full-admin thay toan bo 16 widget', () => {
-    assert.deepEqual(resolveLayout('PV', true), ALL_GD1_WIDGETS);
-    assert.deepEqual(resolveLayout(null, true), ALL_GD1_WIDGETS);
+  it('full-admin thay toan bo widget (16 GĐ1 + D3 tu GĐ2)', () => {
+    assert.deepEqual(resolveLayout('PV', true), ALL_WIDGETS);
+    assert.deepEqual(resolveLayout(null, true), ALL_WIDGETS);
   });
   it('Thu ky (T.PP) dung subset duyet: A1, A4, B1, B4, B5, B6, E1', () => {
     assert.deepEqual(resolveLayout('T.PP', false), ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'E1']);
@@ -76,9 +77,9 @@ describe('bo cuc theo role (backend config, khong hardcode UI)', () => {
   it('ten role lech hoa/thuong van map duoc', () => {
     assert.deepEqual(resolveLayout('t.pp', false), resolveLayout('T.PP', false));
   });
-  it('moi role trong ROLE_LAYOUT chi chua widget GĐ1', () => {
+  it('moi role trong ROLE_LAYOUT chi chua widget hop le (GĐ1 + D3)', () => {
     for (const [role, layout] of Object.entries(ROLE_LAYOUT)) {
-      for (const c of layout) assert.ok(ALL_GD1_WIDGETS.includes(c), `${role} chua ${c} ngoai GĐ1`);
+      for (const c of layout) assert.ok(ALL_WIDGETS.includes(c), `${role} chua ${c} ngoai tap hop`);
     }
   });
 });

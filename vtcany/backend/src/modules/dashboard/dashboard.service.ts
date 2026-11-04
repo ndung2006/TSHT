@@ -13,7 +13,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import { channelPublicId, groupForChannel } from '../tv/tv.catalog';
 import {
-  ALL_GD1_WIDGETS,
+  ALL_WIDGETS,
   EPG_CACHE_TTL_MS,
   OPS_WINDOW_DAYS,
   STUCK_THRESHOLD_HOURS,
@@ -33,6 +33,7 @@ import {
   latestApprovalsByItem,
   median,
   periodRange,
+  sumMediaSizes,
   vnDayRange,
   vnDayStrOffset,
   vnTodayStr,
@@ -110,7 +111,7 @@ export class DashboardService {
   }
 
   assertWidgetAllowed(actor: DashboardActor, code: string): WidgetCode {
-    if (!(ALL_GD1_WIDGETS as readonly string[]).includes(code)) {
+    if (!(ALL_WIDGETS as readonly string[]).includes(code)) {
       throw new NotFoundException(`unknown widget: ${code}`);
     }
     const allowed = resolveLayout(actor.roleName, actor.isFullAdmin);
@@ -246,6 +247,7 @@ export class DashboardService {
       case 'B7': ({ data, empty, drill } = await this.wB7(range, line)); break;
       case 'D1': ({ data, drill } = await this.wD1()); break;
       case 'D2': ({ data, drill } = await this.wD2()); break;
+      case 'D3': ({ data, drill } = await this.wD3()); break;
       case 'D4': ({ data, drill } = await this.wD4(q)); break;
       case 'D5': ({ data, drill } = await this.wD5()); break;
       case 'E1': data = { client: true }; break;
@@ -932,6 +934,47 @@ export class DashboardService {
     return {
       data: { counts, items },
       drill: { route: '/tap-tin', query: {} },
+    };
+  }
+
+  /** D3 (GĐ2): dung luong luu tru theo loai file — MediaAsset.sizeBytes
+   *  gom theo fileType + PDF bao in (epaper_issues.pdfSizeBytes).
+   *  Pham vi: TOAN BO file trong CSDL (ke ca dang xu ly/loi) vi van
+   *  chiem cho luu tru; PDF tinh tren so bao co pdfSizeBytes.
+   *  Drill: anh/video/audio ve Thu vien loc theo kind; PDF ve Bao in;
+   *  phu de / loai khac / chua phan loai khong co drill loc vi Thu vien
+   *  chi loc duoc image/video/audio. */
+  private async wD3() {
+    const db: any = this.prisma as any;
+    const assets = await db.mediaAsset.findMany({
+      select: { fileType: true, sizeBytes: true },
+    }).catch(() => []);
+    const rows = sumMediaSizes(assets.map((r: any) => ({
+      fileType: r.fileType ?? null, sizeBytes: r.sizeBytes ?? null,
+    })));
+    const pdfRows = await db.epaperIssue.findMany({
+      where: { pdfSizeBytes: { not: null } },
+      select: { pdfSizeBytes: true },
+    }).catch(() => []);
+    const pdfBytes = pdfRows.reduce((a: number, r: any) => a + Number(r.pdfSizeBytes || 0), 0);
+    const out: Array<{ type: string; label: string; files: number; bytes: number; drill: { route: string; query: Record<string, string> } | null }> = rows.map((r) => ({
+      ...r,
+      drill: (r.type === 'image' || r.type === 'video' || r.type === 'audio')
+        ? { route: '/thu-vien', query: { kind: r.type } }
+        : null,
+    }));
+    out.push({
+      type: 'pdf', label: 'PDF báo in', files: pdfRows.length, bytes: pdfBytes,
+      drill: { route: '/bao-in', query: {} },
+    });
+    const totalBytes = out.reduce((a, r) => a + r.bytes, 0);
+    const totalFiles = out.reduce((a, r) => a + r.files, 0);
+    return {
+      data: {
+        totalBytes, totalFiles, rows: out,
+        note: 'Tính toàn bộ file trong CSDL (kể cả đang xử lý/lỗi) + PDF các số báo. Thư viện chỉ lọc được Ảnh/Video/Audio nên các loại còn lại không có drill lọc riêng.',
+      },
+      drill: { route: '/thu-vien', query: {} },
     };
   }
 

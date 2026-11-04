@@ -243,6 +243,18 @@
         <NuxtLink v-if="state.drill" :to="drillTo(state.drill)" class="text-sky-400 hover:underline">Mở trang Tập tin</NuxtLink>
       </template>
 
+      <!-- D3: luu tru (GĐ2) -->
+      <template v-else-if="state.code === 'D3'">
+        <div class="text-xs text-neutral-500">{{ state.data.note }}</div>
+        <div class="text-3xl font-bold">{{ fmtBytes(state.data.totalBytes) }} <span class="text-base font-normal text-neutral-400">/ {{ fmtNum(state.data.totalFiles) }} file</span></div>
+        <div v-for="r in state.data.rows" :key="r.type" class="flex items-center justify-between gap-2">
+          <NuxtLink v-if="r.drill" :to="drillTo(r.drill)" class="truncate hover:underline">{{ r.label }}</NuxtLink>
+          <span v-else class="truncate">{{ r.label }}</span>
+          <span class="shrink-0">{{ fmtNum(r.files) }} file · <b>{{ fmtBytes(r.bytes) }}</b></span>
+        </div>
+        <NuxtLink v-if="state.drill" :to="drillTo(state.drill)" class="text-sky-400 hover:underline">Mở Thư viện</NuxtLink>
+      </template>
+
       <!-- D4: nhat ky hoat dong -->
       <template v-else-if="state.code === 'D4'">
         <div class="text-xs text-neutral-500">{{ state.data.note }}</div>
@@ -300,6 +312,14 @@ const d4Action = ref(props.state.data?.filters?.action || '');
 
 function fmtNum(n: any) {
   return typeof n === 'number' ? n.toLocaleString('vi-VN') : (n ?? '—');
+}
+function fmtBytes(n: any) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = Math.max(0, Number(n) || 0);
+  let u = 0;
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+  const s = v >= 100 || u === 0 ? Math.round(v).toLocaleString('vi-VN') : v.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+  return `${s} ${units[u]}`;
 }
 function fmtDate(iso: any) {
   if (!iso) return '—';

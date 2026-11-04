@@ -112,6 +112,13 @@ const loading = ref(false);
 const kind = ref('');
 const q = ref('');
 
+// Deep-link tu dashboard D3 (GĐ2): ?kind=image|video|audio -> chon san
+// dropdown loai. Gia tri la thi giu 'Tất cả', khong bao loi.
+const route = useRoute();
+if (['image', 'video', 'audio'].includes(String(route.query.kind || ''))) {
+  kind.value = String(route.query.kind);
+}
+
 // ---- Thu muc (Goi 2D-1) ----
 const folders = ref<any[]>([]);
 const folderMeta = ref({ unclassifiedCount: 0, totalFiles: 0 });
