@@ -388,25 +388,12 @@ async function submitItem(it: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.response?.data?.message || e?.message || 'Gửi duyệt thất bại', life: 3000 });
   }
 }
-/** Id nguoi dung hien tai, decode tu JWT sub (khong can secret, khong goi backend). */
-function currentUserId(): string | null {
-  try {
-    const t = localStorage.getItem('cms_token') || sessionStorage.getItem('cms_token');
-    if (!t) return null;
-    let part = t.split('.')[1] || '';
-    if (!part) return null;
-    part = part.replace(/-/g, '+').replace(/_/g, '/');
-    part += '='.repeat((4 - (part.length % 4)) % 4);
-    return JSON.parse(atob(part))?.sub || null;
-  } catch { return null; }
-}
 async function approveItem(it: any) {
-  // Kiem tra SoD chu dong: trung nguoi xu ly buoc truoc (truong "Sua doi
-  // gan nhat" cua hang) thi mo thang dialog ngoai le, khong goi approve
-  // mu roi moi doan chuoi loi 403. Luoi bat chuoi loi giu lam fallback.
-  const prevActor = it.lastApproval?.actorId || null;
-  const me = currentUserId();
-  if (prevActor && me && prevActor === me) { openExceptionApprove(it); return; }
+  // Khong kiem tra SoD chu dong o day: tach nhiem vu do backend ap theo
+  // cong tac ENFORCE_SEPARATION_OF_DUTIES (TAT: cho duyet lien tuc;
+  // BAT: backend tra 403 'tach nhiem vu' thi fallback ben duoi mo dialog
+  // ngoai le). Kiem tra chu dong cu chan ca khi cong tac TAT, lech voi
+  // chot cong tac (Super Admin duyet moi buoc khi TAT).
   try {
     const r = await api.post<any>(`/admin/print-articles/${it.publicId}/approve`);
     toast.add({ severity: 'success', summary: r?.status === 'approved' ? 'Đã duyệt xong, chờ dàn trang' : 'Đã duyệt, chuyển bước tiếp theo', life: 2500 });
