@@ -29,14 +29,14 @@ export interface MenuItem {
 
 export const WORKSPACES: Workspace[] = [
   { id: 'online', label: 'Xuất bản Báo điện tử' },
-  { id: 'tv', label: 'Sản xuất Truyền hình/Phát thanh' },
+  { id: 'tv', label: 'Xuất bản Truyền hình/Phát thanh' },
   { id: 'print', label: 'Xuất bản Báo in' },
   { id: 'interface', label: 'Quản lý giao diện' },
   { id: 'admin', label: 'Quản trị chung' },
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
-  // (1) San xuat Truyen hinh/Phat thanh
+  // (1) Xuat ban Truyen hinh/Phat thanh
   { to: '/truyen-hinh', label: 'Truyền hình & EPG', icon: 'pi-tv', workspace: 'tv', module: 'tv' },
   { to: '/livestream', label: 'Livestream', icon: 'pi-broadcast-tower', workspace: 'tv', module: 'livestream' },
   { to: '/videos', label: 'Videos', icon: 'pi-play', workspace: 'tv', module: 'videos' },

@@ -30,13 +30,13 @@ test('chi co quyen articles thi thay Tin bai o workspace Bao dien tu, khong thay
   const groups = visibleMenu(['articles:view']);
   const online = groups.find((g) => g.label === 'Xuất bản Báo điện tử');
   assert.deepEqual(routes([online]), ['/tin-bai']);
-  const tv = groups.find((g) => g.label === 'Sản xuất Truyền hình/Phát thanh');
+  const tv = groups.find((g) => g.label === 'Xuất bản Truyền hình/Phát thanh');
   assert.ok(!tv || !tv.items.some((i) => i.to === '/bai-viet'));
 });
 
 test('quyen catalog thi thay Tap tin + Thu vien trong workspace Truyen hinh/Phat thanh', () => {
   const groups = visibleMenu(['catalog:read']);
-  const tv = groups.find((g) => g.label === 'Sản xuất Truyền hình/Phát thanh');
+  const tv = groups.find((g) => g.label === 'Xuất bản Truyền hình/Phát thanh');
   assert.ok(tv.items.some((i) => i.to === '/tap-tin'));
   assert.ok(tv.items.some((i) => i.to === '/thu-vien'));
   assert.ok(tv.items.some((i) => i.to === '/bai-viet'));
