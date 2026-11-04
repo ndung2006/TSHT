@@ -151,7 +151,7 @@ export async function drillNeverSubmittedIds(
     where: { [fk]: { in: candidateIds }, action: 'submit' },
     select: { [fk]: true },
   });
-  const submitted = new Set(rows.map((r: any) => r[fk]));
+  const submitted = new Set<string>(rows.map((r: any) => r[fk] as string));
   return candidateIds.filter((id) => !submitted.has(id));
 }
 

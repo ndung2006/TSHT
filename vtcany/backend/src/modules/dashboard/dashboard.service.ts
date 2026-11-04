@@ -101,6 +101,9 @@ export class DashboardService {
     return {
       role: actor.roleName,
       isFullAdmin: actor.isFullAdmin,
+      // CMS doc r.layout la mang code (index.vue: r.layout || []); giu
+      // them widgets ke chi tiet de khong mat thong tin o tang service.
+      layout: codes,
       widgets: codes.map((code) => ({ code, title: WIDGET_META[code].title, tier: WIDGET_META[code].tier })),
     };
   }
@@ -341,9 +344,11 @@ export class DashboardService {
         orderBy: { createdAt: 'asc' },
       }).catch(() => []);
       const latest = latestApprovalsByItem(this.toApprovalRows(meta, appr));
-      const titles = isRoy
+      // new Map<string, string> tuong minh: truyen iterable any vao new Map()
+      // khong tham so kieu se bi tsc suy thanh Map<unknown, unknown>.
+      const titles: Map<string, string> = isRoy
         ? await this.itemTitles(meta, ids)
-        : new Map(ids.map((id: string) => [id, drafts.find((d: any) => d.id === id)?.title || '(không tiêu đề)']));
+        : new Map<string, string>(ids.map((id: string) => [id, drafts.find((d: any) => d.id === id)?.title || '(không tiêu đề)']));
       const names = await this.actorNames([...latest.values()].map((l) => l.actorId));
       for (const d of drafts) {
         const la = latest.get(d.id);
@@ -388,10 +393,11 @@ export class DashboardService {
         where: { [meta.approvalFk]: { in: ids }, action: 'submit' },
         select: { [meta.approvalFk]: true },
       }).catch(() => []);
-      const submittedIds = new Set(submitted.map((s: any) => s[meta.approvalFk]));
-      const titles = isRoy
+      const submittedIds = new Set<string>(submitted.map((s: any) => s[meta.approvalFk] as string));
+      // new Map<string, string> tuong minh (xem ghi chu o wA2).
+      const titles: Map<string, string> = isRoy
         ? await this.itemTitles(meta, ids)
-        : new Map(ids.map((id: string) => [id, drafts.find((d: any) => d.id === id)?.title || '(không tiêu đề)']));
+        : new Map<string, string>(ids.map((id: string) => [id, drafts.find((d: any) => d.id === id)?.title || '(không tiêu đề)']));
       for (const d of drafts) {
         if (!isStrictDraft('draft', submittedIds.has(d.id))) continue;
         items.push({
@@ -659,7 +665,12 @@ export class DashboardService {
       select: { id: true, name: true, parentId: true },
       orderBy: { name: 'asc' },
     }).catch(() => []);
-    const byId = new Map(cats.map((c: any) => [c.id, c]));
+    // Hang category go dung kieu select cua NewsCategory (id/name/parentId):
+    // truyen iterable any vao new Map() khong tham so kieu se bi tsc suy
+    // thanh Map<unknown, unknown>, lam .parentId/.name sau do loi.
+    const byId = new Map<string, { id: string; name: string; parentId: string | null }>(
+      cats.map((c: any) => [c.id as string, { id: c.id as string, name: c.name as string, parentId: (c.parentId ?? null) as string | null }]),
+    );
     const published = await db.newsArticle.findMany({
       where: { status: 'published', publishAt: { gte: range.from, lt: range.to, lte: new Date() } },
       select: { categoryId: true },
@@ -740,7 +751,7 @@ export class DashboardService {
     }
     items.sort((a, b) => b.waitHours - a.waitHours);
     medians.sort((a, b) => a.moduleLabel.localeCompare(b.moduleLabel) || a.step - b.step);
-    return { data: { total: items.length, items: items.slice(0, 50), medians }, drill: null };
+    return { data: { total: items.length, items: items.slice(0, 50), medians }, empty: null, drill: null };
   }
 
   /** B7: canh bao quy trinh — buoc 1 nguoi / role 0 thanh vien / ngoai le / duyet thay. */
@@ -782,7 +793,7 @@ export class DashboardService {
         where: { createdAt: { gte: range.from, lt: range.to } },
         select: { [meta.approvalFk]: true, step: true, actorId: true, actorRole: true, action: true, comment: true, isException: true, exceptionReason: true, createdAt: true },
       }).catch(() => []);
-      const ids = [...new Set(appr.map((r: any) => r[meta.approvalFk]))];
+      const ids: string[] = [...new Set<string>(appr.map((r: any) => r[meta.approvalFk] as string))];
       const titles = await this.itemTitles(meta, ids);
       for (const r of appr) {
         if (r.isException) {
@@ -816,6 +827,7 @@ export class DashboardService {
         exceptions: exceptions.slice(0, 50), exceptionCount: exceptions.length,
         substitutes: substitutesNamed,
       },
+      empty: null,
       drill: { route: '/quy-trinh-duyet', query: {} },
     };
   }
