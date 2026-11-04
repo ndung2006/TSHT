@@ -984,9 +984,12 @@ const server = http.createServer(async (req, res) => {
             metaTitle: it.metaTitle || "",
             metaDescription: it.metaDescription || "",
           });
+          // Thay the <title> bang regex (khong so sanh chuoi chinh xac)
+          // vi tieu de goc trong HTML da doi theo nhan hieu "Toa soan
+          // hoi tu" trong khi chuoi cu "— TSHT" khien replace thanh no-op.
           const out = html.replace(
-            "<title>Tin bài — TSHT</title>",
-            `<title>${escapeXml(it.metaTitle || it.title)} — TSHT</title>\n${meta}`,
+            /<title>[^<]*<\/title>/,
+            `<title>${escapeXml(it.metaTitle || it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
           return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
@@ -1022,8 +1025,8 @@ const server = http.createServer(async (req, res) => {
             canonicalUrl,
           });
           const out = html.replace(
-            "<title>Sự kiện — TSHT</title>",
-            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+            /<title>[^<]*<\/title>/,
+            `<title>${escapeXml(it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
           return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
@@ -1049,8 +1052,8 @@ const server = http.createServer(async (req, res) => {
             canonicalUrl,
           });
           const out = html.replace(
-            "<title>Tường thuật — TSHT</title>",
-            `<title>${escapeXml(it.title)} — TSHT</title>\n${meta}`,
+            /<title>[^<]*<\/title>/,
+            `<title>${escapeXml(it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
           return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
@@ -1078,8 +1081,8 @@ const server = http.createServer(async (req, res) => {
             const canonicalUrl = `${origin}/chuyen-muc/${decision.node.slug}`;
             const meta = buildCategoryMeta({ name: decision.node.name, canonicalUrl, metaTitle: decision.node.metaTitle || "", metaDescription: decision.node.metaDescription || "" });
             const out = html.replace(
-              "<title>Chuyên mục — TSHT</title>",
-              `<title>${escapeXml(decision.node.metaTitle || decision.node.name)} — TSHT</title>\n${meta}`,
+              /<title>[^<]*<\/title>/,
+              `<title>${escapeXml(decision.node.metaTitle || decision.node.name)} — Tòa soạn hội tụ</title>\n${meta}`,
             );
             return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
           } catch {
