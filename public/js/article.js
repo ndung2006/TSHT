@@ -108,6 +108,12 @@
       // Giu Meta title cua SSR: neu JS ghi de bang it.title thi
       // <title> dung cua meta (da chen san trong HTML) se mat.
       document.title = (it.metaTitle || it.title) + " — Tòa soạn hội tụ";
+      // To noi chuyen muc cua bai tren thanh do (header chung): server
+      // khong biet chuyen muc cua bai truoc khi tai, nen goi ham nay sau
+      // khi bai ve. Khong biet chuyen muc thi khong to noi — khong crash.
+      if (it.category && it.category.slug && window.TSHTHeader && typeof window.TSHTHeader.setActiveCategory === "function") {
+        window.TSHTHeader.setActiveCategory(it.category.slug);
+      }
       // GĐ3 nen: pageview bai viet (kem ma bai on dinh de C2/C3 gop theo bai, khong phu thuoc slug).
       if (window.TshtTelemetry) window.TshtTelemetry.sendPageview(it.publicId ? { articlePublicId: it.publicId } : {});
       var meta = [];

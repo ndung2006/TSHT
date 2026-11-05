@@ -1,0 +1,68 @@
+<!-- Header chung (2026-11-05): 1 partial duy nhat cho moi trang doc.
+     server.mjs chen file nay vao cho placeholder <!-- @HEADER --> khi
+     tra HTML, dong thoi thay cac placeholder ben trong bang HTML server
+     da dung san tu cau hinh CMS (menu do, bang mega, noi dung ngan keo).
+     Sua 1 cho la doi o moi trang. -->
+<div class="utilitybar">
+  <nav class="utilitybar-links" aria-label="Chuyên trang">
+    <a href="/truyen-hinh">📺 TRUYỀN HÌNH</a>
+    <a href="/phat-thanh">📻 PHÁT THANH</a>
+    <a href="/bao-in">📰 BÁO IN</a>
+    <a href="/nen-tang-so">▦ NỀN TẢNG SỐ</a>
+    <a href="/su-kien">📅 SỰ KIỆN</a>
+    <a href="/tuong-thuat">🎙️ TƯỜNG THUẬT</a>
+  </nav>
+  <div class="utilitybar-right">
+    <a class="lang-note" href="<!-- @ENGLISH_URL -->" target="_blank" rel="noopener" title="Bản tiếng Anh">🌐 ENGLISH</a>
+    <span id="utility-social" class="utility-social" hidden></span>
+    <a href="/login">👤 ĐĂNG NHẬP</a>
+  </div>
+</div>
+
+<header class="masthead">
+  <a href="/" class="brand"><img id="brand-logo" class="brand-logo" alt="" hidden><span class="brand-name" hidden>TÒA SOẠN HỘI TỤ</span></a>
+  <nav class="masthead-actions" aria-label="Tiện ích">
+    <span class="masthead-date" data-topline-date></span>
+    <a href="/#tin-moi-nhat" class="news-bell"><span class="news-bell-icon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v2.6l-2 2.4h16l-2-2.4V9a6 6 0 0 0-6-6Z" fill="none" stroke="#c00" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 20a2.2 2.2 0 0 0 4 0" fill="none" stroke="#c00" stroke-width="1.7" stroke-linecap="round"/></svg></span> Tin mới</a>
+  </nav>
+</header>
+
+<nav class="catnav" aria-label="Chuyên mục">
+  <a href="/" class="home-link" aria-label="Trang chủ">⌂</a>
+  <!-- @CATNAV_ITEMS -->
+  <span class="catnav-icons"><button type="button" class="catnav-menu-btn" aria-expanded="false" aria-controls="catnav-mega" aria-label="Mở toàn bộ chuyên mục">☰</button><button type="button" class="catnav-search-btn" aria-expanded="false" aria-controls="catnav-search" aria-label="Mở tìm kiếm">🔍</button></span>
+</nav>
+<!-- O tim kiem: nut 🔍 tren nav mo ra; nhap tu khoa + Enter de tim tin bai
+     qua /api/v2/news?q=, hien ket qua dang link (logic o header.js).
+     An mac dinh. -->
+<div id="catnav-search" class="catnav-search" hidden>
+  <form class="catnav-search-form" role="search">
+    <input type="search" name="q" placeholder="Tìm tin bài…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
+    <button type="submit">Tìm</button>
+  </form>
+  <div class="catnav-search-results" aria-live="polite"></div>
+</div>
+<!-- Bang day du chuyen muc kieu bao dien tu: nut ☰ tren nav mo ra (may
+     tinh); nut ☰ tren mobile mo ngan keo thay cho bang nay. Noi dung do
+     server dung san tu cay chuyen muc day du. An mac dinh. -->
+<div id="catnav-mega" class="catnav-mega" hidden><!-- @MEGA_MENU --></div>
+<!-- Day hot link do CMS Quan ly giao dien dat (an khi chua dat) -->
+<div id="hotlink-strip" class="hotlink-strip" hidden></div>
+<!-- Ngan keo mobile (<=900px): nut ☰ tren nav mo ra thay cho bang mega
+     (may tinh giu bang mega); noi dung do server dung san: link dai tren +
+     cay chuyen muc (muc con mo/gap) + o tim kiem. An mac dinh. -->
+<div id="site-drawer" class="site-drawer" hidden>
+  <div class="site-drawer-backdrop" data-drawer-close></div>
+  <div class="site-drawer-panel" role="dialog" aria-label="Menu">
+    <div class="site-drawer-head">
+      <span class="site-drawer-title">Chuyên mục</span>
+      <button type="button" class="site-drawer-close" aria-label="Đóng menu">✕</button>
+    </div>
+    <form class="site-drawer-search" role="search">
+      <input type="search" name="q" placeholder="Tìm tin bài…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
+      <button type="submit">Tìm</button>
+    </form>
+    <div class="site-drawer-results" aria-live="polite"></div>
+    <!-- @DRAWER_CONTENT -->
+  </div>
+</div>

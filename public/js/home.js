@@ -39,15 +39,6 @@
       "<p class=\"issue-meta\">Báo in</p></div></div>";
   }
 
-  // Categories are placeholders for the future news module: no fake pages.
-  document.querySelectorAll(".catnav a[data-cat]").forEach(function (a) {
-    a.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      var note = document.getElementById("cat-note");
-      if (note) note.textContent = "Chuyên mục " + a.getAttribute("data-cat") +
-        " sẽ có bài viết sau — module tin tức đang được xây dựng tiếp.";
-    });
-  });
   var topBtn = document.getElementById("to-top");
   if (topBtn) topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
 
@@ -201,14 +192,20 @@
     }).catch(loadFallback);
   }
   loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
-  // Cai dat giao dien do CMS Quan ly giao dien dat (menu, hot link, khoi
-  // trang chu, header, footer, favicon). Lay 1 lan, dung chung cho nav +
-  // khoi + header; tai loi thi tra null va portal giu hanh vi cu.
-  var siteInterfacePromise = fetch("/api/v2/site-interface")
-    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .catch(function () { return null; });
+  // Cai dat giao dien do CMS Quan ly giao dien dat (hot link, khoi
+  // trang chu, footer, favicon). Header chung: header.js (nap truoc)
+  // da fetch /api/v2/site-interface 1 lan/trang va de o
+  // window.__tshtSiteInterface — dung lai thay vi fetch lan 2; neu
+  // header.js chua kip chay thi fetch nhu cu. Tai loi thi tra null va
+  // portal giu hanh vi cu.
+  var siteInterfacePromise = (window.__tshtSiteInterface && typeof window.__tshtSiteInterface.then === "function")
+    ? window.__tshtSiteInterface
+    : fetch("/api/v2/site-interface")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .catch(function () { return null; });
 
-  // Ap dung cai dat giao dien (tru nav — nav xu ly rieng trong loadCategories).
+  // Ap dung cai dat giao dien (menu/nav do server dung san roi; chi
+  // hot link + footer + favicon o day).
   function applySiteInterface(si) {
     if (!si) return;
     var strip = document.getElementById("hotlink-strip");
@@ -239,208 +236,9 @@
     }
   }
 
-  // Mega-menu chuyen muc kieu bao dien tu (2026-11-01): nut ☰ tren
-  // thanh nav mo bang day du cay chuyen muc (lay tu
-  // /api/v2/news-categories, cay day du chu khong chi menu CMS da chon
-  // cho nav); nut ✕ / Escape / bam ra ngoai de dong. Neu khong tai
-  // duoc cay thi an nut ☰ di (khong mo bang trong).
-  function hideMegaButton() {
-    var b = document.querySelector(".catnav-menu-btn");
-    if (b) b.style.display = "none";
-  }
-  function closeMegaMenu() {
-    var panel = document.getElementById("catnav-mega");
-    var btn = document.querySelector(".catnav-menu-btn");
-    if (panel) panel.hidden = true;
-    if (btn) btn.setAttribute("aria-expanded", "false");
-  }
-  function buildMegaMenu(cats) {
-    var panel = document.getElementById("catnav-mega");
-    if (!panel) return;
-    panel.innerHTML = "";
-    var close = document.createElement("button");
-    close.type = "button";
-    close.className = "mega-close";
-    close.setAttribute("aria-label", "Đóng toàn bộ chuyên mục");
-    close.textContent = "✕";
-    close.addEventListener("click", function () { closeMegaMenu(); });
-    panel.appendChild(close);
-    var grid = document.createElement("div");
-    grid.className = "mega-grid";
-    (cats || []).forEach(function (c) {
-      if (!c || !c.slug) return;
-      var col = document.createElement("div");
-      col.className = "mega-col";
-      var pa = document.createElement("a");
-      pa.className = "mega-parent";
-      pa.href = "/chuyen-muc/" + encodeURIComponent(c.slug);
-      pa.textContent = c.name;
-      col.appendChild(pa);
-      (c.children || []).filter(function (k) { return k && k.slug; }).forEach(function (k) {
-        var ka = document.createElement("a");
-        ka.className = "mega-child";
-        ka.href = "/chuyen-muc/" + encodeURIComponent(k.slug);
-        ka.textContent = k.name;
-        col.appendChild(ka);
-      });
-      grid.appendChild(col);
-    });
-    panel.appendChild(grid);
-  }
-  (function initMegaMenu() {
-    var btn = document.querySelector(".catnav-menu-btn");
-    var panel = document.getElementById("catnav-mega");
-    if (!btn || !panel) return;
-    btn.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (panel.hidden && !panel.hasChildNodes()) return; // chua tai duoc cay
-      var willOpen = panel.hidden;
-      panel.hidden = !willOpen;
-      btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
-      if (willOpen) {
-        var close = panel.querySelector(".mega-close");
-        if (close) close.focus();
-      }
-    });
-    document.addEventListener("click", function (ev) {
-      if (panel.hidden || !ev.target.closest) return;
-      if (!ev.target.closest(".catnav") && !ev.target.closest("#catnav-mega")) closeMegaMenu();
-    });
-    document.addEventListener("keydown", function (ev) {
-      if (ev.key === "Escape" && !panel.hidden) closeMegaMenu();
-    });
-  })();
-
-  // Catnav that: thay link placeholder bang chuyen muc that (cap 1);
-  // neu khong tai duoc thi giu nguyen link cu + ghi chu nhu cu.
-  // Neu CMS Quan ly giao dien da chon menu thi nav chi hien muc da chon
-  // theo dung thu tu do (children lay tu payload menu, da loc muc hien);
-  // neu menu con trong thi giu nguyen cay day du nhu cu.
-  (function loadCategories() {
-    var nav = document.querySelector(".catnav");
-    if (!nav) return;
-    fetch("/api/v2/news-categories")
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) {
-        var cats = (d && d.data) || [];
-        if (!cats.length) { hideMegaButton(); return; }
-        return siteInterfacePromise.then(function (si) { return { cats: cats, si: si }; });
-      })
-      .then(function (pair) {
-        if (!pair) return;
-        var cats = pair.cats;
-        var si = pair.si;
-        var displayCats = (si && si.menu && si.menu.length) ? si.menu : cats;
-        var home = nav.querySelector("a.home-link");
-        var icons = nav.querySelector(".catnav-icons");
-        nav.querySelectorAll("a[data-cat]").forEach(function (a) { a.remove(); });
-        // Nav kieu bao dien tu: muc cha tren thanh nav, di chuot (hover) hoac
-        // focus hien dropdown muc con ben duoi; tren cam ung, bam nut mui ten
-        // de mo/dong dropdown, bam chu muc cha van chuyen trang binh thuong.
-        displayCats.forEach(function (c) {
-          var item = document.createElement("div");
-          item.className = "catnav-item";
-          var a = document.createElement("a");
-          a.href = "/chuyen-muc/" + encodeURIComponent(c.slug);
-          a.textContent = c.name;
-          item.appendChild(a);
-          var kids = (c.children || []).filter(function (k) { return k && k.slug; });
-          if (kids.length) {
-            var caret = document.createElement("button");
-            caret.type = "button";
-            caret.className = "catnav-caret";
-            caret.setAttribute("aria-label", "Hiện mục con của " + c.name);
-            caret.setAttribute("aria-expanded", "false");
-            caret.textContent = "▾";
-            caret.addEventListener("click", function (ev) {
-              ev.preventDefault();
-              ev.stopPropagation();
-              var open = item.classList.toggle("open");
-              caret.setAttribute("aria-expanded", open ? "true" : "false");
-            });
-            item.appendChild(caret);
-            var drop = document.createElement("div");
-            drop.className = "catnav-drop";
-            kids.forEach(function (k) {
-              var ka = document.createElement("a");
-              ka.href = "/chuyen-muc/" + encodeURIComponent(k.slug);
-              ka.textContent = k.name;
-              drop.appendChild(ka);
-            });
-            item.appendChild(drop);
-          }
-          if (icons) nav.insertBefore(item, icons); else nav.appendChild(item);
-        });
-        buildMegaMenu(cats);
-        document.addEventListener("click", function (ev) {
-          if (!ev.target.closest || !ev.target.closest(".catnav-item")) {
-            nav.querySelectorAll(".catnav-item.open").forEach(function (it) {
-              it.classList.remove("open");
-              var cb = it.querySelector(".catnav-caret");
-              if (cb) cb.setAttribute("aria-expanded", "false");
-            });
-          }
-        });
-        document.addEventListener("keydown", function (ev) {
-          if (ev.key === "Escape") {
-            nav.querySelectorAll(".catnav-item.open").forEach(function (it) {
-              it.classList.remove("open");
-              var cb = it.querySelector(".catnav-caret");
-              if (cb) cb.setAttribute("aria-expanded", "false");
-            });
-          }
-        });
-        var note = document.getElementById("cat-note");
-        if (note) note.style.display = "none";
-        void home;
-        applySiteInterface(si);
-      })
-      .catch(function () {
-        /* giu nguyen catnav placeholder, nhung van ap dung hot link /
-           khoi / header / footer / favicon neu tai duoc cai dat. */
-        hideMegaButton();
-        siteInterfacePromise.then(applySiteInterface);
-      });
-  })();
-
-
-  // Nut tim kiem tren catnav (2026-11-03): truoc day 🔍 chi la span
-  // trang tri, bam khong mo o nhap. Nay la nut that: bam mo o nhap
-  // duoi nav; Enter/"Tim" goi /api/v2/news?q= (API cong khai san co)
-  // va hien toi da 8 ket qua dang link ve trang doc; Escape hoac bam
-  // ra ngoai thi dong. Khong them trang ket qua rieng.
-  (function initCatnavSearch() {
-    var btn = document.querySelector(".catnav-search-btn");
-    var panel = document.getElementById("catnav-search");
-    if (!btn || !panel) return;
-    var form = panel.querySelector(".catnav-search-form");
-    var input = form ? form.querySelector("input") : null;
-    var results = panel.querySelector(".catnav-search-results");
-    function open() { panel.hidden = false; btn.setAttribute("aria-expanded", "true"); if (input) input.focus(); }
-    function close() { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
-    btn.addEventListener("click", function () { if (panel.hidden) open(); else close(); });
-    document.addEventListener("click", function (ev) {
-      if (!panel.hidden && ev.target.closest && !ev.target.closest("#catnav-search") && !ev.target.closest(".catnav-search-btn")) close();
-    });
-    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") close(); });
-    if (form) form.addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      var q = input ? input.value.trim() : "";
-      if (!q) { if (results) results.innerHTML = "<p class=\"catnav-search-note\">Nhập từ khóa rồi bấm Tìm.</p>"; return; }
-      if (results) results.innerHTML = "<p class=\"catnav-search-note\">Đang tìm…</p>";
-      fetch("/api/v2/news?q=" + encodeURIComponent(q) + "&limit=8")
-        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-        .then(function (d) {
-          var items = (d && d.items) || [];
-          if (!items.length) { results.innerHTML = "<p class=\"catnav-search-note\">Không tìm thấy tin bài nào cho \"" + esc(q) + "\".</p>"; return; }
-          results.innerHTML = items.map(function (it) {
-            return "<a href=\"" + esc(it.url || "#") + "\">" + esc(it.title || "") + "</a>";
-          }).join("");
-        })
-        .catch(function () { if (results) results.innerHTML = "<p class=\"catnav-search-note\">Không tải được kết quả tìm kiếm.</p>"; });
-    });
-  })();
+  // Menu do + bang mega + o tim kiem: do server dung san, header.js gan
+  // hanh vi (xem public/js/header.js) — khong build bang JS o day nua.
+  siteInterfacePromise.then(applySiteInterface);
 
 
   // --- Khoi trang chu do CMS quan ly (Layout blocks) ---

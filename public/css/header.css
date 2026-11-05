@@ -1,0 +1,149 @@
+/* Header chung (2026-11-05): gom cac quy tac header truoc day chep trung
+   o home.css / style.css / tv-page.css ve 1 cho duy nhat. Moi trang doc
+   deu nap file nay (sau CSS rieng cua trang) + partial header.html.
+   Quy tac .footer trong khung 1264px tam giu o day, se chuyen sang
+   footer.css o commit sau. */
+.masthead { text-align: center; padding: 1.2rem 1rem 0.8rem; }
+/* Thanh tren cung: chuyen trang trai, ENGLISH / KET NOI / Dang nhap phai. */
+.utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: nowrap; box-sizing: border-box; background: #fff; }
+.utilitybar-links, .utilitybar-right { display: flex; gap: 0.4rem 0.75rem; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+@media (max-width: 900px) { .utilitybar, .utilitybar-links, .utilitybar-right { flex-wrap: wrap; } }
+/* Icon tron mau cho mang xa hoi o KET NOI. */
+.soc-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; color: #fff !important; font-size: 12px; font-weight: 700; text-decoration: none; }
+.soc-fb { background: #1877f2; }
+.soc-yt { background: #f00; }
+.soc-tt { background: #111; }
+.soc-zl { background: #0068ff; }
+.utilitybar a { color: #333; text-decoration: none; font-weight: 600; }
+.utilitybar a:hover { color: #c00; }
+.utility-social a { color: #333; text-decoration: none; font-weight: 600; }
+.utility-social a:hover { color: #c00; }
+.lang-note { margin-right: 1rem; color: #888; }
+/* Hang logo: ten toa soan trai, ngay + nut Tin moi phai. */
+header.masthead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1rem; flex-wrap: nowrap; text-align: left; box-sizing: border-box; background: #fff; }
+.brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 0 0 auto; min-width: 0; }
+/* Logo header thu nho theo mau (cao ~96px, giu ti le), khong con full khung. */
+.brand-logo { display: block; height: 118px; width: auto; }
+.brand-name { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; color: #c00; line-height: 1.1; }
+.masthead-actions { display: flex; flex-direction: column; gap: 0.4rem 1.2rem; align-items: flex-end; flex-wrap: wrap; font-size: 0.95rem; flex: 0 0 auto; }
+/* Nut Tin moi kieu mau: chuong vien tron net dut + chu. */
+.news-bell { display: inline-flex; align-items: center; gap: 0.5rem; }
+.news-bell-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1.5px dashed #c00; border-radius: 50%; }
+.news-bell-icon svg { display: block; }
+.masthead-date { color: #555; font-size: 0.9rem; white-space: nowrap; }
+.masthead-actions a { color: #333; text-decoration: none; font-weight: 600; }
+.masthead-actions a:hover { color: #c00; }
+@media (max-width: 800px) {
+  header.masthead { justify-content: center; text-align: center; flex-wrap: wrap; }
+  .masthead-actions { align-items: center; }
+  .brand-name { font-size: 1.6rem; }
+  /* Mobile: logo co theo chieu ngang khung (cao tu dong theo ti le,
+     toi da 118px) thay vi co dinh cao 118px khien anh banner rong tran
+     hai ben man hinh. */
+  .brand { width: 100%; justify-content: center; }
+  .brand-logo { width: 100%; height: auto; max-height: 118px; object-fit: contain; }
+}
+/* Thanh menu do: muc cha tren thanh, dropdown muc con ben duoi. */
+.catnav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; align-items: center; background: #c00; padding: 0.6rem 1rem; }
+.catnav a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; }
+/* Nav muc cha + dropdown muc con kieu bao dien tu: muc cha tren thanh nav,
+   di chuot/focus hien dropdown; nut mui ten danh cho cam ung. */
+.catnav-item { position: relative; display: flex; align-items: center; gap: 0.15rem; }
+.catnav-caret { background: transparent; border: 0; color: #fff; font-size: 0.8rem; cursor: pointer; padding: 0 0.1rem; line-height: 1; }
+.catnav-drop { display: none; position: absolute; top: 100%; left: 0; z-index: 50; min-width: 230px; flex-direction: column; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.25); padding: 0.35rem 0; }
+.catnav-item:hover .catnav-drop, .catnav-item:focus-within .catnav-drop, .catnav-item.open .catnav-drop { display: flex; }
+.catnav-drop a { color: #222; font-weight: 400; font-size: 0.9rem; padding: 0.45rem 1rem; white-space: nowrap; }
+.catnav-drop a:hover { background: #f5f5f5; color: #c00; }
+/* Day hot link do CMS Quan ly giao dien dat (an khi chua dat). */
+.hotlink-strip { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 0.5rem 1rem; font-size: 0.9rem; }
+/* Thuoc tinh hidden thua display:flex neu khong co dong nay, nen dai
+   hot-link rong van hien thanh dai vang mong du CMS chua dat link. */
+.hotlink-strip[hidden] { display: none; }
+.hotlink-strip a { color: #333; text-decoration: none; font-weight: 700; }
+.hotlink-strip a:hover { color: #c00; }
+.catnav-icons { margin-left: auto; color: #fff; }
+/* Khung chung kieu bao dien tu (2026-10-31): cac hang tren/chan trang
+   (link tren, logo, nav do, day hot link, ghi chu, chan trang) cung nam
+   trong khung 1264px can giua nhu main.wrap, khong tran full man hinh. */
+.utilitybar, .masthead, .catnav, .catnav-mega, .hotlink-strip, .footer {
+  box-sizing: border-box;
+  max-width: 1264px;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* Mega-menu chuyen muc kieu bao dien tu (2026-11-01): nut ☰ tren nav mo
+   bang day du cay chuyen muc, nam trong khung 1264px ngay duoi nav.
+   Panel an mac dinh (thuoc tinh hidden); chi hien khi JS bo hidden. */
+.catnav-menu-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
+/* O tim kiem duoi nav (nut 🔍 mo ra): thanh trang kieu bang mega menu,
+   o nhap + ket qua dang link ve trang doc. */
+.catnav-search-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
+.catnav-search { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem; }
+.catnav-search-form { display: flex; gap: 0.5rem; max-width: 640px; }
+.catnav-search-form input { flex: 1; min-width: 0; font: inherit; font-size: 1rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
+.catnav-search-form button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; }
+.catnav-search-results { margin-top: 0.5rem; display: flex; flex-direction: column; max-width: 640px; }
+.catnav-search-results a { color: #222; text-decoration: none; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
+.catnav-search-results a:hover { color: #c00; }
+.catnav-search-results .catnav-search-note { color: #666; font-size: 0.95rem; padding: 0.4rem 0; }
+.catnav-mega { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem 1.25rem; }
+.catnav-mega .mega-close { background: transparent; border: 0; color: #c00; font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem 0.25rem 0; }
+.catnav-mega .mega-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem 1rem; margin-top: 0.5rem; }
+.catnav-mega .mega-col { min-width: 0; }
+.catnav-mega .mega-parent { display: block; font-weight: 800; color: #111; text-decoration: none; margin-bottom: 0.35rem; }
+.catnav-mega .mega-parent:hover { color: #c00; }
+.catnav-mega .mega-child { display: block; color: #333; text-decoration: none; font-size: 0.95rem; padding: 0.15rem 0; }
+.catnav-mega .mega-child:hover { color: #c00; }
+@media (max-width: 900px) {
+  .catnav-mega .mega-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .catnav-mega .mega-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Muc dang xem (2026-11-05) ---- */
+/* Dai tren: muc dang xem gach chan do. Thanh do: muc dang xem toi nen. */
+.utilitybar a[aria-current="page"] { color: #c00; text-decoration: underline; text-underline-offset: 3px; }
+.catnav a[aria-current="page"], .catnav-item.is-active > a { background: #8f0000; padding: 0.2rem 0.5rem; border-radius: 3px; }
+
+/* ---- Ngan keo mobile (2026-11-05) ---- */
+/* Chi hien tren mobile (<=900px); may tinh khong bao gio hien, ke ca khi
+   JS mo nham (luat min-width: 901px chan han). */
+.site-drawer[hidden] { display: none; }
+.site-drawer { position: fixed; inset: 0; z-index: 100; }
+@media (min-width: 901px) { .site-drawer { display: none !important; } }
+.site-drawer-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+.site-drawer-panel { position: absolute; top: 0; left: 0; bottom: 0; width: min(320px, 85vw); background: #fff; overflow-y: auto; padding: 0 0 1.5rem; box-shadow: 4px 0 24px rgba(0,0,0,0.3); }
+.site-drawer-head { display: flex; justify-content: space-between; align-items: center; background: #c00; color: #fff; padding: 0.75rem 1rem; position: sticky; top: 0; z-index: 1; }
+.site-drawer-title { font-weight: 800; text-transform: uppercase; }
+.site-drawer-close { background: transparent; border: 0; color: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem; }
+.site-drawer-search { display: flex; gap: 0.5rem; padding: 0.75rem 1rem 0; }
+.site-drawer-search input { flex: 1; min-width: 0; font: inherit; font-size: 1rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
+.site-drawer-search button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; }
+.site-drawer-results { padding: 0 1rem; display: flex; flex-direction: column; }
+.site-drawer-results a { color: #222; text-decoration: none; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
+.site-drawer-results a:hover { color: #c00; }
+.site-drawer-results .catnav-search-note { color: #666; font-size: 0.95rem; padding: 0.4rem 0; }
+.site-drawer-top { display: flex; flex-direction: column; padding: 0.5rem 1rem 0; border-bottom: 1px solid #eee; }
+.site-drawer-top a { color: #333; text-decoration: none; font-weight: 700; padding: 0.5rem 0; border-bottom: 1px solid #f5f5f5; }
+.site-drawer-top a:last-child { border-bottom: 0; }
+.site-drawer-top a:hover, .site-drawer-top a[aria-current="page"] { color: #c00; }
+.site-drawer-cats { display: flex; flex-direction: column; padding: 0.5rem 1rem 0; }
+.drawer-cat { border-bottom: 1px solid #f0f0f0; display: flex; flex-wrap: wrap; align-items: center; }
+.drawer-cat-link { flex: 1; min-width: 0; color: #222; text-decoration: none; font-weight: 700; padding: 0.5rem 0; text-transform: uppercase; font-size: 0.95rem; }
+.drawer-cat-link:hover { color: #c00; }
+.drawer-cat-toggle { background: transparent; border: 0; font-size: 0.9rem; cursor: pointer; padding: 0.5rem; color: #666; }
+.drawer-cat-children { display: none; flex-basis: 100%; flex-direction: column; padding: 0 0 0.5rem 1rem; }
+.drawer-cat.open .drawer-cat-children { display: flex; }
+.drawer-cat-children a { color: #444; text-decoration: none; padding: 0.35rem 0; font-size: 0.95rem; }
+.drawer-cat-children a:hover { color: #c00; }
+body.drawer-open { overflow: hidden; }
+
+/* ---- Mobile: gom header vao ngan keo (2026-11-05) ---- */
+@media (max-width: 900px) {
+  /* Dai tren gom vao ngan keo; thanh do chi giu nut Trang chu + ☰/🔍;
+     logo nho lai (cao toi da 72px thay cho 118px). */
+  .utilitybar { display: none; }
+  .catnav .catnav-item, .catnav a[data-cat] { display: none; }
+  .brand-logo { max-height: 72px; }
+}

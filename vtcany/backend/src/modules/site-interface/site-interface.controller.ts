@@ -29,6 +29,7 @@ class HeaderDto {
   @IsOptional() @IsString() @MaxLength(500) tiktok?: string;
   @IsOptional() @IsString() @MaxLength(500) zalo?: string;
   @IsOptional() @IsString() @MaxLength(100) phone?: string;
+  @IsOptional() @IsString() @MaxLength(500) englishUrl?: string;
 }
 
 class FooterDto {

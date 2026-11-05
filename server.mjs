@@ -71,16 +71,228 @@ function send(res, code, body, type = "text/plain", extra = {}) {
 }
 const json = (res, code, obj, extra) => send(res, code, JSON.stringify(obj), "application/json", extra);
 const err = (res, code, message) => json(res, code, { error: message });
-function serveFile(res, file, downloadName) {
+function serveFile(res, file, downloadName, pathname) {
   if (!file) return err(res, 404, "not found");
-  fs.readFile(file, (e, data) => {
+  fs.readFile(file, async (e, data) => {
     if (e) return err(res, 404, "not found");
     const h = downloadName ? { "Content-Disposition": `attachment; filename="${downloadName}"` } : {};
     // Cache: HTML/JS/CSS phai revalidate moi lan mo, neu khong trinh duyet giu
     // ban cu sau redeploy va HTML moi + JS/CSS cu lan nhau se vo trang doc
     // (vi du JS cu crash khi khong tim thay nut mode-flip cua HTML moi).
     if (!downloadName && [".html", ".js", ".mjs", ".css"].includes(path.extname(file))) h["Cache-Control"] = "no-cache, must-revalidate";
+    // Trang HTML: chen header/footer chung (partial) truoc khi tra.
+    if (!downloadName && path.extname(file) === ".html") {
+      let body = data.toString("utf8");
+      try { body = await injectChrome(body, pathname || ""); } catch { /* loi chen: giu HTML goc */ }
+      return send(res, 200, body, MIME[".html"], h);
+    }
     send(res, 200, data, MIME[path.extname(file)] || "application/octet-stream", h);
+  });
+}
+// ---- Header/footer chung (2026-11-05): server dung san + chen vao HTML ----
+// Moi trang doc dung 1 partial header (public/partials/header.html) thay
+// vi chep tay 3 khoi header o moi file HTML. Menu do + bang mega + ngan
+// keo mobile duoc server dung san tu cau hinh CMS (menu Quan ly giao
+// dien, fallback cay chuyen muc day du) nen co mat ngay trong HTML dau
+// tien; JS (header.js) chi them hanh vi, khong build menu nua.
+function readPartial(name) {
+  try { return fs.readFileSync(path.join(PUBLIC, "partials", name), "utf8"); } catch { return ""; }
+}
+const HEADER_PARTIAL = readPartial("header.html");
+const FOOTER_PARTIAL = readPartial("footer.html");
+
+// Dem cau hinh giao dien + cay chuyen muc (60 giay): de moi lan tra trang
+// khong phai goi backend 2 lan. Het han thi fetch lai; neu fetch loi thi
+// giu du lieu cu (ke ca qua han) de menu khong bao gio rong; chi khi
+// chua tung lay duoc gi thi menu de trong (lan khoi dong dau + backend
+// chet cung luc — hiem, trang van tra binh thuong).
+const CHROME_CACHE_TTL_MS = 60 * 1000;
+const siteInterfaceCache = { data: null, expiresAt: 0 };
+const categoriesCache = { data: null, expiresAt: 0 };
+function siteInterfaceWhitelist(d) {
+  const str = (v) => (typeof v === "string" ? v : "");
+  const menuItem = (m) => (m && m.slug ? {
+    name: str(m.name), slug: str(m.slug),
+    children: (m.children || []).filter((k) => k && k.slug).map((k) => ({ name: str(k.name), slug: str(k.slug) })),
+  } : null);
+  return {
+    menu: (d.menu || []).map(menuItem).filter(Boolean),
+    homeSections: (d.homeSections || []).filter((s) => s && s.slug).map((s) => ({ name: str(s.name), slug: str(s.slug) })),
+    hotLinks: (d.hotLinks || []).filter((h) => h && h.slug).map((h) => ({ title: str(h.title), slug: str(h.slug) })),
+    header: {
+      image: d.header && d.header.image ? resolveVtcanyImageUrl(d.header.image) : "",
+      email: d.header ? str(d.header.email) : "", facebook: d.header ? str(d.header.facebook) : "",
+      youtube: d.header ? str(d.header.youtube) : "", tiktok: d.header ? str(d.header.tiktok) : "",
+      zalo: d.header ? str(d.header.zalo) : "", phone: d.header ? str(d.header.phone) : "",
+      // Link ENGLISH: CMS dat trong Quan ly giao dien (header.englishUrl);
+      // rong = chua dat -> server dung tam ban tieng Anh cua Dien Bien.
+      englishUrl: d.header ? str(d.header.englishUrl) : "",
+    },
+    footer: {
+      logo: d.footer && d.footer.logo ? resolveVtcanyImageUrl(d.footer.logo) : "",
+      description: d.footer ? str(d.footer.description) : "", copyright: d.footer ? str(d.footer.copyright) : "",
+    },
+    favicon: {
+      image: d.favicon && d.favicon.image ? resolveVtcanyImageUrl(d.favicon.image) : "",
+      name: d.favicon ? str(d.favicon.name) : "", description: d.favicon ? str(d.favicon.description) : "",
+    },
+  };
+}
+async function getSiteInterface() {
+  const now = Date.now();
+  if (siteInterfaceCache.data && now < siteInterfaceCache.expiresAt) return siteInterfaceCache.data;
+  try {
+    const ext = await fetchVtcanyEpaperJson(`/site-interface`);
+    if (!ext.ok) throw new Error(ext.reason || "fetch_failed");
+    const w = siteInterfaceWhitelist(ext.data || {});
+    siteInterfaceCache.data = w;
+    siteInterfaceCache.expiresAt = now + CHROME_CACHE_TTL_MS;
+    return w;
+  } catch {
+    // Loi: tra du lieu cu (ke ca qua han) de menu khong rong; chua co gi thi null.
+    return siteInterfaceCache.data;
+  }
+}
+async function getCategories() {
+  const now = Date.now();
+  if (categoriesCache.data && now < categoriesCache.expiresAt) return categoriesCache.data;
+  try {
+    const ext = await fetchVtcanyEpaperJson(`/news-categories`);
+    if (!ext.ok) throw new Error(ext.reason || "fetch_failed");
+    const data = ext.data || [];
+    categoriesCache.data = data;
+    categoriesCache.expiresAt = now + CHROME_CACHE_TTL_MS;
+    return data;
+  } catch {
+    return categoriesCache.data;
+  }
+}
+function clearChromeCache() {
+  siteInterfaceCache.data = null;
+  siteInterfaceCache.expiresAt = 0;
+  categoriesCache.data = null;
+  categoriesCache.expiresAt = 0;
+}
+// Muc chuyen trang cua route hien tai (de to noi dai tren). /lich-phat-song
+// khong co link tren dai tren nen tra ve chinh no nhung khong co link nao khop.
+function sectionForPath(pathname) {
+  const p = String(pathname || "");
+  if (p === "/truyen-hinh" || p === "/phat-thanh" || p === "/bao-in" || p === "/nen-tang-so" || p === "/su-kien" || p === "/tuong-thuat" || p === "/lich-phat-song") return p;
+  if (p.startsWith("/su-kien/")) return "/su-kien";
+  if (p.startsWith("/tuong-thuat/")) return "/tuong-thuat";
+  if (p.startsWith("/bao-in/")) return "/bao-in";
+  return "";
+}
+// Slug muc cha dang xem tren thanh do: /chuyen-muc/<slug>; slug la muc con
+// thi to noi muc cha cua no.
+function activeCatSlug(pathname, cats) {
+  const m = /^\/chuyen-muc\/([a-z0-9-]+)$/.exec(String(pathname || ""));
+  if (!m) return "";
+  const slug = m[1];
+  const tree = cats || [];
+  if (tree.some((c) => c && c.slug === slug)) return slug;
+  for (const c of tree) {
+    if ((c.children || []).some((k) => k && k.slug === slug)) return c.slug;
+  }
+  return "";
+}
+// Link ENGLISH tam thoi: dung gia tri CMS dat (header.englishUrl); neu
+// CMS chua dat thi tam tro sang ban tieng Anh cua Bao Dien Bien Phu
+// (cho CMS dat link chinh thuc cua toa soan sau).
+const ENGLISH_FALLBACK_URL = "https://en.baodienbienphu.com.vn";
+function englishUrlFor(si) {
+  const v = si && si.header && typeof si.header.englishUrl === "string" ? si.header.englishUrl.trim() : "";
+  return v || ENGLISH_FALLBACK_URL;
+}
+// Menu do: giong het DOM ma home.js/tv.js build bang JS truoc day (de sau
+// khi JS chay, DOM giong het ban cu): muc cha la link /chuyen-muc/<slug>,
+// muc con trong .catnav-drop (nut ▾ mo/dong).
+function buildCatnavItems(displayCats, activeSlug) {
+  return (displayCats || []).filter((c) => c && c.slug).map((c) => {
+    const active = activeSlug && c.slug === activeSlug;
+    const kids = (c.children || []).filter((k) => k && k.slug);
+    let h = `<div class="catnav-item${active ? " is-active" : ""}"><a href="/chuyen-muc/${encodeURIComponent(c.slug)}"${active ? " aria-current=\"page\"" : ""}>${escapeXml(c.name)}</a>`;
+    if (kids.length) {
+      h += `<button type="button" class="catnav-caret" aria-label="Hiện mục con của ${escapeXml(c.name)}" aria-expanded="false">▾</button><div class="catnav-drop">`;
+      h += kids.map((k) => `<a href="/chuyen-muc/${encodeURIComponent(k.slug)}">${escapeXml(k.name)}</a>`).join("");
+      h += `</div>`;
+    }
+    return h + `</div>`;
+  }).join("");
+}
+function buildMegaMenu(cats) {
+  const cols = (cats || []).filter((c) => c && c.slug).map((c) => {
+    const kids = (c.children || []).filter((k) => k && k.slug);
+    let h = `<div class="mega-col"><a class="mega-parent" href="/chuyen-muc/${encodeURIComponent(c.slug)}">${escapeXml(c.name)}</a>`;
+    h += kids.map((k) => `<a class="mega-child" href="/chuyen-muc/${encodeURIComponent(k.slug)}">${escapeXml(k.name)}</a>`).join("");
+    return h + `</div>`;
+  }).join("");
+  if (!cols) return "";
+  return `<button type="button" class="mega-close" aria-label="Đóng toàn bộ chuyên mục">✕</button><div class="mega-grid">${cols}</div>`;
+}
+// Link dai tren trong ngan keo (giong utilitybar) + cay chuyen muc.
+const DRAWER_TOP_LINKS = [
+  { href: "/truyen-hinh", label: "📺 TRUYỀN HÌNH" },
+  { href: "/phat-thanh", label: "📻 PHÁT THANH" },
+  { href: "/bao-in", label: "📰 BÁO IN" },
+  { href: "/nen-tang-so", label: "▦ NỀN TẢNG SỐ" },
+  { href: "/su-kien", label: "📅 SỰ KIỆN" },
+  { href: "/tuong-thuat", label: "🎙️ TƯỜNG THUẬT" },
+];
+function buildDrawerContent(cats, pathname, englishUrl) {
+  const section = sectionForPath(pathname);
+  const top = DRAWER_TOP_LINKS.map((l) =>
+    `<a href="${l.href}"${l.href === section ? " aria-current=\"page\"" : ""}>${l.label}</a>`).join("") +
+    `<a class="lang-note" href="${escapeXml(englishUrl)}" target="_blank" rel="noopener" title="Bản tiếng Anh">🌐 ENGLISH</a>` +
+    `<a href="/login">👤 ĐĂNG NHẬP</a>`;
+  const catRows = (cats || []).filter((c) => c && c.slug).map((c) => {
+    const kids = (c.children || []).filter((k) => k && k.slug);
+    let h = `<div class="drawer-cat"><a class="drawer-cat-link" href="/chuyen-muc/${encodeURIComponent(c.slug)}">${escapeXml(c.name)}</a>`;
+    if (kids.length) {
+      h += `<button type="button" class="drawer-cat-toggle" aria-label="Hiện mục con của ${escapeXml(c.name)}" aria-expanded="false">▾</button><div class="drawer-cat-children">`;
+      h += kids.map((k) => `<a href="/chuyen-muc/${encodeURIComponent(k.slug)}">${escapeXml(k.name)}</a>`).join("");
+      h += `</div>`;
+    }
+    return h + `</div>`;
+  }).join("");
+  return `<nav class="site-drawer-top" aria-label="Chuyên trang">${top}</nav><nav class="site-drawer-cats" aria-label="Chuyên mục">${catRows}</nav>`;
+}
+async function buildHeaderHtml(pathname) {
+  if (!HEADER_PARTIAL) return "";
+  const [si, cats] = await Promise.all([getSiteInterface(), getCategories()]);
+  const menu = si && si.menu && si.menu.length ? si.menu : (cats || []);
+  const activeSlug = activeCatSlug(pathname, cats || []);
+  const englishUrl = englishUrlFor(si);
+  let h = HEADER_PARTIAL;
+  h = h.replace("<!-- @ENGLISH_URL -->", escapeXml(englishUrl));
+  // To noi dai tren + nut Trang chu theo route (lam truoc khi chen noi
+  // dung ngan keo, luc nay trong header chi co link dai tren).
+  const section = sectionForPath(pathname);
+  if (section) h = h.replace(`<a href="${section}">`, `<a href="${section}" aria-current="page">`);
+  if (pathname === "/") h = h.replace(`<a href="/" class="home-link"`, `<a href="/" class="home-link" aria-current="page"`);
+  h = h.replace("<!-- @CATNAV_ITEMS -->", buildCatnavItems(menu, activeSlug));
+  h = h.replace("<!-- @MEGA_MENU -->", buildMegaMenu(cats || []));
+  h = h.replace("<!-- @DRAWER_CONTENT -->", buildDrawerContent(cats || [], pathname, englishUrl));
+  return h;
+}
+async function injectChrome(html, pathname) {
+  if (typeof html !== "string") return html;
+  let out = html;
+  if (out.includes("<!-- @HEADER -->")) {
+    const header = await buildHeaderHtml(pathname);
+    if (header) out = out.replace("<!-- @HEADER -->", header);
+  }
+  if (out.includes("<!-- @FOOTER -->") && FOOTER_PARTIAL) {
+    out = out.replace("<!-- @FOOTER -->", FOOTER_PARTIAL);
+  }
+  return out;
+}
+function serve404(res, pathname) {
+  fs.readFile(path.join(PUBLIC, "404.html"), "utf8", async (e, data) => {
+    if (e) return err(res, 404, "not found");
+    let body = data;
+    try { body = await injectChrome(data, pathname || ""); } catch { /* giu HTML goc */ }
+    send(res, 404, body, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
   });
 }
 async function readBody(req, limit = 2 * 1024 * 1024) {
@@ -206,7 +418,7 @@ const server = http.createServer(async (req, res) => {
       /^\/api\/v2\/vod\/(video|short|episode)\/[0-9a-f]{24}\/play$/.test(u.pathname) ||
       /^\/api\/v2\/media\/[A-Za-z0-9_-]{1,64}\/mp4$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
-    )) || (req.method === "POST" && u.pathname === "/api/v1/stream-token");
+    )) || (req.method === "POST" && (u.pathname === "/api/v1/stream-token" || u.pathname === "/api/v1/internal/invalidate-site-interface"));
     // POST /api/v1/stream-token la public co chu dich: no chi tra link master
     // da ky theo kenh (token+exp trong URL), KHONG BAO GIO tra partner key,
     // va server tu kiem tra kenh RUNNING truoc khi cap.
@@ -272,6 +484,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/v1/auth/logout") {
       destroySession(req);
       return json(res, 200, { ok: true }, { "Set-Cookie": "epaper_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" });
+    }
+    // ---- Xoa dem header (CMS luu Giao dien) ----
+    // POST /api/v1/internal/invalidate-site-interface — chi xoa dem
+    // site-interface + news-categories o server portal (menu/header moi se
+    // duoc dung lai o lan tra trang ke tiep). Bao ve bang x-webhook-secret
+    // (cung secret + cach kiem nhu /internal/rollup-daily ben backend:
+    // secret = MEDIA_WEBHOOK_SECRET). Khong can session CMS.
+    if (req.method === "POST" && u.pathname === "/api/v1/internal/invalidate-site-interface") {
+      const expected = process.env.MEDIA_WEBHOOK_SECRET || "";
+      const secret = req.headers["x-webhook-secret"];
+      if (!expected || secret !== expected) return err(res, 403, "forbidden");
+      clearChromeCache();
+      return json(res, 200, { ok: true });
     }
 
     // ---- Channels (public list, vtcaio only) ----
@@ -671,10 +896,12 @@ const server = http.createServer(async (req, res) => {
       const it = ext.data;
       return json(res, 200, { ...newsListItem(it), formatData: resolveFormatData(it.formatData), body: it.body || "", related: (it.related || []).map(newsListItem) });
     }
+    // GET /api/v2/news-categories — cay chuyen muc hien (dem 60 giay
+    // chung voi site-interface, de dung menu header).
     if (req.method === "GET" && u.pathname === "/api/v2/news-categories") {
-      const ext = await fetchVtcanyEpaperJson(`/news-categories`);
-      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc chuyen muc");
-      return json(res, 200, { data: ext.data || [] });
+      const cats = await getCategories();
+      if (!cats) return err(res, vtcanyConfigured() ? 502 : 503, "khong lay duoc chuyen muc");
+      return json(res, 200, { data: cats });
     }
     // ---- Thu thap GĐ3 nen (pageview + heartbeat kenh): proxy POST sang
     // backend, chi chuyen tiep body JSON nho (toi da 64KB) + UA that cua
@@ -716,35 +943,13 @@ const server = http.createServer(async (req, res) => {
     // GET /api/v2/site-interface — cai dat hien thi portal do CMS quan ly:
     // menu, khoi trang chu, hot link, header, footer, favicon. Chi doi hinh
     // dang qua whitelist (khong lo truong noi bo) + ghep origin backend cho
-    // anh tuong doi. Cache no-store: editor doi la portal phai doi theo.
+    // anh tuong doi. Dem 60 giay o server (de dung menu header); CMS luu
+    // Giao dien thi backend goi /api/v1/internal/invalidate-site-interface
+    // de xoa dem. Tra ve van no-store de trinh duyet khong giu ban cu.
     if (req.method === "GET" && u.pathname === "/api/v2/site-interface") {
-      const ext = await fetchVtcanyEpaperJson(`/site-interface`);
-      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc cai dat giao dien");
-      const d = ext.data || {};
-      const str = (v) => (typeof v === "string" ? v : "");
-      const menuItem = (m) => (m && m.slug ? {
-        name: str(m.name), slug: str(m.slug),
-        children: (m.children || []).filter((k) => k && k.slug).map((k) => ({ name: str(k.name), slug: str(k.slug) })),
-      } : null);
-      return json(res, 200, {
-        menu: (d.menu || []).map(menuItem).filter(Boolean),
-        homeSections: (d.homeSections || []).filter((s) => s && s.slug).map((s) => ({ name: str(s.name), slug: str(s.slug) })),
-        hotLinks: (d.hotLinks || []).filter((h) => h && h.slug).map((h) => ({ title: str(h.title), slug: str(h.slug) })),
-        header: {
-          image: d.header && d.header.image ? resolveVtcanyImageUrl(d.header.image) : "",
-          email: d.header ? str(d.header.email) : "", facebook: d.header ? str(d.header.facebook) : "",
-          youtube: d.header ? str(d.header.youtube) : "", tiktok: d.header ? str(d.header.tiktok) : "",
-          zalo: d.header ? str(d.header.zalo) : "", phone: d.header ? str(d.header.phone) : "",
-        },
-        footer: {
-          logo: d.footer && d.footer.logo ? resolveVtcanyImageUrl(d.footer.logo) : "",
-          description: d.footer ? str(d.footer.description) : "", copyright: d.footer ? str(d.footer.copyright) : "",
-        },
-        favicon: {
-          image: d.favicon && d.favicon.image ? resolveVtcanyImageUrl(d.favicon.image) : "",
-          name: d.favicon ? str(d.favicon.name) : "", description: d.favicon ? str(d.favicon.description) : "",
-        },
-      }, { "Cache-Control": "no-store" });
+      const si = await getSiteInterface();
+      if (!si) return err(res, vtcanyConfigured() ? 502 : 503, "khong lay duoc cai dat giao dien");
+      return json(res, 200, si, { "Cache-Control": "no-store" });
     }
 
     // ---- Khoi trang chu do CMS quan ly (Layout blocks) ----
@@ -997,17 +1202,21 @@ const server = http.createServer(async (req, res) => {
     if (VENDOR[u.pathname]) return serveFile(res, path.join(ROOT, VENDOR[u.pathname]));
     // Homepage frame (public/home.html) at /, e-paper list stays at /bao-in
     // (public/index.html, unchanged). All other routes below are untouched.
-    if (u.pathname === "/") return serveFile(res, path.join(PUBLIC, "home.html"));
-    if (u.pathname === "/bao-in") return serveFile(res, path.join(PUBLIC, "index.html"));
-    if (u.pathname === "/truyen-hinh") return serveFile(res, path.join(PUBLIC, "tv.html"));
-    if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"));
-    if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"));
-    if (u.pathname === "/nen-tang-so") return serveFile(res, path.join(PUBLIC, "nen-tang-so.html"));
-    if (u.pathname === "/su-kien") return serveFile(res, path.join(PUBLIC, "su-kien.html"));
-    if (u.pathname === "/tuong-thuat") return serveFile(res, path.join(PUBLIC, "tuong-thuat.html"));
+    if (u.pathname === "/") return serveFile(res, path.join(PUBLIC, "home.html"), undefined, u.pathname);
+    if (u.pathname === "/bao-in") return serveFile(res, path.join(PUBLIC, "index.html"), undefined, u.pathname);
+    if (u.pathname === "/truyen-hinh") return serveFile(res, path.join(PUBLIC, "tv.html"), undefined, u.pathname);
+    if (u.pathname === "/phat-thanh") return serveFile(res, path.join(PUBLIC, "radio.html"), undefined, u.pathname);
+    if (u.pathname === "/lich-phat-song") return serveFile(res, path.join(PUBLIC, "schedule.html"), undefined, u.pathname);
+    if (u.pathname === "/nen-tang-so") return serveFile(res, path.join(PUBLIC, "nen-tang-so.html"), undefined, u.pathname);
+    if (u.pathname === "/su-kien") return serveFile(res, path.join(PUBLIC, "su-kien.html"), undefined, u.pathname);
+    if (u.pathname === "/tuong-thuat") return serveFile(res, path.join(PUBLIC, "tuong-thuat.html"), undefined, u.pathname);
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
-    if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
-    if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"));
+    // Dang nhap CMS: /login phuc vu trang login.html cu (trang dang nhap
+    // noi bo cu, form username/password -> POST /api/v1/auth/login; khong
+    // phai trang dang nhap CMS Nuxt o cms.vtctech.xyz).
+    if (u.pathname === "/login") return serveFile(res, path.join(PUBLIC, "login.html"), undefined, u.pathname);
+    if (/^\/bao-.*\.html$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"), undefined, u.pathname);
+    if (/^\/bao-in\/bao-tuyen-quang-so-\d+-[0-9a-f]{24}$/.test(u.pathname)) return serveFile(res, path.join(PUBLIC, "reader.html"), undefined, u.pathname);
     // Goi 1D: trang bai viet kem meta SEO phia server (title, description,
     // canonical, Open Graph) de crawler doc duoc ngay tu HTML dau tien,
     // khong doi JS chay moi set title nhu truoc. Fail-open: backend loi
@@ -1039,9 +1248,9 @@ const server = http.createServer(async (req, res) => {
             /<title>[^<]*<\/title>/,
             `<title>${escapeXml(it.metaTitle || it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
-          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+          return send(res, 200, await injectChrome(out, u.pathname), "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
-          return serveFile(res, path.join(PUBLIC, "article.html"));
+          return serveFile(res, path.join(PUBLIC, "article.html"), undefined, u.pathname);
         }
       }
       if (ext.status === 404) {
@@ -1050,7 +1259,7 @@ const server = http.createServer(async (req, res) => {
           return send(res, 301, "", "text/plain", { Location: `/tin/${redir.data.slug}` });
         }
       }
-      return serveFile(res, path.join(PUBLIC, "article.html"));
+      return serveFile(res, path.join(PUBLIC, "article.html"), undefined, u.pathname);
     }
     // Goi 1E: trang chi tiet su kien / tuong thuat kem meta SEO phia
     // server (giong /tin/:slug). Fail-open: backend loi thi tra HTML
@@ -1076,12 +1285,12 @@ const server = http.createServer(async (req, res) => {
             /<title>[^<]*<\/title>/,
             `<title>${escapeXml(it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
-          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+          return send(res, 200, await injectChrome(out, u.pathname), "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
-          return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"));
+          return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"), undefined, u.pathname);
         }
       }
-      return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"));
+      return serveFile(res, path.join(PUBLIC, "su-kien-detail.html"), undefined, u.pathname);
     }
     if (/^\/tuong-thuat\/[a-z0-9-]+$/.test(u.pathname)) {
       const slug = u.pathname.slice(13);
@@ -1103,12 +1312,12 @@ const server = http.createServer(async (req, res) => {
             /<title>[^<]*<\/title>/,
             `<title>${escapeXml(it.title)} — Tòa soạn hội tụ</title>\n${meta}`,
           );
-          return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+          return send(res, 200, await injectChrome(out, u.pathname), "text/html", { "Cache-Control": "no-cache, must-revalidate" });
         } catch {
-          return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"));
+          return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"), undefined, u.pathname);
         }
       }
-      return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"));
+      return serveFile(res, path.join(PUBLIC, "tuong-thuat-detail.html"), undefined, u.pathname);
     }
     // Goi 1D-2: trang chuyen muc kem meta SEO phia server (giong
     // /tin/:slug) + 301 slug cu -> slug hien tai. Slug song trong cay
@@ -1132,9 +1341,9 @@ const server = http.createServer(async (req, res) => {
               /<title>[^<]*<\/title>/,
               `<title>${escapeXml(decision.node.metaTitle || decision.node.name)} — Tòa soạn hội tụ</title>\n${meta}`,
             );
-            return send(res, 200, out, "text/html", { "Cache-Control": "no-cache, must-revalidate" });
+            return send(res, 200, await injectChrome(out, u.pathname), "text/html", { "Cache-Control": "no-cache, must-revalidate" });
           } catch {
-            return serveFile(res, path.join(PUBLIC, "category.html"));
+            return serveFile(res, path.join(PUBLIC, "category.html"), undefined, u.pathname);
           }
         }
       }
@@ -1144,13 +1353,22 @@ const server = http.createServer(async (req, res) => {
       if (decision.kind === "redirect") {
         return send(res, 301, "", "text/plain", { Location: `/chuyen-muc/${decision.slug}` });
       }
-      return serveFile(res, path.join(PUBLIC, "category.html"));
+      return serveFile(res, path.join(PUBLIC, "category.html"), undefined, u.pathname);
     }
     // A3: never serve sample assets or storage directly; content only via /api routes above.
     if (u.pathname.startsWith("/assets/") || u.pathname.startsWith("/storage/")) return err(res, 404, "not found");
     const file = path.join(PUBLIC, decodeURIComponent(u.pathname));
     if (!file.startsWith(PUBLIC)) return err(res, 403, "Forbidden");
-    return serveFile(res, file);
+    // URL khong co phan mo rong o doan cuoi (khong phai file tinh) ma
+    // khong khop route nao -> trang 404 (co header chung), thay vi
+    // JSON {"error":"not found"} nhu truoc. File tinh thieu (co dau .)
+    // van tra JSON 404 nhu cu.
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+      const last = (u.pathname.split("/").pop() || "");
+      if (!last.includes(".")) return serve404(res, u.pathname);
+      return err(res, 404, "not found");
+    }
+    return serveFile(res, file, undefined, u.pathname);
   } catch (e) {
     console.error(e);
     if (!res.headersSent) err(res, 500, e.message || "loi server");

@@ -9,6 +9,7 @@
       <div><label class="field-label">Youtube</label><InputText v-model="form.youtube" class="w-full" placeholder="https://..." /></div>
       <div><label class="field-label">Tiktok</label><InputText v-model="form.tiktok" class="w-full" placeholder="https://..." /></div>
       <div><label class="field-label">Zalo</label><InputText v-model="form.zalo" class="w-full" placeholder="https://..." /></div>
+      <div><label class="field-label">Link ENGLISH</label><InputText v-model="form.englishUrl" class="w-full" placeholder="https://..." /></div>
       <div><label class="field-label">Số điện thoại *</label><InputText v-model="form.phone" class="w-full" placeholder="vd: 0888215099" /></div>
       <div><Button v-if="can('site_interface:update')" label="Lưu" icon="pi pi-check" @click="save" /></div>
     </div>
@@ -23,12 +24,12 @@ const { can } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
 
-const form = ref({ image: '', email: '', facebook: '', youtube: '', tiktok: '', zalo: '', phone: '' });
+const form = ref({ image: '', email: '', facebook: '', youtube: '', tiktok: '', zalo: '', englishUrl: '', phone: '' });
 
 async function load() {
   try {
     const r = await api.get<any>('/admin/site-interface/header');
-    if (r) form.value = { image: r.image || '', email: r.email || '', facebook: r.facebook || '', youtube: r.youtube || '', tiktok: r.tiktok || '', zalo: r.zalo || '', phone: r.phone || '' };
+    if (r) form.value = { image: r.image || '', email: r.email || '', facebook: r.facebook || '', youtube: r.youtube || '', tiktok: r.tiktok || '', zalo: r.zalo || '', englishUrl: r.englishUrl || '', phone: r.phone || '' };
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || e?.message || 'Tải thất bại', life: 3000 });
   }

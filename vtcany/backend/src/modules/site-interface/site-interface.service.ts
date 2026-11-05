@@ -79,15 +79,18 @@ export class SiteInterfaceService {
     const dup = await this.prisma.navMenuItem.findUnique({ where: { categoryId: cat.id } });
     if (dup) throw new ConflictException('chuyen muc da co trong menu');
     const max = await this.prisma.navMenuItem.aggregate({ _max: { sortOrder: true } });
-    return this.prisma.navMenuItem.create({
+    const created = await this.prisma.navMenuItem.create({
       data: { categoryId: cat.id, sortOrder: (max._max.sortOrder ?? -1) + 1 },
     });
+    this.notifyPortalCacheInvalidated();
+    return created;
   }
 
   async removeMenu(id: string) {
     const row = await this.prisma.navMenuItem.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('muc menu khong ton tai');
     await this.prisma.navMenuItem.delete({ where: { id } });
+    this.notifyPortalCacheInvalidated();
     return { ok: true };
   }
 
@@ -116,15 +119,18 @@ export class SiteInterfaceService {
     const dup = await this.prisma.homeSection.findUnique({ where: { categoryId: cat.id } });
     if (dup) throw new ConflictException('chuyen muc da co trong trang chu');
     const max = await this.prisma.homeSection.aggregate({ _max: { sortOrder: true } });
-    return this.prisma.homeSection.create({
+    const created = await this.prisma.homeSection.create({
       data: { categoryId: cat.id, sortOrder: (max._max.sortOrder ?? -1) + 1 },
     });
+    this.notifyPortalCacheInvalidated();
+    return created;
   }
 
   async removeHomeSection(id: string) {
     const row = await this.prisma.homeSection.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('khoi trang chu khong ton tai');
     await this.prisma.homeSection.delete({ where: { id } });
+    this.notifyPortalCacheInvalidated();
     return { ok: true };
   }
 
@@ -151,15 +157,18 @@ export class SiteInterfaceService {
     const dup = await this.prisma.hotLink.findUnique({ where: { articleId: art.publicId } });
     if (dup) throw new ConflictException('bai viet da co trong hot link');
     const max = await this.prisma.hotLink.aggregate({ _max: { sortOrder: true } });
-    return this.prisma.hotLink.create({
+    const created = await this.prisma.hotLink.create({
       data: { articleId: art.publicId, sortOrder: (max._max.sortOrder ?? -1) + 1 },
     });
+    this.notifyPortalCacheInvalidated();
+    return created;
   }
 
   async removeHotLink(id: string) {
     const row = await this.prisma.hotLink.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('hot link khong ton tai');
     await this.prisma.hotLink.delete({ where: { id } });
+    this.notifyPortalCacheInvalidated();
     return { ok: true };
   }
 
@@ -178,6 +187,28 @@ export class SiteInterfaceService {
     await this.prisma.$transaction(
       ids.map((id: string, i: number) => delegate.update({ where: { id }, data: { sortOrder: i } })),
     );
+    this.notifyPortalCacheInvalidated();
+  }
+
+  // ---- Xoa dem header o portal (2026-11-05) ----
+  // Portal dung san menu do tu site-interface + news-categories va dem
+  // 60 giay (xem server.mjs, injectChrome). Sau moi lan CMS luu Giao dien
+  // thi bao portal xoa dem de lan tra trang ke tiep dung menu moi.
+  // Fire-and-forget: KHONG BAO GIO lam hong lan luu (chi bo qua loi).
+  // URL portal lay tu PORTAL_PUBLIC_ORIGIN (da co san, mac dinh
+  // https://tsht.vtctech.xyz — xem crossmedia-map.ts); secret =
+  // MEDIA_WEBHOOK_SECRET (cung secret voi /internal/rollup-daily).
+  private notifyPortalCacheInvalidated(): void {
+    try {
+      const base = (process.env.PORTAL_PUBLIC_ORIGIN || 'https://tsht.vtctech.xyz').replace(/\/+$/, '');
+      const secret = process.env.MEDIA_WEBHOOK_SECRET || '';
+      if (!base || !secret) return;
+      fetch(base + '/api/v1/internal/invalidate-site-interface', {
+        method: 'POST',
+        headers: { 'x-webhook-secret': secret },
+        signal: AbortSignal.timeout(2000),
+      }).catch(() => { /* bo qua: dem 60s o portal van gioi han do cu */ });
+    } catch { /* khong bao gio nem loi ra ngoai */ }
   }
 
   // ---------- Cai dat header/footer/favicon ----------
@@ -216,17 +247,19 @@ export class SiteInterfaceService {
   }
 
   async getHeader() {
-    const s = await this.getSettings(['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone']);
-    return { image: s['header.image'], email: s['header.email'], facebook: s['header.facebook'], youtube: s['header.youtube'], tiktok: s['header.tiktok'], zalo: s['header.zalo'], phone: s['header.phone'] };
+    const s = await this.getSettings(['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone', 'header.englishUrl']);
+    return { image: s['header.image'], email: s['header.email'], facebook: s['header.facebook'], youtube: s['header.youtube'], tiktok: s['header.tiktok'], zalo: s['header.zalo'], phone: s['header.phone'], englishUrl: s['header.englishUrl'] };
   }
 
   async putHeader(input: Record<string, string | undefined>) {
-    const mapped = this.toDotted(input, 'header', ['image', 'email', 'facebook', 'youtube', 'tiktok', 'zalo', 'phone']);
+    const mapped = this.toDotted(input, 'header', ['image', 'email', 'facebook', 'youtube', 'tiktok', 'zalo', 'phone', 'englishUrl']);
     for (const k of ['header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo']) {
       if (mapped[k] && !isHttpUrl(String(mapped[k]))) throw new BadRequestException('link mang xa hoi phai bat dau http(s)');
     }
+    if (mapped['header.englishUrl'] && !isHttpUrl(String(mapped['header.englishUrl']))) throw new BadRequestException('link tieng Anh phai bat dau http(s)');
     if (mapped['header.image'] && !isImageRef(String(mapped['header.image']))) throw new BadRequestException('anh header khong hop le');
-    await this.putSettings(mapped, ['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone']);
+    await this.putSettings(mapped, ['header.image', 'header.email', 'header.facebook', 'header.youtube', 'header.tiktok', 'header.zalo', 'header.phone', 'header.englishUrl']);
+    this.notifyPortalCacheInvalidated();
     return this.getHeader();
   }
 
@@ -239,6 +272,7 @@ export class SiteInterfaceService {
     const mapped = this.toDotted(input, 'footer', ['logo', 'description', 'copyright']);
     if (mapped['footer.logo'] && !isImageRef(String(mapped['footer.logo']))) throw new BadRequestException('anh footer khong hop le');
     await this.putSettings(mapped, ['footer.logo', 'footer.description', 'footer.copyright']);
+    this.notifyPortalCacheInvalidated();
     return this.getFooter();
   }
 
@@ -251,6 +285,7 @@ export class SiteInterfaceService {
     const mapped = this.toDotted(input, 'favicon', ['image', 'name', 'description']);
     if (mapped['favicon.image'] && !isImageRef(String(mapped['favicon.image']))) throw new BadRequestException('anh favicon khong hop le');
     await this.putSettings(mapped, ['favicon.image', 'favicon.name', 'favicon.description']);
+    this.notifyPortalCacheInvalidated();
     return this.getFavicon();
   }
 
