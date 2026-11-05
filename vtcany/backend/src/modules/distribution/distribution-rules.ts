@@ -61,6 +61,23 @@ export function catalogPublicIdForThumbnail(mediaUrl: unknown): string | null {
   return found ? found.catalogPublicId : null;
 }
 
+// ---- Gan/go tham chieu catalog cho bai DA XUAT BAN (2026-11-05) ----
+// PATCH /admin/distribution/:publicId dung draftRow() nen bai published
+// bi chan 400 'chi sua duoc bai o trang thai nhap'. Viec dien ma short
+// cho 6 bai live KHONG duoc doi publishedAt/dich (cach go xuat ban roi
+// dang lai se reset publishedAt + dich) nen update() cho phep rieng doi
+// catalogPublicId tren bai published. Dieu kien chat: khong doi truong
+// noi dung nao khac. dto.title bat buoc theo DTO (ValidationPipe) nen
+// cho phep gui lai dung tieu de hien tai nhu mot no-op.
+export function isCatalogOnlyUpdate(
+  dto: { title?: unknown; caption?: unknown; mediaUrl?: unknown; mediaType?: unknown; catalogPublicId?: unknown; platforms?: unknown },
+  rowTitle: string,
+): boolean {
+  if (dto.title !== undefined && String(dto.title).trim() !== rowTitle) return false;
+  if (dto.caption !== undefined || dto.mediaUrl !== undefined || dto.mediaType !== undefined || dto.platforms !== undefined) return false;
+  return true;
+}
+
 // Trang thai dich khi bai duoc XUAT BAN. Tra null = giu nguyen.
 // - app (Web): luon posted (hien tren /nen-tang-so), kem url portal.
 // - facebook/tiktok/youtube: chi draft -> ready (chuan bi); dich da

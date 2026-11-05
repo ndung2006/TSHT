@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import {
   catalogPublicIdForThumbnail,
   cleanPlatforms,
+  isCatalogOnlyUpdate,
   isCatalogPublicId,
   isHttpUrl,
   publishTargetUpdate,
@@ -90,4 +91,18 @@ test('catalogPublicIdForThumbnail: khop chinh xac ten file thumbnail (ca 6 bai h
   assert.equal(catalogPublicIdForThumbnail('https://vtcany-api.vtctech.xyz/images/thumb-upl-9999999999999.jpg'), null);
   assert.equal(catalogPublicIdForThumbnail(''), null);
   assert.equal(catalogPublicIdForThumbnail(null), null);
+});
+
+test('isCatalogOnlyUpdate: bai published chi duoc gan/go catalogPublicId, doi noi dung khac thi chan', () => {
+  const title = 'Giày thêu của người Xạ Phang';
+  // Dien ma short cho bai live: chi catalog + tieu de hien tai (no-op) -> cho.
+  assert.equal(isCatalogOnlyUpdate({ title, catalogPublicId: '1fbd81870f703436d681cadb' }, title), true);
+  assert.equal(isCatalogOnlyUpdate({ catalogPublicId: '1fbd81870f703436d681cadb' }, title), true); // khong gui title
+  assert.equal(isCatalogOnlyUpdate({ title, catalogPublicId: null }, title), true); // go gan
+  // Doi noi dung khac -> chan (ke ca khi kem catalog).
+  assert.equal(isCatalogOnlyUpdate({ title: 'Tieu de moi', catalogPublicId: '1fbd81870f703436d681cadb' }, title), false);
+  assert.equal(isCatalogOnlyUpdate({ title, caption: 'sapo moi' }, title), false);
+  assert.equal(isCatalogOnlyUpdate({ title, mediaUrl: '/images/khac.jpg' }, title), false);
+  assert.equal(isCatalogOnlyUpdate({ title, mediaType: 'image' }, title), false);
+  assert.equal(isCatalogOnlyUpdate({ title, platforms: ['app'] }, title), false);
 });

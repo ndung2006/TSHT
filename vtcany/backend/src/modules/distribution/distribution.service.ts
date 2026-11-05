@@ -5,6 +5,7 @@ import {
   DISTRIBUTION_MEDIA_TYPES,
   DISTRIBUTION_PLATFORMS,
   cleanPlatforms,
+  isCatalogOnlyUpdate,
   isCatalogPublicId,
   isHttpUrl,
   publishTargetUpdate,
@@ -92,7 +93,17 @@ export class DistributionService {
   }
 
   async update(publicId: string, dto: DistributionUpsert) {
-    const row = await this.draftRow(publicId);
+    // Bai nhap: sua day du nhu cu. Bai da xuat ban: CHI duoc gan/go
+    // catalogPublicId (dien ma short cho bai live) — moi thay doi noi
+    // dung khac van bi chan de khong doi publishedAt/dich dang chay.
+    const row = await this.prisma.distributionPost.findUnique({
+      where: { publicId },
+      include: { targets: true },
+    });
+    if (!row) throw new NotFoundException('khong tim thay bai phan phoi');
+    if (row.status !== 'draft' && !isCatalogOnlyUpdate(dto, row.title)) {
+      throw new BadRequestException('chi sua duoc bai o trang thai nhap');
+    }
     if (dto.mediaType && !(DISTRIBUTION_MEDIA_TYPES as readonly string[]).includes(dto.mediaType)) {
       throw new BadRequestException('mediaType khong hop le');
     }
