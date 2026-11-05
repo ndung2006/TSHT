@@ -97,6 +97,7 @@ useHead({ title: computed(() => `${title.value} - VTC ANY CMS`) });
 
 const loading = ref(false);
 const saving = ref(false);
+const loaded = ref(false); // (b) dirty chi co nghia sau lan tai dau tien; tranh hien oan "Co thay doi chua luu" khi savedSnapshot con ''.
 const items = ref<any[]>([]);
 const version = ref(0);
 const maxSlots = ref(4);
@@ -112,7 +113,7 @@ const poolHasMore = computed(() => pool.value.length < poolTotal.value);
 const POOL_LIMIT = 20;
 
 const savedSnapshot = ref('');
-const dirty = computed(() => savedSnapshot.value !== JSON.stringify({ items: items.value.map((x: any) => x.articlePublicId), maxSlots: maxSlots.value }));
+const dirty = computed(() => loaded.value && savedSnapshot.value !== JSON.stringify({ items: items.value.map((x: any) => x.articlePublicId), maxSlots: maxSlots.value }));
 const canAdd = computed(() => can('zones:publish') && items.value.length < maxSlots.value);
 
 function snapshot() {
@@ -120,7 +121,17 @@ function snapshot() {
 }
 
 async function load() {
+  // (a) Xoa NGAY danh sach cu khi bat dau tai (doi khoi, tai lai sau 409,
+  // mount lan dau): khong de bang/kho hien du lieu cua khoi cu trong luc
+  // cho fetch moi. DataTable hien lop mo loading tren bang rong (rule
+  // .p-datatable-mask); kho trai an dong "Kho trong" nho poolLoading=true.
+  items.value = [];
+  pool.value = [];
+  poolTotal.value = 0;
+  poolPage.value = 1;
+  mainArticlePublicId.value = null;
   loading.value = true;
+  poolLoading.value = true;
   try {
     const d: any = await api.get(`/admin/home-slots/${block.value}`);
     items.value = d.items || [];
@@ -134,10 +145,13 @@ async function load() {
     } else {
       mainArticlePublicId.value = null;
     }
-    snapshot();
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || 'Không tải được danh sách' });
   }
+  // (b) Luon chup snapshot sau lan tai (ke ca khi tai loi): trang thai
+  // hien tai la co so so sanh, khong de dirty so voi snapshot cu/rong.
+  snapshot();
+  loaded.value = true;
   loading.value = false;
   await reloadPool();
 }
@@ -146,8 +160,12 @@ async function loadPoolPage(page: number) {
   poolLoading.value = true;
   try {
     const d: any = await api.get(`/admin/home-slots/${block.value}/pool`, { q: poolQ.value || undefined, page, limit: POOL_LIMIT });
-    if (page === 1) pool.value = d.items || [];
-    else pool.value = [...pool.value, ...(d.items || [])];
+    // (c) Kho khong bao gio hien bai da o cot phai — ke ca bai moi them
+    // local chua luu (server chi loai bai da luu trong danh sach).
+    const listed = new Set(items.value.map((x: any) => x.articlePublicId));
+    const fresh = (d.items || []).filter((x: any) => !listed.has(x.publicId));
+    if (page === 1) pool.value = fresh;
+    else pool.value = [...pool.value, ...fresh.filter((x: any) => !pool.value.some((p: any) => p.publicId === x.publicId))];
     poolPage.value = d.page || page;
     poolTotal.value = d.total || 0;
   } catch (e: any) {
@@ -171,8 +189,19 @@ function addItem(c: any) {
   poolTotal.value = Math.max(0, poolTotal.value - 1);
 }
 function removeItem(index: number) {
+  const removed = items.value[index];
   items.value.splice(index, 1);
   items.value = [...items.value];
+  // (c) Dua bai vua go ve kho NGAY tai cho (dung vi tri theo publishAt
+  // moi nhat truoc, nhu thu tu kho), khong cho fetch server tra ve.
+  // reloadPool() nen van chay de doi soat voi server.
+  if (removed?.article && !pool.value.some((x: any) => x.publicId === removed.articlePublicId)) {
+    const at = removed.article.publishAt || '';
+    let pos = pool.value.findIndex((x: any) => (x.publishAt || '') < at);
+    if (pos < 0) pos = pool.value.length;
+    pool.value.splice(pos, 0, removed.article);
+    poolTotal.value += 1;
+  }
   reloadPool();
 }
 function move(index: number, dir: number) {
@@ -193,14 +222,20 @@ async function save() {
   if (!dirty.value) return;
   saving.value = true;
   try {
+    const sentIds = items.value.map((x: any) => x.articlePublicId);
+    const sentMax = maxSlots.value;
     const d: any = await api.put(`/admin/home-slots/${block.value}`, {
-      items: items.value.map((x: any) => x.articlePublicId),
+      items: sentIds,
       version: version.value,
-      maxSlots: maxSlots.value,
+      maxSlots: sentMax,
     });
-    items.value = d.items || [];
-    version.value = d.version ?? 0;
-    maxSlots.value = d.maxSlots ?? maxSlots.value;
+    // (b) Dong bo voi du lieu server tra ve sau PUT (version + danh sach
+    // moi). Chi nhan d.items khi dung la mang — tranh truong hop response
+    // thieu items lam trang danh sach hien thi; khi do giu danh sach vua
+    // gui (chinh la trang thai da persist) roi chup snapshot.
+    if (Array.isArray(d?.items)) items.value = d.items;
+    if (typeof d?.version === 'number') version.value = d.version;
+    if (typeof d?.maxSlots === 'number') maxSlots.value = d.maxSlots;
     snapshot();
     toast.add({ severity: 'success', summary: 'Đã lưu', detail: 'Trang chủ đã cập nhật theo thứ tự mới' });
   } catch (e: any) {
@@ -229,6 +264,13 @@ onBeforeRouteLeave((_to, _from, next) => {
   });
 });
 
-watch(block, () => { load(); });
+// (a) Doi khoi: dat lai tu khoa tim kho + so vi tri mac dinh cua khoi moi
+// truoc khi tai, de khong mang trang thai tim kiem/so vi tri cua khoi cu
+// sang; load() se xoa danh sach cu va nap du lieu moi.
+watch(block, () => {
+  poolQ.value = '';
+  maxSlots.value = block.value === 'noi-bat' ? 4 : 3;
+  load();
+});
 onMounted(load);
 </script>
