@@ -105,6 +105,12 @@ const maxSlots = ref(4);
 const mainArticlePublicId = ref<string | null>(null);
 
 const pool = ref<any[]>([]);
+// (c2) Bai vua go khoi danh sach nhung CHUA Luu: server van tinh no
+// thuoc danh sach da luu nen kho server loai no ra. Giu lai local de
+// moi lan tai kho (tim kiem, cuon them) deu ghep no tro lai — neu
+// khong, tim kiem se ghi de pool va lam bai vua go bien mat (cung ban
+// chat loi (c), chi khac duong kich hoat: tim kiem thay vi reload nen).
+const locallyRemoved = ref<any[]>([]);
 const poolQ = ref('');
 const poolPage = ref(1);
 const poolTotal = ref(0);
@@ -131,6 +137,7 @@ async function load() {
   loaded.value = false;
   items.value = [];
   pool.value = [];
+  locallyRemoved.value = [];
   poolTotal.value = 0;
   poolPage.value = 1;
   mainArticlePublicId.value = null;
@@ -168,10 +175,16 @@ async function loadPoolPage(page: number) {
     // local chua luu (server chi loai bai da luu trong danh sach).
     const listed = new Set(items.value.map((x: any) => x.articlePublicId));
     const fresh = (d.items || []).filter((x: any) => !listed.has(x.publicId));
-    if (page === 1) pool.value = fresh;
+    // (c2) Ghep lai bai vua go chua Luu (server loai vi van trong danh
+    // sach da luu): chi bai khop tu khoa tim hien tai, sap theo
+    // publishAt moi nhat truoc nhu thu tu kho.
+    const q = (poolQ.value || '').toLowerCase();
+    const kept = locallyRemoved.value.filter((x: any) => !listed.has(x.publicId) && (!q || (x.title || '').toLowerCase().includes(q)));
+    const byDate = (a: any, b: any) => ((b.publishAt || '') < (a.publishAt || '') ? -1 : ((b.publishAt || '') > (a.publishAt || '') ? 1 : 0));
+    if (page === 1) pool.value = [...fresh, ...kept].sort(byDate);
     else pool.value = [...pool.value, ...fresh.filter((x: any) => !pool.value.some((p: any) => p.publicId === x.publicId))];
     poolPage.value = d.page || page;
-    poolTotal.value = d.total || 0;
+    poolTotal.value = (d.total || 0) + kept.length;
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || 'Không tải được kho' });
   }
@@ -190,6 +203,8 @@ function addItem(c: any) {
   if (!canAdd.value) return;
   items.value = [...items.value, { articlePublicId: c.publicId, sortOrder: items.value.length, article: c, articleStatus: 'published' }];
   pool.value = pool.value.filter((x: any) => x.publicId !== c.publicId);
+  // (c2) Them lai thi khong con la bai vua go nua.
+  locallyRemoved.value = locallyRemoved.value.filter((x: any) => x.publicId !== c.publicId);
   poolTotal.value = Math.max(0, poolTotal.value - 1);
 }
 function removeItem(index: number) {
@@ -209,6 +224,10 @@ function removeItem(index: number) {
     if (pos < 0) pos = pool.value.length;
     pool.value.splice(pos, 0, removed.article);
     poolTotal.value += 1;
+  }
+  // (c2) Ghi lai de cac lan tai kho sau (tim kiem/cuon them) ghep lai.
+  if (removed?.article && !locallyRemoved.value.some((x: any) => x.publicId === removed.articlePublicId)) {
+    locallyRemoved.value.push(removed.article);
   }
 }
 function move(index: number, dir: number) {
@@ -243,6 +262,9 @@ async function save() {
     if (Array.isArray(d?.items)) items.value = d.items;
     if (typeof d?.version === 'number') version.value = d.version;
     if (typeof d?.maxSlots === 'number') maxSlots.value = d.maxSlots;
+    // (c2) Da Luu: server da loai bai vua go khoi danh sach nen kho
+    // server tra ve no binh thuong — khong can giu lai local nua.
+    locallyRemoved.value = [];
     snapshot();
     toast.add({ severity: 'success', summary: 'Đã lưu', detail: 'Trang chủ đã cập nhật theo thứ tự mới' });
   } catch (e: any) {
