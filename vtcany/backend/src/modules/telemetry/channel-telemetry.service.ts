@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TvService } from '../tv/tv.service';
 import { isBotUserAgent } from '../news/pageview-input';
-import { vnTodayStr, vnDayRange } from '../dashboard/dashboard-helpers';
+import { vnTodayStr, vnDayRange, vnDateForDb } from '../dashboard/dashboard-helpers';
 import {
   HEARTBEAT_DEDUPE_WINDOW_MS,
   normalizeChannelHeartbeatInput,
@@ -148,7 +148,7 @@ export class ChannelTelemetryService {
       g.views += 1;
       if (r.sessionId) g.sessions.add(r.sessionId);
     }
-    const day = new Date(`${vnDate}T00:00:00+07:00`);
+    const day = vnDateForDb(vnDate);
     for (const g of groups.values()) {
       await db.pageViewDaily.upsert({
         where: { vnDate_contentType_contentKey: { vnDate: day, contentType: g.contentType, contentKey: g.contentKey } },
@@ -174,7 +174,7 @@ export class ChannelTelemetryService {
       g.heartbeats += 1;
       if (r.sessionId) g.sessions.add(r.sessionId);
     }
-    const day = new Date(`${vnDate}T00:00:00+07:00`);
+    const day = vnDateForDb(vnDate);
     for (const g of groups.values()) {
       // watchedMinutes ≈ so heartbeat x 1 phut (nhip 60 giay, chi gui khi dang phat).
       if (g.viewType === 'vod') {
@@ -210,7 +210,7 @@ export class ChannelTelemetryService {
       let d = starts.sort()[0];
       while (d < today) {
         const { from, to } = vnDayRange(d);
-        const day = new Date(`${d}T00:00:00+07:00`);
+        const day = vnDateForDb(d);
         const pvDone = await db.pageViewDaily.findFirst({ where: { vnDate: day }, select: { id: true } }).catch(() => null);
         const chDone = await db.channelTelemetryDaily.findFirst({ where: { vnDate: day }, select: { id: true } }).catch(() => null);
         // Ngay khong co row tho thi khong co gi de gop (bo qua vinh vien,

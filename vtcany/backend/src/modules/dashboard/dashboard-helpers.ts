@@ -59,9 +59,24 @@ export function periodRange(
   return { from, to };
 }
 
-/** Gioi han hien thi: tu ngay VN sang khoang Date de query Prisma. */
+/** Gioi han hien thi: tu ngay VN sang khoang Date de query Prisma.
+ * CHI dung cho moc instant (vd loc createdAt theo khoang) — KHONG dung
+ * cho cot @db.Date (xem vnDateForDb ben duoi). */
 export function vnDateToUtc(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00+07:00`);
+}
+
+/**
+ * Ngay VN -> Date de ghi/query cot @db.Date (pageview_daily,
+ * channel_telemetry_daily). PHAI dung giua trua UTC cua dung ngay VN do,
+ * KHONG dung nua dem +07:00: nua dem +07:00 = 17:00 UTC ngay hom truoc,
+ * session DB o UTC se cat ve ngay hom truoc khi luu vao cot DATE (loi
+ * nhan ngay 04/11 -> 03/11 phat hien 05/11/2026). Giua trua UTC thi ngay
+ * UTC luon bang ngay VN voi moi session timezone trong UTC-12..UTC+12.
+ * Moi noi ghi va kiem tra "da gop" (pvDone/chDone) deu phai dung ham nay.
+ */
+export function vnDateForDb(dateStr: string): Date {
+  return new Date(`${dateStr}T12:00:00Z`);
 }
 
 export function median(nums: number[]): number | null {
