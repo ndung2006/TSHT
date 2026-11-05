@@ -39,16 +39,80 @@
     return p.status || "LIVE";
   }
   function replayKey(p) { return (p.startTime || p.start_time || "") + "|" + (p.title || ""); }
+  // Cong/tru ngay tren lich YYYY-MM-DD (toan UTC, khong phu thuoc mui gio).
+  function addDays(dateStr, n) {
+    var parts = String(dateStr || "").split("-");
+    var d = new Date(Date.UTC(+parts[0], +parts[1] - 1, +parts[2] + n));
+    return d.toISOString().slice(0, 10);
+  }
+  // Cuon khung lich (box) sao cho dong live nam gan dau khung, con 2 dong
+  // phia tren de nguoi xem thay ngu canh. Dung delta bounding-rect do
+  // theo chinh box (xem ghi chu trong renderSchedule): khong dung
+  // offsetTop vi .sched-list la position:static nen offsetTop do tu mot
+  // to tien xa, gay lech ~6 dong.
+  function scrollBoxToRow(box, row, rows) {
+    rows = rows || box.querySelectorAll(".sched-row");
+    var idx = -1, i;
+    for (i = 0; i < rows.length; i++) { if (rows[i] === row) { idx = i; break; } }
+    var maxScroll = box.scrollHeight - box.clientHeight;
+    if (maxScroll <= 0) return;
+    if (idx <= 1) { box.scrollTop = 0; return; }
+    var delta = rows[idx - 2].getBoundingClientRect().top - box.getBoundingClientRect().top;
+    box.scrollTop = Math.max(0, Math.min(box.scrollTop + delta, maxScroll));
+  }
+  // Gan hang nut chon ngay "Hom qua / Hom nay / Ngay mai" + nut lich
+  // (mo date picker goc) cho mot input date co san. Nut bam thi doi
+  // gia tri input roi phat su kien change de handler san co (loadSchedule)
+  // chay; trang thai active duoc dong bo moi khi input doi (ke ca khi
+  // chon ngay khac bang lich: khi do khong nut nao active).
+  // dateInput: <input type=date>; navEl: <div class="sched-daynav">.
+  function bindDayNav(dateInput, navEl) {
+    if (!dateInput || !navEl) return null;
+    var btns = navEl.querySelectorAll("[data-day]");
+    function sync() {
+      var today = saigonToday();
+      for (var i = 0; i < btns.length; i++) {
+        var off = parseInt(btns[i].getAttribute("data-day"), 10) || 0;
+        var on = dateInput.value === addDays(today, off);
+        btns[i].classList.toggle("is-active", on);
+        btns[i].setAttribute("aria-pressed", on ? "true" : "false");
+      }
+    }
+    for (var i = 0; i < btns.length; i++) {
+      (function (btn) {
+        btn.addEventListener("click", function () {
+          var off = parseInt(btn.getAttribute("data-day"), 10) || 0;
+          var v = addDays(saigonToday(), off);
+          if (dateInput.value !== v) {
+            dateInput.value = v;
+            dateInput.dispatchEvent(new Event("change"));
+          }
+          sync();
+        });
+      })(btns[i]);
+    }
+    var calBtn = navEl.querySelector(".sched-cal-btn");
+    if (calBtn) calBtn.addEventListener("click", function () {
+      try {
+        if (typeof dateInput.showPicker === "function") dateInput.showPicker();
+        else dateInput.focus();
+      } catch (e) { try { dateInput.focus(); } catch (e2) {} }
+    });
+    dateInput.addEventListener("change", sync);
+    sync();
+    return { sync: sync };
+  }
 
   // opts: { box, items, date, nowEl, onReplay(item), replayingKey,
   //         timeshift_available, timeshift_unknown, emptyText,
   //         pageScroll }
-  // pageScroll (TV page only): on desktop the schedule is a 2-column
-  // panel with its own inner scroll, so the current program is
-  // brought into view by scrolling the panel only (never the page,
-  // never the player). On mobile the panel has no inner scroll, so
-  // it falls back to a page scroll. Callers that do not pass it
-  // (radio) keep the exact old container-scroll behaviour.
+  // pageScroll (TV page only): khi danh sach vua het trong khung (ngay
+  // it chuong trinh, khung khong cuon duoc) thi desktop cuon ca trang toi
+  // dong dang phat; mobile bo qua de trang mo len dung o khoi phat truc
+  // tuyen truoc. Khi khung co cuon noi bo (desktop, va mobile tu khi
+  // khung lich cao 55-60vh) thi luon cuon RIENG khung, khong cuon trang.
+  // Callers that do not pass it (radio) keep the same container-scroll
+  // behaviour. Ngay khac hom nay: khung ve dau (scrollTop = 0).
   // Returns the LIVE item (for now-playing) or null.
   function renderSchedule(opts) {
     var box = opts.box, items = opts.items || [], date = opts.date || saigonToday();
@@ -75,7 +139,7 @@
       } else if (status === "REPLAY" && opts.timeshift_available === false && opts.timeshift_unknown === false) {
         action = "<span class='sched-norecord'>Không có bản ghi</span>";
       }
-      return "<div class='sched-row" + (isNow ? " is-now" : "") + (isReplaying ? " is-replaying" : "") + "'><span class='sched-time'>" + esc(p.start_time) + "</span><span class='sched-title'>" + esc(p.title) + (isNow ? "<span class='sched-badge'>TRỰC TIẾP</span>" : "") + "</span>" + (action ? "<span class='sched-action'>" + action + "</span>" : "") + "</div>";
+      return "<div class='sched-row" + (isNow ? " is-now" : "") + (isReplaying ? " is-replaying" : "") + "'><span class='sched-time'>" + esc(p.start_time) + "</span><span class='sched-title'><span class='sched-title-text' title=\"" + esc(p.title) + "\">" + esc(p.title) + "</span>" + (isNow ? "<span class='sched-badge'>TRỰC TIẾP</span>" : "") + "</span>" + (action ? "<span class='sched-action'>" + action + "</span>" : "") + "</div>";
     }).join("");
     box.innerHTML = rows;
     var btns = box.querySelectorAll("[data-replay]");
@@ -88,59 +152,39 @@
         });
       })(btns[i]);
     }
+    // Mobile: ten chuong trinh bi cat "…" o 2 dong (CSS) — bam vao dong
+    // de mo rong xem du ten, bam lai de thu gon. Bam nut "Xem lai" thi
+    // van phat (khong mo rong), nen bo qua click xuat phat tu nut.
+    var rowEls = box.querySelectorAll(".sched-row");
+    for (var ri = 0; ri < rowEls.length; ri++) {
+      (function (row) {
+        row.addEventListener("click", function (e) {
+          if (e.target && e.target.closest && e.target.closest("[data-replay]")) return;
+          row.classList.toggle("is-expanded");
+        });
+      })(rowEls[ri]);
+    }
     if (date === today) {
       var currentRow = box.querySelector(".sched-row.is-now");
-      if (currentRow) {
-        if (opts.pageScroll) {
-          // TV 2-column layout: scroll the schedule panel only when
-          // it has an inner scroll (desktop); otherwise fall back to
-          // a page scroll (mobile). This never touches, resets, or
-          // reloads the player. While a replay is playing, do NOT
-          // yank the view back to the live row (the user just chose
-          // a replay row to watch).
-          if (!opts.replayingKey) {
-            if (box.scrollHeight > box.clientHeight + 10) {
-              // Live row sits 3rd from the top of the panel: scroll so
-              // the row two places above it is flush with the top.
-              // If the live row is 1st/2nd of the day there is nothing
-              // above it, so start at the top. Near the end of the day
-              // the target would run past the bottom, so clamp to the
-              // maximum scroll: the list simply runs to the last row.
-              // NOTE: do NOT use offsetTop here. .sched-list is
-              // position:static, so a row's offsetTop is measured from
-              // a distant positioned ancestor (or the page), not from
-              // this scroll box — assigning it to scrollTop overshoots
-              // by the panel's distance from the page top (observed
-              // live: ~6 rows too far). The bounding-rect delta below
-              // is measured against the box itself, so it is exact
-              // regardless of offsetParent.
-              var allRows = box.querySelectorAll(".sched-row");
-              var idx = -1;
-              for (var i = 0; i < allRows.length; i++) { if (allRows[i] === currentRow) { idx = i; break; } }
-              var maxScroll = box.scrollHeight - box.clientHeight;
-              if (idx <= 1) {
-                box.scrollTop = 0;
-              } else {
-                var delta = allRows[idx - 2].getBoundingClientRect().top - box.getBoundingClientRect().top;
-                box.scrollTop = Math.max(0, Math.min(box.scrollTop + delta, maxScroll));
-              }
-            } else if (typeof currentRow.scrollIntoView === "function") {
-              // Mobile: lich khong co cuon noi bo nen nhanh nay von cuon
-              // ca trang toi dong dang phat. Bo qua tren mobile: trang
-              // mo len phai dung o khoi phat truc tuyen truoc, nguoi
-              // dung tu cuon xuong lich khi can (dong dang phat van
-              // duoc to sang binh thuong).
-              if (!(typeof global.matchMedia === "function" && global.matchMedia("(max-width: 800px)").matches)) {
-                currentRow.scrollIntoView({ block: "center" });
-              }
-            }
+      if (currentRow && !opts.replayingKey) {
+        if (box.scrollHeight > box.clientHeight + 10) {
+          // Khung lich co cuon noi bo (desktop, va mobile tu khi khung
+          // 55-60vh): cuon RIENG khung toi dong dang phat, khong cuon
+          // ca trang, khong cham player. Khi dang xem lai thi khong
+          // giat khung ve dong live (nguoi dung vua chon dong xem lai).
+          scrollBoxToRow(box, currentRow);
+        } else if (opts.pageScroll && typeof currentRow.scrollIntoView === "function") {
+          // Danh sach vua het trong khung (ngay it chuong trinh): chi
+          // desktop moi cuon trang toi dong dang phat; mobile bo qua
+          // de trang mo len dung o khoi phat truc tuyen truoc.
+          if (!(typeof global.matchMedia === "function" && global.matchMedia("(max-width: 800px)").matches)) {
+            currentRow.scrollIntoView({ block: "center" });
           }
-        } else {
-          // Inner-scroll layout (radio column): old behaviour, scroll
-          // the container only, never the page.
-          box.scrollTop = Math.max(0, currentRow.offsetTop - 60);
         }
       }
+    } else {
+      // Ngay khac hom nay: ve dau khung (khong giu vi tri cuon cua ngay cu).
+      box.scrollTop = 0;
     }
     return liveItem;
   }
@@ -163,5 +207,5 @@
     } catch (e) { /* khong chan trang neu co loi */ }
   });
 
-  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule };
+  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule, addDays: addDays, scrollBoxToRow: scrollBoxToRow, bindDayNav: bindDayNav };
 })(window);

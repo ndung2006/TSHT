@@ -39,8 +39,8 @@
 .tv-cat-card.is-selected .tv-cat-title { font-weight: 700; }
 /* Bố cục 2 cột kiểu trang tham khảo (chỉ trang TV; live.css và radio
    không đụng tới): desktop, player ở cột trái, cột LỊCH PHÁT SÓNG ở
-   cột phải; mobile (<=900px), 2 cột xếp dọc và lịch cuộn theo
-   trang như trước. Các quy tắc dưới đây có độ đặc hiệu cao hơn
+   cột phải; mobile (<=900px), 2 cột xếp dọc và lịch trong khung cuộn
+   riêng cao tối đa ~58vh. Các quy tắc dưới đây có độ đặc hiệu cao hơn
    live.css (.live-section .sched-*) và file này nạp sau live.css,
    nên chúng thắng mà không cần sửa live.css. */
 /* Cân 2 cột như trang tham khảo (tuyenquangtv.vn/truyen-hinh):
@@ -74,14 +74,34 @@
 .live-section .sched-action { flex-shrink: 0; white-space: nowrap; }
 .live-section .sched-replay-btn, .live-section .sched-replaying, .live-section .sched-norecord { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 900px) {
-  /* Mobile: 2 cột xếp dọc, lịch không còn khung cuộn riêng mà cuộn
-     theo trang (giữ đúng hành vi của bản cuộn xuống trước đây). */
+  /* Mobile: 2 cot xep doc, lich co khung cuon rieng cao toi da ~58%
+     man hinh (giong ban desktop) thay vi keo dai ca trang; danh sach
+     tu cuon toi chuong trinh dang phat (JS, LiveEpg.renderSchedule)
+     ben trong khung nay, khong cuon ca trang. */
   .live-section .live-grid { grid-template-columns: 1fr; }
   .live-section .epg-section { margin-top: 24px; display: block; }
-  .live-section .sched-list { max-height: none; overflow: visible; overflow-y: visible; }
+  .live-section .sched-list { max-height: 58vh; overflow-y: auto; }
+  /* Dong lich gon: cot gio hep 48px / chu 13px, ten 15px toi da 2 dong
+     (bam dong de mo rong xem du ten), nut xem lai nho. */
+  .live-section .sched-row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; padding: 8px 10px; cursor: pointer; }
+  .live-section .sched-time { font-size: 13px; }
+  .live-section .sched-title { font-size: 15px; }
+  .live-section .sched-title-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .live-section .sched-row.is-expanded .sched-title-text { -webkit-line-clamp: unset; display: block; }
+  .live-section .sched-badge { font-size: 11px; }
+  .live-section .sched-replay-btn { font-size: 12px; padding: 3px 8px; }
+  /* Tieu de nho lai cho can noi dung: nut LICH PHAT SONG. */
+  .live-section .sched-btn { font-size: 12px; padding: 6px 10px; }
+  /* O chon ngay lon duoc thay bang hang nut Hom qua / Hom nay / Ngay
+     mai + nut lich (an tren desktop): an input khoi giao dien nhung
+     van de trong DOM (position tuyet doi, opacity 0) de nut lich mo
+     duoc date picker goc qua showPicker(). */
+  .live-section .epg-head #sched-date { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+  /* Dong "Dang phat:" giu 1 dong ten + gio, dai thi cat "…" (xem du
+     ten qua thuoc tinh title do JS dat). */
+  .live-section .live-now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 @media (max-width: 800px) {
   .latest-grid { grid-template-columns: 1fr; }
   .tv-cat-grid { grid-template-columns: 1fr; }
-  .live-section .sched-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
 }

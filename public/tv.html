@@ -2,9 +2,9 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Truyền hình trực tuyến</title>
-<link rel="stylesheet" href="/css/style.css?v=20261105-1">
-<link rel="stylesheet" href="/css/live.css?v=20261102-1">
-<link rel="stylesheet" href="/css/tv-page.css?v=20261105-3">
+<link rel="stylesheet" href="/css/style.css?v=20261105-2">
+<link rel="stylesheet" href="/css/live.css?v=20261105-2">
+<link rel="stylesheet" href="/css/tv-page.css?v=20261105-4">
 <link rel="stylesheet" href="/css/header.css?v=20261105-1">
 <link rel="stylesheet" href="/css/footer.css?v=20261105-1">
 <link rel="stylesheet" href="/css/live-controls.css?v=20261105-4"><link rel="icon" href="/favicon.ico" sizes="any">
@@ -68,6 +68,14 @@
     <div class="epg-head">
       <a class="sched-btn" href="/lich-phat-song">LỊCH PHÁT SÓNG</a>
       <input type="date" id="sched-date" aria-label="Chọn ngày xem lịch">
+    </div>
+    <!-- Mobile: hang nut chon nhanh ngay thay cho o chon ngay lon (an
+         tren desktop qua CSS; tv.js gan hanh vi qua LiveEpg.bindDayNav). -->
+    <div class="sched-daynav" role="group" aria-label="Chọn ngày xem lịch">
+      <button type="button" data-day="-1">Hôm qua</button>
+      <button type="button" data-day="0">Hôm nay</button>
+      <button type="button" data-day="1">Ngày mai</button>
+      <button type="button" class="sched-cal-btn" aria-label="Chọn ngày khác">📅</button>
     </div>
     <div id="schedule" class="sched-list"><p class="sched-empty">Đang tải lịch…</p></div>
   </section>
@@ -150,9 +158,9 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261105-5"></script>
 <script src="/js/live-controls.js?v=20261105-4"></script>
-<script src="/js/live-epg.js?v=20261102-1"></script>
+<script src="/js/live-epg.js?v=20261105-2"></script>
 <script src="/js/telemetry.js?v=20261105-1"></script>
 <script src="/js/header.js?v=20261105-1"></script>
-<script src="/js/tv.js?v=20261105-2"></script>
+<script src="/js/tv.js?v=20261105-3"></script>
 <script src="/js/tv-extra.js?v=20261027-8"></script>
 </body></html>

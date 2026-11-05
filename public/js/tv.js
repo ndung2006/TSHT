@@ -49,7 +49,7 @@
   // Can khung lich dung bang khung video (mau tuyenquangtv.vn/truyen-hinh):
   // chieu cao khung lich = chieu cao .live-player-wrap (video 16:9) tru
   // chieu cao .epg-head, danh sach cuon ben trong. Chi desktop (>900px);
-  // mobile xoa chieu cao dat san de lich cuon theo trang nhu cu.
+  // mobile khung lich cao 55-60vh (CSS) nen xoa chieu cao dat san o day.
   // Ly do phai do bang JS thay vi chi CSS: grid auto-row lay chieu cao
   // theo noi dung lon nhat, nen flex:1 + overflow:auto mot minh khong
   // gioi han duoc danh sach bang video — ban CSS truoc day can theo ca
@@ -147,6 +147,13 @@
     if (!e || !e.title) return "";
     var s = e.startTime ? e.startTime.slice(11, 16) : "", en = e.endTime ? e.endTime.slice(11, 16) : "";
     return "Đang phát: " + e.title + (s && en ? " (" + s + "–" + en + ")" : "");
+  }
+  // Dat dong "Dang phat:" (cat "…" 1 dong tren mobile qua CSS) + title
+  // day du de xem du ten khi re chuot / nhan giu.
+  function setNow(text) {
+    if (!nowEl) return;
+    nowEl.textContent = text;
+    nowEl.setAttribute("title", text);
   }
   function saigonToday() { return window.LiveEpg.saigonToday(); }
   function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
@@ -308,11 +315,12 @@
   }
   function renderLastSchedule() {
     if (!lastItems) return;
-    // TV page only: schedule replay buttons read "PHÁT LẠI" (same onReplay
-    // behaviour as before); radio keeps the default "Xem lại" label.
-    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: "PHÁT LẠI", timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true });
+    // TV page only: schedule replay buttons read "PHÁT LẠI" on desktop
+    // (same onReplay behaviour as before); on mobile the button is the
+    // small "Xem lại" label (radio keeps the default "Xem lại" label).
+    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: (window.innerWidth <= 800 ? "Xem lại" : "PHÁT LẠI"), timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true });
     syncSchedHeight();
-    if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
+    if (live) setNow("Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : ""));
     armNowTimer(live);
     // TV-page extras (tv-extra.js) render "CHƯƠNG TRÌNH MỚI NHẤT" from this
     // same schedule data and reuse onReplay via window.playScheduleReplay.
@@ -414,6 +422,10 @@
     // Chi tai lai lich, tuyet doi khong cham vao player (ke ca khi
     // dang xem lai).
     dateInput.onchange = loadSchedule;
+    // Mobile: hang nut Hom qua / Hom nay / Ngay mai + nut lich thay cho
+    // o chon ngay lon (an tren mobile qua CSS, input van o trong DOM de
+    // nut lich mo duoc date picker goc).
+    if (window.LiveEpg && window.LiveEpg.bindDayNav) window.LiveEpg.bindDayNav(dateInput, document.querySelector(".sched-daynav"));
   }
   // Kho video theo chuyen muc: doc lap voi kenh live/lich (loi tai
   // thi cac section giu khung cho tinh nhu cu).
@@ -426,7 +438,7 @@
     // Khong hien ten kenh dang text tren trang (nhan TSHTTV da bo);
     // currentChannel van la ten kenh nguon (TUYENQUANG) cho moi API.
     document.getElementById("channel-desc").textContent = ch.description || "";
-    if (nowEl && ch.epgNow) nowEl.textContent = fmtEpgNow(ch.epgNow);
+    if (nowEl && ch.epgNow) setNow(fmtEpgNow(ch.epgNow));
     currentChannel = ch.name;
     channelSource = d.source || "";
     channelStreamUrl = ch.stream_url || "";

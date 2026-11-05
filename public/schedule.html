@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lịch phát sóng</title>
-<link rel="stylesheet" href="/css/style.css?v=20261105-1">
+<link rel="stylesheet" href="/css/style.css?v=20261105-2">
 <link rel="stylesheet" href="/css/header.css?v=20261105-1">
 <link rel="stylesheet" href="/css/footer.css?v=20261105-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -13,12 +13,21 @@
 <body>
 <!-- @HEADER -->
 <div class="toolbar">
-  <label>Ngày: <input id="sched-date" type="date"></label>
+  <label class="sched-date-label">Ngày: <input id="sched-date" type="date"></label>
   <label>Kênh: <select id="sched-channel"><option value="">Đang tải kênh…</option></select></label>
+  <!-- Mobile: hang nut chon nhanh ngay thay cho o chon ngay lon (an
+       tren desktop qua CSS; schedule.js gan hanh vi qua LiveEpg.bindDayNav). -->
+  <div class="sched-daynav" role="group" aria-label="Chọn ngày xem lịch">
+    <button type="button" data-day="-1">Hôm qua</button>
+    <button type="button" data-day="0">Hôm nay</button>
+    <button type="button" data-day="1">Ngày mai</button>
+    <button type="button" class="sched-cal-btn" aria-label="Chọn ngày khác">📅</button>
+  </div>
   <p class="note">Lịch lấy từ API vtcaio (cửa sổ: hôm nay, 2 ngày trước, 7 ngày tới). Ngày ngoài cửa sổ hoặc chưa có dữ liệu sẽ hiện thông báo, không phải lỗi hệ thống.</p>
 </div>
 <div id="schedule" class="toolbar" style="flex-direction:column;align-items:stretch"></div>
 <script src="/js/header.js?v=20261105-1"></script>
 <!-- @FOOTER -->
-<script src="/js/schedule.js?v=20261026-4"></script>
+<script src="/js/live-epg.js?v=20261105-2"></script>
+<script src="/js/schedule.js?v=20261105-1"></script>
 </body></html>

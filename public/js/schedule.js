@@ -32,13 +32,34 @@
         var today = saigonToday(), now = saigonNowHHMM();
         var rows = d.items.map(function (p) {
           var isNow = (date === today && p.start_time <= now && now < p.end_time);
-          return "<tr" + (isNow ? ' style="background:#fff7cc"' : "") + "><td>" + esc(p.start_time) + "–" + esc(p.end_time) + "</td><td>" + esc(p.title) + (isNow ? " • Đang phát" : "") + "</td><td>" + esc(p.description) + "</td></tr>";
+          return "<tr" + (isNow ? ' class="sched-now" style="background:#fff7cc"' : "") + "><td><span class=\"sched-time-start\">" + esc(p.start_time) + "</span><span class=\"sched-time-sep\">–</span><span class=\"sched-time-end\">" + esc(p.end_time) + "</span></td><td><span class=\"sched-title-text\" title=\"" + esc(p.title) + "\">" + esc(p.title) + "</span>" + (isNow ? " <span class=\"sched-now-badge\">• Đang phát</span>" : "") + "</td><td>" + esc(p.description) + "</td></tr>";
         }).join("");
         box.innerHTML = warn + note + "<table style='width:100%;border-collapse:collapse;background:#fff'><thead><tr><th style='text-align:left'>Giờ</th><th style='text-align:left'>Chương trình</th><th style='text-align:left'>Mô tả</th></tr></thead><tbody>" + rows + "</tbody></table>";
+        // Mobile: ten chuong trinh bi cat "…" o 2 dong (CSS) — bam vao
+        // dong de mo rong xem du ten, bam lai de thu gon.
+        var trs = box.querySelectorAll("tbody tr");
+        for (var ti = 0; ti < trs.length; ti++) {
+          (function (tr) {
+            tr.addEventListener("click", function () { tr.classList.toggle("is-expanded"); });
+          })(trs[ti]);
+        }
+        // Mo dung cho: ngay hom nay thi khung lich tu cuon toi chuong
+        // trinh dang phat (2 dong tren de thay ngu canh); ngay khac thi
+        // ve dau khung.
+        if (date === today) {
+          var nowRow = box.querySelector("tr.sched-now");
+          if (nowRow && window.LiveEpg && window.LiveEpg.scrollBoxToRow) window.LiveEpg.scrollBoxToRow(box, nowRow, trs);
+        } else {
+          box.scrollTop = 0;
+        }
       })
       .catch(function () { box.innerHTML = "<p>Không tải được lịch phát sóng. Vui lòng tải lại trang.</p>"; });
   }
   dateInput.value = saigonToday();
+  // Mobile: hang nut Hom qua / Hom nay / Ngay mai + nut lich thay cho
+  // o chon ngay lon (an tren mobile qua CSS, input van o trong DOM de
+  // nut lich mo duoc date picker goc).
+  if (window.LiveEpg && window.LiveEpg.bindDayNav) window.LiveEpg.bindDayNav(dateInput, document.querySelector(".sched-daynav"));
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     var running = (d.items || []).filter(function (c) { return !c.status || c.status === "RUNNING"; });
     if (d.vtcaio_error) box.innerHTML = "<p class='note'>" + esc(d.vtcaio_error) + "</p>";

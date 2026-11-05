@@ -77,4 +77,37 @@ body.reader-page{height:100vh;height:100dvh;display:flex;flex-direction:column;o
 #flip-wrap{display:block;text-align:center}
 #read-wrap{flex:1;min-height:0;overflow:auto}
 .more-menu[hidden]{display:none}
+/* Hang nut chon nhanh ngay lich phat song (Hom qua / Hom nay / Ngay
+   mai + nut lich): chi hien tren mobile, an tren desktop. Ca 3 trang
+   lich (Truyen hinh, Phat thanh, Lich phat song) nap file nay. */
+.sched-daynav { display: none; }
+@media (max-width: 800px) {
+  .sched-daynav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .sched-daynav button {
+    background: #fff; color: #222; border: 1px solid #ccc; border-radius: 20px;
+    font-size: 13px; font-weight: 600; padding: 6px 12px; cursor: pointer;
+  }
+  .sched-daynav button.is-active { background: #d61f2f; border-color: #d61f2f; color: #fff; }
+  .sched-daynav .sched-cal-btn { padding: 6px 10px; }
+  /* Trang Truyen hinh / Phat thanh (nen toi #0b1235): nut sang tren nen toi. */
+  .live-section .sched-daynav button { background: rgba(255, 255, 255, 0.12); color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+  .live-section .sched-daynav button.is-active { background: #d61f2f; border-color: #d61f2f; }
+  /* Trang Lich phat song: an o chon ngay lon (nhan chua input) khoi
+     giao dien nhung van de trong DOM (position tuyet doi, opacity 0)
+     de nut lich mo duoc date picker goc qua showPicker(). */
+  .toolbar .sched-date-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+  /* Khung lich rieng cao toi da ~58% man hinh, cuon ben trong (ap dung
+     cho ca 3 trang vi deu dung #schedule). */
+  #schedule { max-height: 58vh; overflow-y: auto; }
+  /* Bang lich trang Lich phat song, mobile: an cot Mo ta, chi hien gio
+     bat dau (13px), ten 15px toi da 2 dong (bam dong de mo rong). */
+  #schedule table { font-size: 15px; }
+  #schedule th, #schedule td { padding: 8px 6px; }
+  #schedule th:nth-child(3), #schedule td:nth-child(3) { display: none; }
+  #schedule td:first-child { font-size: 13px; white-space: nowrap; }
+  #schedule .sched-time-end, #schedule .sched-time-sep { display: none; }
+  #schedule .sched-title-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #schedule tr.is-expanded .sched-title-text { -webkit-line-clamp: unset; display: block; }
+  #schedule tbody tr { cursor: pointer; }
+}
 /* Header chung (utilitybar + masthead): xem public/css/header.css. */

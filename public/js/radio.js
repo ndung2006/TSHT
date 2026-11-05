@@ -32,6 +32,13 @@
     var s = e.startTime ? e.startTime.slice(11, 16) : "", en = e.endTime ? e.endTime.slice(11, 16) : "";
     return "Đang phát: " + e.title + (s && en ? " (" + s + "–" + en + ")" : "");
   }
+  // Dat dong "Dang phat:" (cat "…" 1 dong tren mobile qua CSS) + title
+  // day du de xem du ten khi re chuot / nhan giu.
+  function setNow(text) {
+    if (!nowEl) return;
+    nowEl.textContent = text;
+    nowEl.setAttribute("title", text);
+  }
   function saigonToday() { return window.LiveEpg.saigonToday(); }
   // Thanh dieu khien tuy chinh (LiveControls, Buoc 0) cho audio: khong
   // PiP/toan man hinh. Cham vao poster de hien/an thanh dieu khien
@@ -133,7 +140,7 @@
   function renderLastSchedule() {
     if (!lastItems) return;
     var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát" });
-    if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
+    if (live) setNow("Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : ""));
     armNowTimer(live);
   }
   function startLive() {
@@ -219,6 +226,10 @@
     dateInput.value = saigonToday();
     // Chi tai lai cot lich, tuyet doi khong cham vao player.
     dateInput.onchange = loadSchedule;
+    // Mobile: hang nut Hom qua / Hom nay / Ngay mai + nut lich thay cho
+    // o chon ngay lon (an tren mobile qua CSS, input van o trong DOM de
+    // nut lich mo duoc date picker goc).
+    if (window.LiveEpg && window.LiveEpg.bindDayNav) window.LiveEpg.bindDayNav(dateInput, document.querySelector(".sched-daynav"));
   }
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
@@ -227,7 +238,7 @@
     if (!ch) { document.getElementById("channel-name").textContent = "Chưa có kênh phát thanh đang phát"; showMsg("Không có kênh phát thanh RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng."); loadSchedule(); return; }
     document.getElementById("channel-name").textContent = ch.name;
     document.getElementById("channel-desc").textContent = ch.description || "";
-    if (nowEl && ch.epgNow) nowEl.textContent = fmtEpgNow(ch.epgNow);
+    if (nowEl && ch.epgNow) setNow(fmtEpgNow(ch.epgNow));
     currentChannel = ch.name;
     channelSource = d.source || "";
     channelStreamUrl = ch.stream_url || "";
