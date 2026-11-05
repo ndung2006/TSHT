@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
+import { HomeSlotsModule } from '../home-slots/home-slots.module';
 import { NewsCategoryController, NewsCategoryPublicController, NewsController, NewsPublicController } from './news.controller';
 import { PageViewController } from './pageview.controller';
 import { PageViewService } from './pageview.service';
 import { NewsService } from './news.service';
 
 @Module({
-  imports: [AuthModule, PrismaModule, WorkflowsModule],
+  imports: [AuthModule, PrismaModule, WorkflowsModule, HomeSlotsModule],
   controllers: [NewsController, NewsCategoryController, NewsPublicController, NewsCategoryPublicController, PageViewController],
   providers: [NewsService, PageViewService],
   exports: [NewsService],

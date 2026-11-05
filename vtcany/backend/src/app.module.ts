@@ -17,6 +17,7 @@ import { NewsModule } from './modules/news/news.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
 import { ZoneModule } from './modules/zones/zone.module';
+import { HomeSlotsModule } from './modules/home-slots/home-slots.module';
 import { CrossmediaModule } from './modules/crossmedia/crossmedia.module';
 import { EventsModule } from './modules/events/events.module';
 import { LiveblogModule } from './modules/liveblog/liveblog.module';
@@ -48,6 +49,7 @@ import { HealthController } from './health.controller';
     DepartmentsModule,
     DistributionModule,
     ZoneModule,
+    HomeSlotsModule,
     CrossmediaModule,
     EventsModule,
     LiveblogModule,

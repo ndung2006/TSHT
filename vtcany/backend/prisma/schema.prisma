@@ -639,6 +639,7 @@ model NewsArticle {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   approvals    NewsArticleApproval[]
   zoneItems    ZoneItem[]
+  homeSlotItems HomeSlotItem[]
   slugRedirects NewsSlugRedirect[]
   royalty      ArticleRoyalty?
 
@@ -875,6 +876,45 @@ model ZoneItem {
   @@unique([articleId])
   @@index([zoneId, sortOrder])
   @@map("zone_items")
+}
+
+// ---------------------------------------------------------------------------
+// Sap xep Tin noi bat / Tin tieu diem — Buoc 0 2026-11-05, phuong an A.
+// Moi khoi co MOT danh sach co thu tu duy nhat (thay cho co che zone +
+// co tick rieng le): tick trong form bai chi dua bai vao KHO, thu tu
+// hien thi tren trang chu chi quyet dinh o man hinh sap xep.
+// - blockKey 'noi-bat' (toi da 4, vi tri 1 = Bai chinh), 'tieu-diem'
+//   (toi da 3, khong co Bai chinh). Mot bai duoc o ca hai khoi (Q2),
+//   chi cam trung trong cung mot khoi: @@unique([listId, articleId]).
+// - version: khoa lac quan — PUT gui version cu -> 409, client tai lai
+//   (chua co mau optimistic locking nao trong codebase truoc day).
+// - Bai bi ha xuat ban GIU hang trong danh sach (Q3); bo tick khoi kho
+//   thi xoa hang khoi danh sach + tang version (Q4, hook o news.patch).
+// ---------------------------------------------------------------------------
+model HomeSlotList {
+  id        String         @id @default(uuid())
+  blockKey  String         @unique @map("block_key") // noi-bat | tieu-diem
+  maxSlots  Int            @map("max_slots") // so vi tri toi da theo cau hinh (Q1)
+  version   Int            @default(0) // tang 1 moi lan luu/xoa do bo tick
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  items     HomeSlotItem[]
+
+  @@map("home_slot_lists")
+}
+
+model HomeSlotItem {
+  id        String       @id @default(uuid())
+  listId    String       @map("list_id")
+  list      HomeSlotList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  articleId String       @map("article_id")
+  article   NewsArticle  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  sortOrder Int          @default(0) @map("sort_order")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@unique([listId, articleId])
+  @@index([listId, sortOrder])
+  @@map("home_slot_items")
 }
 
 // ---------------------------------------------------------------------------

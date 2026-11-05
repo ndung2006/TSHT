@@ -13,6 +13,7 @@ import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './news-workflow';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
+import { HomeSlotService } from '../home-slots/home-slots.service';
 import { normalizeContentType, typeFlags } from './news-content';
 import { normalizeFormatData } from './news-format-data';
 
@@ -72,7 +73,11 @@ export interface ArticleInput {
 
 @Injectable()
 export class NewsService {
-  constructor(private readonly prisma: PrismaService, private readonly wf: WorkflowConfigService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wf: WorkflowConfigService,
+    private readonly homeSlots: HomeSlotService,
+  ) {}
 
   private newPublicId(): string {
     return randomBytes(12).toString('hex');
@@ -654,6 +659,17 @@ export class NewsService {
       data,
       include: { category: true },
     });
+    // Q4 + (b): bo tick khoi kho -> xoa bai khoi danh sach khoi tuong
+    // ung + TANG version cua danh sach do, de man hinh sap xep dang mo
+    // nhan xung dot 409 khi luu (khong ghi de im lang). Chi chay khi
+    // tick chuyen true -> false; removeArticleFromBlock tu khong doi gi
+    // neu bai khong co trong danh sach.
+    if (input.isFeatured !== undefined && !input.isFeatured && row.isFeatured) {
+      await this.homeSlots.removeArticleFromBlock('noi-bat', row.id, row.publicId);
+    }
+    if (input.isSpotlight !== undefined && !input.isSpotlight && row.isSpotlight) {
+      await this.homeSlots.removeArticleFromBlock('tieu-diem', row.id, row.publicId);
+    }
     return this.toItem(out);
   }
 
