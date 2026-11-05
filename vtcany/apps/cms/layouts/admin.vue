@@ -401,7 +401,7 @@ const asideClass = computed(() => {
 function toggleSidebar() {
   sidebarHidden.value = !sidebarHidden.value;
   try { localStorage.setItem('cms_sidebar_hidden', sidebarHidden.value ? '1' : '0'); } catch { /* bo qua */ }
-});
+}
 
 const titles: Record<string, string> = {
   '/': 'Dashboard',
