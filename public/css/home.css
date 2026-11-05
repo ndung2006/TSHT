@@ -7,9 +7,6 @@ a { color: #0b4fa6; }
    public/css/header.css — duoc server chen vao moi trang. */
 .wordmark { font-size: 3rem; font-weight: 900; letter-spacing: 0.05em; color: #c00; line-height: 1; }
 .wordmark-sub { margin: 0.2rem 0 0; font-weight: 700; letter-spacing: 0.15em; color: #333; }
-#footer-custom { margin-bottom: 1rem; }
-#footer-custom img { max-height: 64px; width: auto; }
-#footer-custom p { margin: 0.35rem 0 0; }
 #home-sections section { margin-bottom: 1.5rem; }
 .wrap { max-width: 1264px; margin: 0 auto; padding: 1rem; }
 /* Can le mep trai/phai: khi man hinh du rong de khung 1264px co le
@@ -40,8 +37,6 @@ a { color: #0b4fa6; }
 .note { color: #666; font-size: 0.9rem; }
 .epaper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
 .epaper-grid img { width: 100%; height: auto; background: #f2f2f2; }
-.footer { border-top: 3px solid #c00; text-align: center; padding: 1.5rem 1rem 2rem; }
-.footer button { cursor: pointer; padding: 0.4rem 0.8rem; }
 @media (max-width: 800px) {
   .wordmark { font-size: 2.2rem; }
   .featured, .bottom-blocks { grid-template-columns: 1fr; }

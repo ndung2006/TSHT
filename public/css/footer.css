@@ -1,0 +1,9 @@
+/* Footer chung (2026-11-05): gom quy tac chan trang truoc day chep trung
+   o home.css / tv-page.css ve 1 cho duy nhat. Moi trang doc deu nap file
+   nay + partial footer.html (server chen). Khung 1264px cua .footer nam
+   trong quy tac khung chung o header.css. */
+.footer { border-top: 3px solid #c00; text-align: center; padding: 1.5rem 1rem 2rem; background: #fff; }
+.footer button { cursor: pointer; padding: 0.4rem 0.8rem; }
+#footer-custom { margin-bottom: 1rem; }
+#footer-custom img { max-height: 64px; width: auto; }
+#footer-custom p { margin: 0.35rem 0 0; }

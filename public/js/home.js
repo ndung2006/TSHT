@@ -215,21 +215,8 @@
       }).join("");
       strip.hidden = false;
     }
-    // Topline (ngay + hotline/mang xa hoi + anh logo) do header.js dam
-    // nhan tren moi trang, khong lam o day nua.
-    var ft = si.footer || {};
-    if (ft.logo || ft.description || ft.copyright) {
-      var fc = document.getElementById("footer-custom");
-      if (fc) {
-        var fl = document.getElementById("footer-logo");
-        if (fl && ft.logo) { fl.src = ft.logo; fl.hidden = false; }
-        var fd = document.getElementById("footer-desc");
-        if (fd && ft.description) fd.innerHTML = ft.description;
-        var fcp = document.getElementById("footer-copyright");
-        if (fcp && ft.copyright) fcp.textContent = ft.copyright;
-        fc.hidden = false;
-      }
-    }
+    // Topline (ngay + hotline/mang xa hoi + anh logo) va chan trang tuy
+    // chinh do header.js dam nhan tren moi trang, khong lam o day nua.
     if (si.favicon && si.favicon.image) {
       var icon = document.querySelector('link[rel="icon"][sizes="any"]');
       if (icon) icon.href = si.favicon.image;

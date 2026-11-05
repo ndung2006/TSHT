@@ -1,8 +1,8 @@
 /* Header chung (2026-11-05): gom cac quy tac header truoc day chep trung
    o home.css / style.css / tv-page.css ve 1 cho duy nhat. Moi trang doc
    deu nap file nay (sau CSS rieng cua trang) + partial header.html.
-   Quy tac .footer trong khung 1264px tam giu o day, se chuyen sang
-   footer.css o commit sau. */
+   Khung 1264px cua .footer giu trong quy tac khung chung duoi day;
+   quy tac nhin cua footer (vien/padding/nut) nam o footer.css. */
 .masthead { text-align: center; padding: 1.2rem 1rem 0.8rem; }
 /* Thanh tren cung: chuyen trang trai, ENGLISH / KET NOI / Dang nhap phai. */
 .utilitybar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 1rem; border-bottom: 1px solid #eee; font-size: 0.85rem; flex-wrap: nowrap; box-sizing: border-box; background: #fff; }

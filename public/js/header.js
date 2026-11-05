@@ -21,6 +21,10 @@
     } catch (e) { /* giu trong khi trinh duyet cu khong ho tro */ }
   }
 
+  // ---- Nut "Ve dau trang" trong chan trang chung (co o moi trang) ----
+  var topBtn = document.getElementById("to-top");
+  if (topBtn) topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+
   // ---- Cai dat giao dien: fetch 1 lan/trang, dem 5 phut ----
   // sessionStorage dung chung cho moi trang (khong phai localStorage de
   // doi CMS khong bi giu qua lau); home.js dung lai promise nay thay vi
@@ -93,6 +97,21 @@
         return "<a href=\"/tin/" + esc(h.slug) + "\">" + esc(h.title) + "</a>";
       }).join("");
       strip.hidden = false;
+    }
+    // Chan trang tuy chinh (CMS Quan ly giao dien dat): dien logo/mo ta/
+    // ban quyen vao #footer-custom; CMS chua dat gi thi giu an.
+    var ft = (si && si.footer) || {};
+    if (ft.logo || ft.description || ft.copyright) {
+      var fc = document.getElementById("footer-custom");
+      if (fc) {
+        var fl = document.getElementById("footer-logo");
+        if (fl && ft.logo) { fl.src = ft.logo; fl.hidden = false; }
+        var fd = document.getElementById("footer-desc");
+        if (fd && ft.description) fd.innerHTML = ft.description;
+        var fcp = document.getElementById("footer-copyright");
+        if (fcp && ft.copyright) fcp.textContent = ft.copyright;
+        fc.hidden = false;
+      }
     }
   }).catch(function () {
     // Tai loi: neu khong co logo cache dang hien thi hien chu ten de

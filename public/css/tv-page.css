@@ -59,8 +59,6 @@
 .live-section .sched-badge { flex-shrink: 0; white-space: nowrap; }
 .live-section .sched-action { flex-shrink: 0; white-space: nowrap; }
 .live-section .sched-replay-btn, .live-section .sched-replaying, .live-section .sched-norecord { flex-shrink: 0; white-space: nowrap; }
-.footer { border-top: 3px solid #c00; text-align: center; padding: 1.5rem 1rem 2rem; background: #fff; }
-.footer button { cursor: pointer; padding: 0.4rem 0.8rem; }
 @media (max-width: 900px) {
   /* Mobile: 2 cột xếp dọc, lịch không còn khung cuộn riêng mà cuộn
      theo trang (giữ đúng hành vi của bản cuộn xuống trước đây). */
