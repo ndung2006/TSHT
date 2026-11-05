@@ -203,10 +203,10 @@
             </div>
             <div class="flex flex-wrap gap-4 pb-1">
               <div class="flex items-center gap-2"><Checkbox v-model="form.isFeatured" binary input-id="feat" />
-                <label for="feat">Tin nổi bật (lên khối Tin nổi bật ở trang chủ)</label>
+                <label for="feat">Đưa vào kho Tin nổi bật</label>
               </div>
               <div class="flex items-center gap-2"><Checkbox v-model="form.isSpotlight" binary input-id="spot" />
-                <label for="spot">Tiêu điểm (lên khối Tin tiêu điểm ở trang chủ)</label>
+                <label for="spot">Đưa vào kho Tin tiêu điểm</label>
               </div>
               <div class="flex items-center gap-2"><Checkbox v-model="form.isPhoto" binary input-id="photo" disabled />
                 <label for="photo">Tin ảnh (tự động theo định dạng)</label>

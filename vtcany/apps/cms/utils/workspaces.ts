@@ -122,6 +122,16 @@ export const MENU_ITEMS: MenuItem[] = [
     ],
   },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
+  // Thiet lap tin noi bat (Buoc 0 2026-11-05, phuong an A): 2 man hinh
+  // sap xep dung chung 1 component, gate theo quyen zones nhu trang
+  // Vung hien thi (xem zones:view, luu zones:publish).
+  {
+    to: '/sap-xep-noi-bat?block=noi-bat', label: 'Thiết lập tin nổi bật', icon: 'pi-star', workspace: 'online', module: 'zones',
+    children: [
+      { to: '/sap-xep-noi-bat?block=noi-bat', label: 'Tin nổi bật', status: null, action: null, countKey: null },
+      { to: '/sap-xep-noi-bat?block=tieu-diem', label: 'Tin tiêu điểm', status: null, action: null, countKey: null },
+    ],
+  },
   {
     to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog',
     children: [

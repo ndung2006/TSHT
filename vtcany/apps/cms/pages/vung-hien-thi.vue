@@ -3,11 +3,10 @@
     <div class="surface-card p-4">
       <p class="text-sm font-medium">Vùng hiển thị trang chủ (Zone/Widget Manager — gói 1A)</p>
       <p class="text-xs text-neutral-500 mt-1">
-        Ghim bài đã xuất bản vào các vị trí trang chủ. Mỗi vị trí có số slot riêng theo layout thật:
-        Tiêu điểm 4 slot (khối Tin nổi bật), Tin mới nhất 8 slot (khối Tin mới nhất).
-        Một bài chỉ ghim ở tối đa một vị trí — bài đã ghim không hiện trong danh sách chọn của vị trí khác.
+        Ghim bài đã xuất bản vào các vị trí trang chủ. Một bài chỉ ghim ở tối đa một vị trí — bài đã ghim không hiện trong danh sách chọn của vị trí khác.
         Khi vị trí chưa đủ bài ghim, khối công khai tự lấp đầy từ bài nổi bật / bài mới nhất nên trang chủ không trống.
         Ghim/bỏ ghim không đổi trạng thái hay bước duyệt của bài viết.
+        Hai khối Tin nổi bật / Tin tiêu điểm đã chuyển sang màn hình sắp xếp riêng ("Thiết lập tin nổi bật" trong nhóm Xuất bản Báo điện tử) nên không hiện ở đây nữa; dữ liệu zone cũ vẫn giữ trong DB.
       </p>
     </div>
 
@@ -91,7 +90,14 @@ function resolveMedia(u: string) {
 
 async function load() {
   loading.value = true;
-  try { zones.value = await api.get<any[]>('/admin/zones') || []; }
+  try {
+    const all = await api.get<any[]>('/admin/zones') || [];
+    // Q5: an 2 zone tieu-diem + tin-moi-nhat khoi trang nay (2 khoi
+    // noi-bat/tieu-diem da chuyen sang man hinh sap xep rieng; zone
+    // tin-moi-nhat trang chu hien khong dung). Giu du lieu + code
+    // backend zones nguyen ven, chi an khoi UI.
+    zones.value = all.filter((z: any) => z.key !== 'tieu-diem' && z.key !== 'tin-moi-nhat');
+  }
   catch (e: any) { toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.data?.message || 'Không tải được vùng hiển thị' }); }
   loading.value = false;
 }

@@ -61,11 +61,37 @@ test('nextSortOrder: rong -> 1, khac rong -> max + 1', () => {
   assert.equal(nextSortOrder([{ sortOrder: 1 }, { sortOrder: 4 }, { sortOrder: 2 }]), 5);
 });
 
-test('menu CMS co muc Vung hien thi o workspace Bao dien tu, gate theo module zones', () => {
+test('menu CMS co muc Vung hien thi o workspace Quan ly giao dien, gate theo module zones', () => {
+  // Test cu (Goi 1A) ghi nham workspace "Bao dien tu": muc Vung hien
+  // thi da chuyen sang cuoi nhom Quan ly giao dien tu dot don dep
+  // sidebar (xem workspaces.ts) — sua test theo vi tri that hien tai.
+  const groups = visibleMenu(['zones:view']);
+  const iface = groups.find((g) => g.label === 'Quản lý giao diện');
+  assert.ok(iface);
+  assert.ok(iface.items.some((i) => i.to === '/vung-hien-thi'));
+  const noZones = visibleMenu(['articles:view']);
+  const ifaceNoZones = noZones.find((g) => g.label === 'Quản lý giao diện');
+  assert.ok(!ifaceNoZones || !ifaceNoZones.items.some((i) => i.to === '/vung-hien-thi'));
+});
+
+test('menu CMS co nhom Thiet lap tin noi bat o workspace Bao dien tu, gate theo module zones', () => {
+  // Buoc 0 sap xep (phuong an A): 1 muc cha + 2 muc con dung chung
+  // component sap-xep-noi-bat.vue, gate bang zones nhu Vung hien thi.
   const groups = visibleMenu(['zones:view']);
   const online = groups.find((g) => g.label === 'Xuất bản Báo điện tử');
-  assert.ok(online.items.some((i) => i.to === '/vung-hien-thi'));
+  assert.ok(online);
+  const parent = online.items.find((i) => i.to === '/sap-xep-noi-bat?block=noi-bat');
+  assert.ok(parent);
+  assert.equal(parent.label, 'Thiết lập tin nổi bật');
+  assert.deepEqual(
+    (parent.children || []).map((c) => c.to),
+    ['/sap-xep-noi-bat?block=noi-bat', '/sap-xep-noi-bat?block=tieu-diem'],
+  );
+  assert.deepEqual(
+    (parent.children || []).map((c) => c.label),
+    ['Tin nổi bật', 'Tin tiêu điểm'],
+  );
   const noZones = visibleMenu(['articles:view']);
   const onlineNoZones = noZones.find((g) => g.label === 'Xuất bản Báo điện tử');
-  assert.ok(!onlineNoZones.items.some((i) => i.to === '/vung-hien-thi'));
+  assert.ok(!onlineNoZones || !onlineNoZones.items.some((i) => (i.to || '').startsWith('/sap-xep-noi-bat')));
 });
