@@ -344,6 +344,12 @@ export class DashboardService {
     };
   }
 
+  /** Tong hang cho cua toi (A1) dung cho sidebar-counts (so ghim). */
+  async myQueueTotal(actor: DashboardActor): Promise<number> {
+    const { data } = await this.wA1(actor);
+    return data.total;
+  }
+
   /** Kiem tra 1 row co trong hang cho (ban don cua inMyQueue cho 1 row). */
   private inQueue(
     item: { module: string; workflowStep: number; status: string; createdBy: string | null; approvalActorIds: string[]; myApprovalRoles?: string[] },

@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException, B
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import { UploadsService } from '../uploads/uploads.service';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -190,6 +191,7 @@ export class EpaperService {
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null,
       },
     });
+    clearSidebarCounts(actorId);
   }
 
   /** Gan lastApproval (dong duyet moi nhat) vao cac row cua 1 trang list. */
@@ -352,6 +354,7 @@ export class EpaperService {
         pageCount, coverPath: dto.coverPath || null, createdBy: actorId || null,
       },
     });
+    clearSidebarCounts(actorId);
     return this.toItem(row);
   }
 

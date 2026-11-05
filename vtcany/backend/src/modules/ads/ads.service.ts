@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './ads-workflow';
@@ -112,6 +113,7 @@ export class AdsService {
       data: { adId, step, stepLabel: this.wf.stepLabel('ads', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
+    clearSidebarCounts(actorId);
   }
 
   private async workflowRow(publicId: string) {
@@ -219,6 +221,7 @@ export class AdsService {
         updatedByRole: actor.roleName,
       },
     });
+    clearSidebarCounts(actor.id);
     return this.toItem(row);
   }
 

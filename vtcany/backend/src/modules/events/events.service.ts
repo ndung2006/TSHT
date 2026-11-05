@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './events-workflow';
@@ -129,6 +130,7 @@ export class EventsService {
       data: { eventId, step, stepLabel: this.wf.stepLabel('events', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
+    clearSidebarCounts(actorId);
   }
 
   private async workflowRow(publicId: string) {
@@ -240,6 +242,7 @@ export class EventsService {
       },
       include: { category: true },
     });
+    clearSidebarCounts(actor.id);
     return this.toItem(row);
   }
 

@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './liveblog-workflow';
@@ -148,6 +149,7 @@ export class LiveblogService {
       data: { liveblogId, step, stepLabel: this.wf.stepLabel('liveblog', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
+    clearSidebarCounts(actorId);
   }
 
   private async workflowRow(publicId: string) {
@@ -263,6 +265,7 @@ export class LiveblogService {
       },
       include: { event: true },
     });
+    clearSidebarCounts(actor.id);
     return this.toItem(row);
   }
 

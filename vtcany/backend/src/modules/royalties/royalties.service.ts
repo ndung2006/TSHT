@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { drillNeverSubmittedIds, drillReturnedIds } from '../dashboard/dashboard-queries';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
   WORKFLOW_ACTION_LABELS, canUnlock, checkSeparationOfDuties,
 } from './royalties-workflow';
@@ -146,6 +147,7 @@ export class RoyaltiesService {
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null,
       },
     });
+    clearSidebarCounts(actorId);
   }
 
   // ---------------- Panel: bai da xuat ban + ban cham ----------------
@@ -240,6 +242,7 @@ export class RoyaltiesService {
       },
     });
     (article as any).royalty = row;
+    clearSidebarCounts(actor.id);
     return this.toArticleItem(article);
   }
 

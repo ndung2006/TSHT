@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import { slugify, type Actor } from '../news/news.service';
 import {
   WORKFLOW_ACTION_LABELS,
@@ -144,6 +145,7 @@ export class PrintArticleService {
       data: { articleId, step, stepLabel: this.wf.stepLabel('print-article', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
+    clearSidebarCounts(actorId);
   }
 
   private async workflowRow(publicId: string) {
@@ -197,6 +199,7 @@ export class PrintArticleService {
       },
     });
     const cats = await this.resolveCategories([row.categoryId]);
+    clearSidebarCounts(actor.id);
     return this.toItem(row, cats);
   }
 
@@ -234,6 +237,7 @@ export class PrintArticleService {
       },
     });
     const cats = await this.resolveCategories([row.categoryId]);
+    clearSidebarCounts(actor.id);
     return this.toItem(row, cats);
   }
 

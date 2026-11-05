@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { drillNeverSubmittedIds, drillReturnedIds, drillUnpublishedIds } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, isNarrowScopeActor, myStepNumbers } from '../dashboard/sidebar-scope';
+import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import { pvEditCheck } from '../auth/author-edit-guard';
 import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
@@ -189,6 +190,10 @@ export class NewsService {
       data: { articleId, step, stepLabel: this.wf.stepLabel('news', step), actorId, actorRole, action, comment,
         isException: extra?.isException || false, exceptionReason: extra?.exceptionReason || null },
     });
+    // So dem sidebar cua chinh actor co the doi (hang cho / trang thai):
+    // xoa cache de lan goi ke tiep tinh lai ngay (TTL 60s van du neu
+    // khong xoa; so cua nguoi khac chi moi sau toi da 1 TTL).
+    clearSidebarCounts(actorId);
   }
 
   private async workflowRow(publicId: string) {
@@ -576,6 +581,8 @@ export class NewsService {
       },
       include: { category: true },
     });
+    // Bai moi anh huong "Bai cua toi" / "Nhap cua toi" cua actor.
+    clearSidebarCounts(actor.id);
     return this.toItem(row);
   }
 
