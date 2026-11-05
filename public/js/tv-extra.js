@@ -11,6 +11,17 @@
 // time), newest start time first, take 4. No category is inferred from
 // titles — that is why the category sections below stay honest
 // placeholders instead of listing guessed programs.
+// Thumbnails (AIO, 2026-11-05 — KHONG con tu cat bang ffmpeg): a played
+// program shows its AIO thumbnailSmall (640x360) in the card; clicking
+// PHÁT LẠI plays the replay with the 1280x720 thumbnail as the player
+// poster (set by tv.js onReplay). No thumbnail yet (empty string) ->
+// branded client-side placeholder: channel logo + title + time on the
+// existing blue gradient. A LIVE card reads "ĐANG PHÁT" and clicking it
+// goes back to live (window.backToLive). A REPLAY card with no replay_url
+// yet reads "Đang chuẩn bị" and has NO play button (the old "Chưa có
+// bản ghi" label is gone here; the schedule column keeps its own label).
+// Mobile (<=800px): compact horizontal cards (image left ~120x68,
+// right = time + title max 2 lines + small "Xem lại" button).
 (function () {
   var box = document.getElementById("latest-programs");
   var toTop = document.getElementById("to-top");
@@ -18,7 +29,7 @@
   if (!box) return;
   var rendered = false;
   function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
-  function render(items, meta, replayingKey) {
+  function render(items, meta, replayingKey, channel) {
     rendered = true;
     var list = (items || []).filter(function (p) {
       var st = window.LiveEpg ? window.LiveEpg.computeStatus(p, meta && meta.date) : (p.status || "");
@@ -35,20 +46,50 @@
       box.innerHTML = "<p class='tv-note'>Chưa có chương trình đã phát trong ngày để liệt kê.</p>";
       return;
     }
+    // Same mobile rule as the schedule column (tv.js renderLastSchedule):
+    // small "Xem lại" label on phones, "PHÁT LẠI" on desktop.
+    var isMobile = window.innerWidth <= 800;
     box.innerHTML = list.map(function (p) {
+      var st = window.LiveEpg ? window.LiveEpg.computeStatus(p, meta && meta.date) : (p.status || "");
       var key = window.LiveEpg ? window.LiveEpg.replayKey(p) : ((p.start_time || "") + "|" + (p.title || ""));
       var isReplaying = replayingKey && key === replayingKey;
+      var time = esc(p.start_time || (p.startTime ? p.startTime.slice(11, 16) : ""));
+      var title = esc(p.title);
+      // Card image: AIO thumbnailSmall (640x360). Empty -> branded
+      // placeholder (channel logo + title + time on the blue gradient);
+      // NEVER a bare frame with only a play mark.
+      var small = (typeof p.thumbnailSmall === "string" && p.thumbnailSmall) ? p.thumbnailSmall : "";
+      var poster = "";
+      if (small) {
+        poster = "<img class='latest-poster-img' src='" + esc(small) + "' alt='' loading='lazy'>";
+      } else {
+        var logo = (channel && channel.logo)
+          ? "<img class='latest-fallback-logo' src='" + esc(channel.logo) + "' alt=''>"
+          : "";
+        poster = "<span class='latest-poster-fallback'>" + logo
+          + "<span class='latest-fallback-title'>" + title + "</span>"
+          + "<span class='latest-fallback-time'>" + time + "</span></span>";
+      }
       var action = "";
+      var cardCls = "latest-card";
+      var cardAttrs = "";
       if (isReplaying) {
         action = "<span class='latest-replaying'>Đang xem</span>";
+      } else if (st === "LIVE") {
+        // Live card: label "ĐANG PHÁT"; the whole card goes back to live.
+        action = "<span class='latest-live-badge'>● ĐANG PHÁT</span>";
+        cardCls += " is-live";
+        cardAttrs = " data-live='1' role='button' tabindex='0' aria-label='Đang phát: " + title + " — bấm để xem trực tiếp'";
       } else if (p.replay_url) {
-        action = "<button type='button' class='latest-replay-btn' data-replay='" + esc(key) + "'>PHÁT LẠI</button>";
+        action = "<button type='button' class='latest-replay-btn' data-replay='" + esc(key) + "'>" + (isMobile ? "Xem lại" : "PHÁT LẠI") + "</button>";
       } else {
-        action = "<span class='latest-norecord'>Chưa có bản ghi</span>";
+        // Played but no recording yet (AIO attaches the replay ~1-2 min
+        // after the program ends): no play button, no "Chưa có bản ghi".
+        action = "<span class='latest-preparing'>Đang chuẩn bị</span>";
       }
-      return "<article class='latest-card'><div class='latest-poster' aria-hidden='true'><span class='play-mark'>▶</span></div>"
-        + "<p class='latest-time'>" + esc(p.start_time || (p.startTime ? p.startTime.slice(11, 16) : "")) + "</p>"
-        + "<p class='latest-title'>" + esc(p.title) + "</p>"
+      return "<article class='" + cardCls + "'" + cardAttrs + "><div class='latest-poster' aria-hidden='true'>" + poster + "</div>"
+        + "<p class='latest-time'>" + time + "</p>"
+        + "<p class='latest-title'>" + title + "</p>"
         + "<p class='latest-action'>" + action + "</p></article>";
     }).join("");
     var btns = box.querySelectorAll("[data-replay]");
@@ -61,10 +102,20 @@
         });
       })(btns[i]);
     }
+    var liveCards = box.querySelectorAll("[data-live]");
+    for (var j = 0; j < liveCards.length; j++) {
+      (function (card) {
+        var goLive = function () { if (window.backToLive) window.backToLive(); };
+        card.addEventListener("click", goLive);
+        card.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goLive(); }
+        });
+      })(liveCards[j]);
+    }
   }
   window.addEventListener("tv-schedule", function (e) {
     var d = e.detail || {};
-    render(d.items, d.meta, d.replayingKey);
+    render(d.items, d.meta, d.replayingKey, d.channel || null);
   });
   // Graceful degradation if tv.js never dispatches (e.g. schedule fetch
   // failed): do not leave "Đang tải…" forever.

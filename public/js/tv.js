@@ -325,11 +325,18 @@
     // TV-page extras (tv-extra.js) render "CHƯƠNG TRÌNH MỚI NHẤT" from this
     // same schedule data and reuse onReplay via window.playScheduleReplay.
     // This dispatch changes no player/schedule behaviour in this file.
-    window.dispatchEvent(new CustomEvent("tv-schedule", { detail: { items: lastItems, meta: lastMeta, replayingKey: replayingKey } }));
+    // Kem thong tin kenh (ten + logo) de khoi "Moi nhat" ve duoc anh thay
+    // the co logo khi chuong trinh chua co thumbnail AIO.
+    var chNow = null;
+    for (var ci = 0; ci < channels.length; ci++) { if (channels[ci].name === currentChannel) { chNow = channels[ci]; break; } }
+    window.dispatchEvent(new CustomEvent("tv-schedule", { detail: { items: lastItems, meta: lastMeta, replayingKey: replayingKey, channel: { name: currentChannel, logo: (chNow && chNow.logo) || null } } }));
   }
   // Exposed ONLY so tv-extra.js card buttons can call the exact same
   // pre-checked replay handler (no second player, no duplicated logic).
   window.playScheduleReplay = onReplay;
+  // Exposed ONLY so the LIVE card in "CHƯƠNG TRÌNH MỚI NHẤT" (tv-extra.js)
+  // can go back to live through the same path as the "Về trực tiếp" button.
+  window.backToLive = backToLive;
   function startLive() {
     // Dung handle live cu truoc (neu con) de khong co 2 handle cung
     // dieu khien mot the media — dac biet khi "Thu lai" goi lai ham nay.
@@ -340,6 +347,9 @@
     hideMsg();
     replayItem = null;
     var video = document.getElementById("player");
+    // Ve live: go poster xem lai (neu co) de khung hinh khong giu anh
+    // chuong trinh cu khi live chua co du lieu.
+    if (video) video.removeAttribute("poster");
     if (ctrl) { ctrl.setMode("live"); ctrl.setRetry(startLive); ctrl.onStart(); }
     if (channelSource === "vtcaio") {
       liveHandle = window.playVtcanyLive(video, currentChannel, showMsg, function () {
@@ -379,6 +389,9 @@
         if (replayBar) replayBar.style.display = "block";
         hideMsg();
         var video = document.getElementById("player");
+        // Poster xem lai = anh 1280x720 cua AIO (neu co); khong co thi go
+        // poster cu de khoi hien nham anh chuong trinh truoc.
+        if (video) { if (item.thumbnail) video.setAttribute("poster", item.thumbnail); else video.removeAttribute("poster"); }
         if (ctrl) { ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(video, item.replay_url, showMsg);
         if (ctrl) ctrl.setQualityHandle(replayHandle);

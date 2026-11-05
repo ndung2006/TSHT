@@ -22,6 +22,21 @@ test("channelPublicId matches VTCANY rule: sha256(tv-channel:NAME) first 24 hex"
   assert.match(channelPublicId("TUYENQUANG"), /^[0-9a-f]{24}$/);
 });
 
+test("mapVtcanyTimeline: keeps AIO thumbnails (empty/absent -> empty string)", () => {
+  const items = mapVtcanyTimeline([
+    { time: "08:00", title: "Co anh", status: "REPLAY", startIso: "2026-10-26T08:00:00+07:00", endIso: "2026-10-26T09:00:00+07:00", replay_url: "/channels/abc/timeshift.m3u8?start=x&end=y", thumbnail: "https://x/t-1280.jpg", thumbnailSmall: "https://x/t-640.jpg" },
+    { time: "09:30", title: "Anh rong", status: "LIVE", startIso: "2026-10-26T09:30:00+07:00", endIso: "2026-10-26T10:30:00+07:00", thumbnail: "", thumbnailSmall: "" },
+    { time: "11:00", title: "Khong truong anh", status: "REPLAY", startIso: "2026-10-26T11:00:00+07:00", endIso: "2026-10-26T12:00:00+07:00" },
+  ], "TUYENQUANG", NOW);
+  assert.equal(items.length, 3);
+  assert.equal(items[0].thumbnail, "https://x/t-1280.jpg");
+  assert.equal(items[0].thumbnailSmall, "https://x/t-640.jpg");
+  assert.equal(items[1].thumbnail, "");
+  assert.equal(items[1].thumbnailSmall, "");
+  assert.equal(items[2].thumbnail, "");
+  assert.equal(items[2].thumbnailSmall, "");
+});
+
 test("mapVtcanyTimeline: status recomputed, replay only for REPLAY with replay_url", () => {
   const items = mapVtcanyTimeline([
     { time: "08:00", title: "Da phat co ghi", status: "LIVE", startIso: "2026-10-26T08:00:00+07:00", endIso: "2026-10-26T09:00:00+07:00", replay_url: "/channels/abc/timeshift.m3u8?start=x&end=y" },

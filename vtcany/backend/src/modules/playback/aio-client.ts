@@ -34,6 +34,11 @@ export interface EpgTimelineItem {
   status: 'LIVE' | 'UPCOMING' | 'REPLAY';
   startIso?: string;
   endIso?: string;
+  // Anh dai dien chuong trinh do AIO cap (2026-11-05): thumbnail 1280x720,
+  // thumbnailSmall 640x360; chuoi rong khi chua co anh (chua phat, hoac
+  // chuong trinh < 3 phut). Chi doc dung 2 ten nay, khong doan ten khac.
+  thumbnail?: string;
+  thumbnailSmall?: string;
 }
 
 // Gio hien thi EPG theo mui gio Viet Nam (server chay UTC nen getHours() bi lech).
@@ -66,6 +71,10 @@ export function mapEpgSchedule(data: any, now = Date.now()): EpgTimelineItem[] {
       status,
       startIso: Number.isFinite(s) ? new Date(s).toISOString() : undefined,
       endIso: Number.isFinite(e) ? new Date(e).toISOString() : undefined,
+      // Giu nguyen truong anh AIO (chuoi, rong khi khong co); khong doc
+      // ten bien the nao khac — neu AIO tra ten khac thi bao lai, khong tu map.
+      thumbnail: typeof it?.thumbnail === 'string' ? it.thumbnail : '',
+      thumbnailSmall: typeof it?.thumbnailSmall === 'string' ? it.thumbnailSmall : '',
     });
   }
   return out;

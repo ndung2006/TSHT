@@ -17,6 +17,7 @@ import { createVtcanySession, sessionEntryFromRequest, destroySession, userFromR
 import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, verifyVtcanySession } from "./lib/vtcany-auth.mjs";
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, fetchVtcanyGroups, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
+import { createThumbMemoryStore, mergeThumbMemory } from "./lib/epg-thumb-memory.mjs";
 import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
@@ -33,6 +34,10 @@ import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCa
 // binh thuong; het han thi lam moi, loi thi roi ve URL truc tiep.
 const LIVE_LINK_TTL_MS = 10 * 60 * 1000;
 const liveLinkCache = new Map(); // channel -> { masterText, hlsUrl, exp, publicId, fetchedAt }
+// Bo nho anh dai dien EPG (chi RAM, mat khi restart — xem lib/epg-thumb-memory.mjs):
+// AIO gan anh sau khi chuong trinh ket thuc ~1-2 phut, anh co the tra rong
+// tam thoi o lan fetch sau; bo nho giu anh da thay de the khong mat anh.
+const epgThumbStore = createThumbMemoryStore();
 async function fetchLiveLink(channel, { force = false } = {}) {
   const now = Date.now();
   const hit = liveLinkCache.get(channel);
@@ -668,6 +673,8 @@ const server = http.createServer(async (req, res) => {
             if (epgV.ok) {
               const itemsV = mapVtcanyTimeline(epgV.timeline, resolvedV.channel.name);
               if (itemsV.length) {
+                // Dien lai anh dai dien da tung thay neu lan nay AIO tra rong.
+                mergeThumbMemory(epgThumbStore, resolvedV.channel.name, itemsV);
                 return json(res, 200, { date, channel: resolvedV.channel.name, channel_kind: resolvedV.channel.kind, items: itemsV, source: "vtcany", epg_source: epgV.epg_source, timeshift_available: itemsV.some((p) => p.replay_available), timeshift_unknown: false, epg_note: null, fallback_warning: null });
               }
             } else if (epgV.reason !== "not_configured") {
@@ -685,6 +692,8 @@ const server = http.createServer(async (req, res) => {
             const ext = await fetchVtcaioSchedule(date, resolved.channel.name);
             if (ext.ok) {
               const enriched = await enrichDirectAioItems(ext.items, resolved.channel.name);
+              // Cung bo nho anh nhu nguon VTCANY (duong fallback truc tiep AIO).
+              mergeThumbMemory(epgThumbStore, resolved.channel.name, enriched.items);
               return json(res, 200, { date, channel: resolved.channel.name, channel_kind: resolved.channel.kind, items: enriched.items, source: "vtcaio", epg_note: ext.note || null, timeshift_available: enriched.timeshift_available, timeshift_unknown: enriched.timeshift_unknown, fallback_warning: fallbackWarning });
             }
             return json(res, 200, { date, channel: resolved.channel.name, items: [], source: "none", vtcaio_error: `Nguồn vtcaio hiện không truy cập được (${ext.reason}), vui lòng thử lại sau.`, fallback_warning: fallbackWarning, timeshift_available: false, timeshift_unknown: false });

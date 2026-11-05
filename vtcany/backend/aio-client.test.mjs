@@ -90,6 +90,30 @@ test('epg schedule maps LIVE/UPCOMING/REPLAY', async () => {
   assert.match(items[0].time, /^\d{2}:\d{2}$/);
 });
 
+test('epg schedule keeps AIO thumbnails (empty/absent -> empty string)', async () => {
+  const { mapEpgSchedule } = await import('./dist/modules/playback/aio-client.js');
+  const now = new Date('2026-09-29T12:00:00Z').getTime();
+  const items = mapEpgSchedule(
+    { programs: [
+      { title: 'Co anh', startTime: '2026-09-29T10:00:00Z', endTime: '2026-09-29T11:00:00Z', thumbnail: 'https://x/t-1280.jpg', thumbnailSmall: 'https://x/t-640.jpg' },
+      { title: 'Anh rong', startTime: '2026-09-29T08:00:00Z', endTime: '2026-09-29T09:00:00Z', thumbnail: '', thumbnailSmall: '' },
+      { title: 'Khong truong anh', startTime: '2026-09-29T06:00:00Z', endTime: '2026-09-29T07:00:00Z' },
+      // Ten bien the KHONG duoc tu map: chi thumbnail/thumbnailSmall chinh xac.
+      { title: 'Ten khac', startTime: '2026-09-29T04:00:00Z', endTime: '2026-09-29T05:00:00Z', thumbnailUrl: 'https://x/other.jpg', posterUrl: 'https://x/poster.jpg' },
+    ] },
+    now,
+  );
+  assert.equal(items.length, 4);
+  assert.equal(items[0].thumbnail, 'https://x/t-1280.jpg');
+  assert.equal(items[0].thumbnailSmall, 'https://x/t-640.jpg');
+  assert.equal(items[1].thumbnail, '');
+  assert.equal(items[1].thumbnailSmall, '');
+  assert.equal(items[2].thumbnail, '');
+  assert.equal(items[2].thumbnailSmall, '');
+  assert.equal(items[3].thumbnail, '');
+  assert.equal(items[3].thumbnailSmall, '');
+});
+
 test('epg schedule passes through unknown shapes as empty', async () => {
   const { mapEpgSchedule } = await import('./dist/modules/playback/aio-client.js');
   assert.deepEqual(mapEpgSchedule({ foo: 1 }), []);

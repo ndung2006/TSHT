@@ -31,6 +31,10 @@ export interface EpgTimelineCacheItem {
   status: string;
   startIso?: string;
   endIso?: string;
+  // Anh dai dien AIO (giong EpgTimelineItem): chuoi, rong khi chua co.
+  // refreshEpgStatus dung spread nen giu nguyen 2 truong nay khi tinh lai status.
+  thumbnail?: string;
+  thumbnailSmall?: string;
 }
 
 interface EpgCacheEntry {
@@ -159,7 +163,7 @@ export class TvService {
       }
     }
 
-    let timeline: Array<{ time: string; title: string; status: string; startIso?: string; endIso?: string; replay_url?: string | null }> = [];
+    let timeline: Array<{ time: string; title: string; status: string; startIso?: string; endIso?: string; replay_url?: string | null; thumbnail?: string; thumbnailSmall?: string }> = [];
     let fromAio = false;
     const aioAllowed = aioEpgAllowed(override);
     if (aioAllowed) {
@@ -174,10 +178,12 @@ export class TvService {
     let epgSource: 'aio' | 'aio-stale' | 'local' = fromAio ? 'aio' : 'local';
     if (fromAio) {
       // Luu ban tot nhat de phuc vu khi AIO chap chon (chi luu item co du lieu goc).
+      // Giu ca thumbnail/thumbnailSmall: cache cung ngay la ban tot nhat
+      // cua anh dai dien (AIO chi gan anh sau khi chuong trinh ket thuc).
       epgLastGoodCache.set(epgCacheKey(name, day), {
         day,
-        timeline: timeline.map(({ time, title, status, startIso, endIso }) => ({
-          time, title, status, startIso, endIso,
+        timeline: timeline.map(({ time, title, status, startIso, endIso, thumbnail, thumbnailSmall }) => ({
+          time, title, status, startIso, endIso, thumbnail, thumbnailSmall,
         })),
       });
     } else if (aioAllowed) {

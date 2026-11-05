@@ -13,8 +13,21 @@
 .tv-section-note, .tv-note { color: #555; }
 .latest-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 .latest-card { border: 1px solid #ddd; padding: 0.75rem; background: #fff; }
-.latest-poster { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); font-weight: 700; }
+.latest-poster { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); font-weight: 700; overflow: hidden; }
 .latest-poster .play-mark { font-size: 30px; }
+/* Anh dai dien AIO (thumbnailSmall 640x360) lap day khung 16:9. */
+.latest-poster-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Anh thay the khi chua co thumbnail: logo kenh + ten + gio tren nen
+   gradient xanh (khong dung data-URI SVG vi anh logo ngoai khong nap
+   duoc trong SVG lam <img>). */
+.latest-poster-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 100%; padding: 8px; box-sizing: border-box; }
+.latest-fallback-logo { max-height: 44px; max-width: 80%; object-fit: contain; }
+.latest-fallback-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.latest-fallback-time { font-size: 12px; font-weight: 600; opacity: 0.85; font-variant-numeric: tabular-nums; }
+/* The dang phat: bam vao de xem truc tiep. */
+.latest-card.is-live { cursor: pointer; }
+.latest-live-badge { display: inline-block; background: #d61f2f; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+.latest-preparing { color: #888; font-size: 0.9rem; }
 .latest-time { color: #666; font-size: 0.85rem; margin: 0.5rem 0 0; font-variant-numeric: tabular-nums; }
 .latest-title { margin: 0.25rem 0 0.5rem; font-weight: 700; line-height: 1.35; }
 .latest-action { margin: 0; }
@@ -104,4 +117,16 @@
 @media (max-width: 800px) {
   .latest-grid { grid-template-columns: 1fr; }
   .tv-cat-grid { grid-template-columns: 1fr; }
+  /* The "Moi nhat" dang ngang gon: anh 120x68 trai, phai = gio + ten
+     toi da 2 dong + nut "Xem lai" nho. Poster chiem 3 hang cot 1
+     (gio/ten/nut xep o cot 2 theo thu tu markup san co). */
+  .latest-card { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 2px 10px; padding: 8px; align-items: start; }
+  .latest-poster { grid-row: 1 / span 3; }
+  .latest-time { margin: 0; font-size: 13px; }
+  .latest-title { margin: 0; font-size: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .latest-action { margin: 0; }
+  .latest-replay-btn { font-size: 12px; padding: 3px 8px; }
+  .latest-fallback-logo { max-height: 30px; }
+  .latest-fallback-title { font-size: 11px; -webkit-line-clamp: 2; }
+  .latest-fallback-time { font-size: 11px; }
 }

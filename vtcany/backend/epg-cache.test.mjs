@@ -52,6 +52,18 @@ test('refreshEpgStatus: tinh lai theo gio hien tai', () => {
   assert.equal(out[2].status, 'LIVE'); // khong co startIso -> giu nguyen
 });
 
+test('refreshEpgStatus: giu nguyen thumbnail khi tinh lai status', () => {
+  const now = Date.now();
+  const out = refreshEpgStatus([
+    { time: '01:00', title: 'Cu', status: 'LIVE', startIso: new Date(now - 7200e3).toISOString(), endIso: new Date(now - 3600e3).toISOString(), thumbnail: 'https://x/t-1280.jpg', thumbnailSmall: 'https://x/t-640.jpg' },
+    { time: '02:00', title: 'Chua anh', status: 'LIVE', startIso: new Date(now - 3600e3).toISOString(), endIso: new Date(now + 3600e3).toISOString(), thumbnail: '', thumbnailSmall: '' },
+  ], now);
+  assert.equal(out[0].status, 'REPLAY');
+  assert.equal(out[0].thumbnail, 'https://x/t-1280.jpg');
+  assert.equal(out[0].thumbnailSmall, 'https://x/t-640.jpg');
+  assert.equal(out[1].thumbnail, '');
+});
+
 test('pruneEpgCache: xoa muc khac ngay, giu muc hom nay', () => {
   const store = __epgCacheStore();
   store.clear();
@@ -73,6 +85,28 @@ test('epg(): AIO co lich -> epg_source=aio va luu cache', async () => {
   assert.equal(res.timeline[0].status, 'REPLAY');
   const cached = __epgCacheStore().get(epgCacheKey('LAMDONG1', todayVN));
   assert.ok(cached && cached.timeline.length === 2, 'phai luu cache sau lan fetch tot');
+});
+
+test('epg(): thumbnail AIO di qua timeline va cache cung ngay', async () => {
+  __epgCacheStore().clear();
+  const now = Date.now();
+  const withThumb = prog('Co anh', now - 7200e3, now - 3600e3);
+  withThumb.thumbnail = 'https://x/t-1280.jpg';
+  withThumb.thumbnailSmall = 'https://x/t-640.jpg';
+  const svc = new TvService(makePlayback([withThumb, prog('Khong anh', now + 3600e3, now + 7200e3)]), epgLocal);
+  const res = await svc.epg(PUBLIC_ID, todayVN);
+  assert.equal(res.epg_source, 'aio');
+  assert.equal(res.timeline[0].thumbnail, 'https://x/t-1280.jpg');
+  assert.equal(res.timeline[0].thumbnailSmall, 'https://x/t-640.jpg');
+  assert.equal(res.timeline[1].thumbnail, '');
+  const cached = __epgCacheStore().get(epgCacheKey('LAMDONG1', todayVN));
+  assert.equal(cached.timeline[0].thumbnail, 'https://x/t-1280.jpg');
+  assert.equal(cached.timeline[0].thumbnailSmall, 'https://x/t-640.jpg');
+  // Lan sau AIO tra rong -> cache stale van giu anh.
+  const svc2 = new TvService(makePlayback([]), epgLocal);
+  const res2 = await svc2.epg(PUBLIC_ID, todayVN);
+  assert.equal(res2.epg_source, 'aio-stale');
+  assert.equal(res2.timeline[0].thumbnail, 'https://x/t-1280.jpg');
 });
 
 test('epg(): AIO tra rong -> dung cache cung ngay, epg_source=aio-stale', async () => {
