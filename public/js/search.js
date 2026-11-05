@@ -83,20 +83,26 @@
       (nodes || []).forEach(function (n) {
         if (!n) return;
         var pid = n.parentId != null ? n.parentId : (parentId || null);
-        out.push({ id: n.id, publicId: n.publicId || null, name: n.name || "", slug: n.slug || "", parentId: pid, sortOrder: n.sortOrder || 0, isVisible: n.isVisible });
+        out.push({ id: n.publicId || n.id || null, publicId: n.publicId || null, name: n.name || "", slug: n.slug || "", parentId: pid, sortOrder: n.sortOrder || 0, isVisible: n.isVisible });
         if (n.children && n.children.length) walk(n.children, n.id || n.publicId || null);
       });
     })(tree, null);
     return out;
   }
   function sortCategories(cats) {
+    // Khoa nhom ON DINH: API cong chi tra publicId (khong co id/parentId),
+    // nen gom theo publicId (fallback id) — gom theo id se undefined cho
+    // moi nut, tat ca con roi vao 1 nhom va bi chen lai o moi cha (loi
+    // dropdown lap con ~20 lan, 2026-11-05).
+    function catKey(c) { return (c && (c.publicId || c.id)) || null; }
     var byKey = {};
-    cats.forEach(function (c) { byKey[c.id] = c; if (c.publicId) byKey[c.publicId] = c; });
+    cats.forEach(function (c) { var k = catKey(c); if (k) byKey[k] = c; if (c.id) byKey[c.id] = c; });
     function rootOf(c) {
       var cur = c, seen = {};
       while (cur && cur.parentId) {
-        if (seen[cur.id]) return null;
-        seen[cur.id] = true;
+        var ck = catKey(cur);
+        if (ck && seen[ck]) return null;
+        if (ck) seen[ck] = true;
         var p = byKey[cur.parentId];
         if (!p) return null;
         cur = p;
@@ -109,12 +115,12 @@
       if (!c.parentId) return;
       var root = rootOf(c);
       if (root && root !== c) {
-        var k = root.id;
+        var k = catKey(root);
         (kids[k] = kids[k] || []).push(c);
       } else orphans.push(c);
     });
     var out = parents.slice();
-    parents.forEach(function (p) { out.push.apply(out, (kids[p.id] || []).sort(compareCategories)); });
+    parents.forEach(function (p) { out.push.apply(out, (kids[catKey(p)] || []).sort(compareCategories)); });
     out.push.apply(out, orphans.sort(compareCategories));
     return out;
   }
