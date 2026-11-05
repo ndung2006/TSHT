@@ -20,14 +20,13 @@
 //   "Bi tra ve" cua dot 2 (role hep = mine + returned).
 // - So dem sidebar-counts dung chung quy tac nay nen so tren menu luon
 //   bang so dong danh sach khi bam (nguyen tac dot 2).
-// - NGOAI LE DA BIET (ghi ro, khong sua o dot 2): drill "Bi tra ve" cua
-//   widget B1 dung query {status: 'draft', returned: 1} giong het muc con
-//   sidebar, trong khi so B1 la toan cuc. Role hep duy nhat co B1 trong
-//   layout la TP se thay drill B1 chi liet ke nhap bi tra CUA MINH (tap
-//   con cua so B1), khong phai toan cuc. Cac drill khac khong anh
-//   huong: A1/myQueue va drill theo buoc duoc loai tru o tren; drill
-//   A2/A3 chi liet ke muc cua chinh user; drill published/unpublished
-//   khong nam trong 2 trang thai bi gioi han.
+// - Widget tang B dung CHUNG quy tac nay de so tren widget = so dong
+//   danh sach drill (sua 2026-11-05, truoc khi push dot 2): wB1 cot
+//   "Bi tra ve" dem tren nhap da gioi han pham vi (role hep = cua minh),
+//   wB2 "cho dan" dem bang applyNarrowScope giong list
+//   ?status=pending_review. Cac drill khong nam trong 2 trang thai bi
+//   gioi han (workflowStep, myQueue, mine, published/approved, q) khong
+//   bi anh huong vi fragment tra null cho chung.
 
 import { isNewsroomWide } from './dashboard-layout.config';
 
@@ -60,6 +59,26 @@ export function myStepNumbers(
     if (names.some((r) => String(r).toLowerCase() === want)) out.push(i + 1);
   });
   return out;
+}
+
+/**
+ * So thu tu buoc (1-based) ma role duoc duyet, tu map buoc cua
+ * stepMaps: { [step]: roleNames[] } (dang stepRoleNamesFromDefinitions
+ * tra ve, key theo workflowKey). Cung nghia voi myStepNumbers nhung
+ * nhan truc tiep map — dung cho widget B2 (buoc duyet bai bao in) ma
+ * khong can tai lai definitions. Khong co role -> [].
+ */
+export function myStepNumbersFromRoleMap(
+  roleMap: Record<number, string[]> | undefined | null,
+  roleName: string | null | undefined,
+): number[] {
+  if (!roleName || !roleMap) return [];
+  const want = String(roleName).toLowerCase();
+  return Object.keys(roleMap)
+    .map((k) => parseInt(k, 10))
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .sort((a, b) => a - b)
+    .filter((n) => (roleMap[n] || []).some((r) => String(r).toLowerCase() === want));
 }
 
 export interface NarrowScopeInput {

@@ -58,6 +58,7 @@ import {
   type DashboardModuleMeta,
 } from './dashboard-queries';
 import { ENFORCE_SEPARATION_OF_DUTIES } from '../workflows/sod';
+import { applyNarrowScope, myStepNumbersFromRoleMap } from './sidebar-scope';
 
 export interface DashboardActor {
   id: string | null;
@@ -247,8 +248,8 @@ export class DashboardService {
       case 'A2': ({ data, drill } = await this.wA2(actor)); break;
       case 'A3': ({ data, drill } = await this.wA3(actor)); break;
       case 'A4': ({ data, drill } = await this.wA4(actor)); break;
-      case 'B1': ({ data, empty, drill } = await this.wB1(range, line)); break;
-      case 'B2': ({ data, empty, drill } = await this.wB2(q, line)); break;
+      case 'B1': ({ data, empty, drill } = await this.wB1(actor, range, line)); break;
+      case 'B2': ({ data, empty, drill } = await this.wB2(actor, q, line)); break;
       case 'B3': ({ data, empty, drill } = await this.wB3(line)); break;
       case 'B4': ({ data, empty, drill } = await this.wB4(range, line)); break;
       case 'B5': ({ data, empty, drill } = await this.wB5(range, line)); break;
@@ -498,7 +499,7 @@ export class DashboardService {
   // ------------------------------------------------------------------
 
   /** B1: pheu bao dien tu + cot bi tra ve + xuat ban / ha xuat ban trong ky. */
-  private async wB1(range: { from: Date; to: Date }, line: string) {
+  private async wB1(actor: DashboardActor, range: { from: Date; to: Date }, line: string) {
     const db: any = this.prisma as any;
     const { labels, roles } = await this.stepMaps();
     if (line !== 'all' && line !== 'online') {
@@ -509,8 +510,15 @@ export class DashboardService {
       steps.map((s) => db.newsArticle.count({ where: { status: 'pending_review', workflowStep: s } }).catch(() => 0)),
     );
     // Cot "Bi tra ve, dang sua": draft + approval gan nhat la return.
+    // PHAI cung pham vi voi drill (?status=draft&returned=1): role hep
+    // chi dem nhap bi tra CUA MINH — dung chung applyNarrowScope voi
+    // API danh sach (role rong giu toan cuc nhu GĐ1). Cac cot khac
+    // khong doi: drill buoc dung workflowStep (fragment tra null),
+    // drill xuat ban/ha xuat ban khong nam trong draft/pending nen so
+    // widget = so dong drill san.
+    const draftWhere = applyNarrowScope({ status: 'draft' }, { status: 'draft', actor, mySteps: [] });
     const drafts = await db.newsArticle.findMany({
-      where: { status: 'draft' }, select: { id: true },
+      where: draftWhere, select: { id: true },
     }).catch(() => []);
     let returned = 0;
     if (drafts.length) {
@@ -561,9 +569,9 @@ export class DashboardService {
    *  Cua so "ky toi" la TUONG LAI (khac ky qua khu cua B1/B4/B5): period
    *  'today' -> ngay mai, '7d' -> 7 ngay toi, '30d' -> 30 ngay toi; custom
    *  thi dung from/to nguoi dung chon. */
-  private async wB2(q: Record<string, any>, line: string) {
+  private async wB2(actor: DashboardActor, q: Record<string, any>, line: string) {
     const db: any = this.prisma as any;
-    const { labels } = await this.stepMaps();
+    const { labels, roles } = await this.stepMaps();
     if (line !== 'all' && line !== 'print') {
       return { data: null, drill: null, empty: { reason: 'Báo in kỳ tới chỉ áp dụng cho loại hình Báo in' } } as any;
     }
@@ -590,7 +598,13 @@ export class DashboardService {
     }).catch(() => []);
     const [draftIssues, pendingPrint, approvedPrint] = await Promise.all([
       db.epaperIssue.count({ where: { status: 'draft' } }).catch(() => 0),
-      db.printArticle.count({ where: { status: 'pending_review' } }).catch(() => 0),
+      // "Cho dan" PHAI cung pham vi voi drill "Xem cho dan"
+      // (?status=pending_review): role hep chi dem muc cua minh HOAC o
+      // buoc minh duoc duyet — dung chung applyNarrowScope voi API
+      // danh sach (role rong giu toan cuc nhu GĐ1). "Da duyet" khong
+      // doi vi drill approved khong bi fragment; draftIssues khong co
+      // drill/hien thi tren card nen giu nguyen.
+      db.printArticle.count({ where: applyNarrowScope({ status: 'pending_review' }, { status: 'pending_review', actor, mySteps: myStepNumbersFromRoleMap(roles['print-article'], actor.roleName) }) }).catch(() => 0),
       db.printArticle.count({ where: { status: 'approved' } }).catch(() => 0),
     ]);
     return {
