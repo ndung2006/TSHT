@@ -73,11 +73,20 @@
     }
     hbCur = null;
   }
+  // Doi loai xem giua chung (live <-> timeshift) ma KHONG reset timer
+  // 60s: chi doi hbCur.type, nhip beat ke tiep se gui loai moi. Dung khi
+  // nguoi xem roi khoi mep live vao cua so DVR / xem lai, hoac quay ve
+  // live; khoi dong phat / doi kenh van dung startHeartbeat nhu cu.
+  function setHeartbeatType(type) {
+    if (!hbCur || !type) return;
+    hbCur.type = type;
+  }
   window.addEventListener("pagehide", stopHeartbeat);
   window.TshtTelemetry = {
     sid: sid,
     sendPageview: sendPageview,
     startHeartbeat: startHeartbeat,
     stopHeartbeat: stopHeartbeat,
+    setHeartbeatType: setHeartbeatType,
   };
 })();

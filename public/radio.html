@@ -3,7 +3,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Phát thanh trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261102-3">
-<link rel="stylesheet" href="/css/live.css?v=20261102-1"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/live.css?v=20261102-1">
+<link rel="stylesheet" href="/css/live-controls.css?v=20261105-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -53,10 +54,12 @@
           <div class="radio-poster-name">Báo và Phát thanh, Truyền hình Tuyên Quang</div>
         </div>
       </div>
-      <audio id="player" controls></audio>
+      <audio id="player"></audio>
+      <div id="lc-mount"></div>
+      <div id="lc-channels" class="lc-channels" aria-label="Danh sách kênh"></div>
       <div id="player-wrap"></div>
       <p id="now-playing" class="live-now"></p>
-      <p id="replay-bar" class="replay-bar" style="display:none">Đang xem lại: <span id="replay-title"></span> <button type="button" id="back-live">Về live</button></p>
+      <p id="replay-bar" class="replay-bar" style="display:none">XEM LẠI · <span id="replay-title"></span> <button type="button" id="back-live">Về trực tiếp</button></p>
       <p id="player-msg" class="note" style="display:none"></p>
     </div>
     <div class="sched-col">
@@ -65,9 +68,10 @@
   </div>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-<script src="/js/stream-player.js?v=20261026-6"></script>
+<script src="/js/stream-player.js?v=20261105-1"></script>
+<script src="/js/live-controls.js?v=20261105-1"></script>
 <script src="/js/live-epg.js?v=20261102-1"></script>
-<script src="/js/telemetry.js?v=20261104-1"></script>
-<script src="/js/radio.js?v=20261104-1"></script>
+<script src="/js/telemetry.js?v=20261105-1"></script>
+<script src="/js/radio.js?v=20261105-1"></script>
 <script src="/js/header.js?v=20261102-7"></script>
 </body></html>

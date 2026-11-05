@@ -11,7 +11,7 @@
 //   mapEpgSchedule), chuong trinh da phat co replay_url thi co nut
 //   "Xem lai" (timeshift VOD, tua duoc); chuong trinh da phat khong co
 //   ban ghi thi hien ro "Khong co ban ghi" thay vi phat gia.
-// - Dang xem lai thi co nut "Về live" de quay ve truc tiep ngay lap tuc.
+// - Dang xem lai thi co nut "Về trực tiếp" de quay ve truc tiep ngay lap tuc.
 (function () {
   var msg = document.getElementById("player-msg");
   var nowEl = document.getElementById("now-playing");
@@ -22,7 +22,8 @@
   var replayTitleEl = document.getElementById("replay-title");
   var backLiveBtn = document.getElementById("back-live");
   var currentChannel = "", channelSource = "", channelStreamUrl = "";
-  var liveHandle = null, replayHandle = null, replayingKey = null;
+  var channels = [];
+  var liveHandle = null, replayHandle = null, replayingKey = null, replayItem = null;
   var lastItems = null, lastMeta = null;
   // Can khung lich dung bang khung video (mau tuyenquangtv.vn/truyen-hinh):
   // chieu cao khung lich = chieu cao .live-player-wrap (video 16:9) tru
@@ -52,6 +53,69 @@
   }
   var playerEl = document.getElementById("player");
   if (playerEl) playerEl.addEventListener("loadedmetadata", syncSchedHeight);
+  // Thanh dieu khien tuy chinh (LiveControls, Buoc 0): thay the
+  // controls mac dinh cua trinh duyet. Am luong/tat tieng luu
+  // localStorage de giu qua doi kenh va qua cac trang tv/radio/home.
+  var ctrl = null;
+  if (playerEl && window.LiveControls) {
+    ctrl = window.LiveControls.create({
+      media: playerEl,
+      isVideo: true,
+      mount: document.getElementById("lc-mount"),
+      fullscreenTarget: document.querySelector(".live-player-col"),
+      getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
+      onBackToLive: backToLive,
+      getProgramAt: programAt,
+      onViewState: function (st) {
+        if (window.TshtTelemetry && window.TshtTelemetry.setHeartbeatType) window.TshtTelemetry.setHeartbeatType(st);
+      },
+    });
+  }
+  // Ten chuong trinh dang phat tai thoi diem phat song ms (de hien khi
+  // hover thanh tua). Chi dung lich ngay hom nay (lich ngay khac khong
+  // phai lich cua "bay gio").
+  function programAt(ms) {
+    if (!lastItems || !lastMeta || lastMeta.date !== saigonToday()) return null;
+    for (var i = 0; i < lastItems.length; i++) {
+      var p = lastItems[i];
+      var s = p.startTime ? new Date(p.startTime).getTime() : NaN;
+      var e = p.endTime ? new Date(p.endTime).getTime() : NaN;
+      if (isFinite(s) && isFinite(e) && ms >= s && ms < e) return p.title || null;
+    }
+    return null;
+  }
+  // Danh sach kenh truyen hinh RUNNING (truoc day chi lay kenh dau tien).
+  function renderChannelList() {
+    var box = document.getElementById("lc-channels");
+    if (!box) return;
+    var html = "";
+    for (var i = 0; i < channels.length; i++) {
+      var c = channels[i];
+      html += "<button type=\"button\" class=\"lc-ch-btn" + (c.name === currentChannel ? " selected" : "") + "\" data-name=\"" + esc(c.name) + "\">" + esc(c.name) + "</button>";
+    }
+    box.innerHTML = html;
+    var btns = box.querySelectorAll(".lc-ch-btn");
+    for (var j = 0; j < btns.length; j++) {
+      (function (btn) {
+        btn.addEventListener("click", function () { selectChannel(btn.getAttribute("data-name")); });
+      })(btns[j]);
+    }
+  }
+  function selectChannel(name) {
+    var hit = null;
+    for (var i = 0; i < channels.length; i++) { if (channels[i].name === name) { hit = channels[i]; break; } }
+    if (!hit || hit.name === currentChannel) return;
+    // Doi kenh: dung handle cu + heartbeat truoc, roi moi phat live
+    // kenh moi (khong chong tieng/heartbeat).
+    stopLive();
+    stopReplayOnly();
+    currentChannel = hit.name;
+    channelStreamUrl = hit.stream_url || "";
+    document.getElementById("channel-desc").textContent = hit.description || "";
+    renderChannelList();
+    startLive();
+    loadSchedule();
+  }
   function showMsg(t) { msg.textContent = t; msg.style.display = "block"; }
   function hideMsg() { msg.textContent = ""; msg.style.display = "none"; }
   function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
@@ -83,10 +147,15 @@
   // pre-checked replay handler (no second player, no duplicated logic).
   window.playScheduleReplay = onReplay;
   function startLive() {
+    // Dung handle live cu truoc (neu con) de khong co 2 handle cung
+    // dieu khien mot the media — dac biet khi "Thu lai" goi lai ham nay.
+    stopLive();
     stopReplayOnly();
     setLiveUi();
     hideMsg();
+    replayItem = null;
     var video = document.getElementById("player");
+    if (ctrl) { ctrl.setMode("live"); ctrl.setRetry(startLive); ctrl.onStart(); }
     if (channelSource === "vtcaio") {
       liveHandle = window.playVtcanyLive(video, currentChannel, showMsg, function () {
         // Backend VTCANY chua san / kenh chua co link xoay: roi ve luong cu.
@@ -109,13 +178,16 @@
       .then(function (r) {
         if (timer) clearTimeout(timer);
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
+        stopReplayOnly();
         stopLive();
         replayingKey = window.LiveEpg.replayKey(item);
-        if (badge) badge.textContent = "ĐANG XEM LẠI";
+        replayItem = item;
+        if (badge) badge.textContent = "XEM LẠI";
         if (replayTitleEl) replayTitleEl.textContent = item.title;
         if (replayBar) replayBar.style.display = "block";
         hideMsg();
         var video = document.getElementById("player");
+        if (ctrl) { ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(video, item.replay_url, showMsg);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: video });
@@ -160,7 +232,8 @@
   }
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
-    var ch = (d.items || []).filter(function (c) { return c.kind === "tv" && (!c.status || c.status === "RUNNING"); })[0];
+    channels = (d.items || []).filter(function (c) { return c.kind === "tv" && (!c.status || c.status === "RUNNING"); });
+    var ch = channels[0];
     if (!ch) { showMsg("Không có kênh truyền hình đang phát (không có kênh RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng)."); loadSchedule(); return; }
     // Khong hien ten kenh dang text tren trang (nhan TSHTTV da bo);
     // currentChannel van la ten kenh nguon (TUYENQUANG) cho moi API.
@@ -169,6 +242,7 @@
     currentChannel = ch.name;
     channelSource = d.source || "";
     channelStreamUrl = ch.stream_url || "";
+    renderChannelList();
     startLive();
     loadSchedule();
   }).catch(function () { showMsg("Không tải được danh sách kênh. Vui lòng tải lại trang."); });

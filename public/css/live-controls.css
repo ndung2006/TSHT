@@ -1,0 +1,147 @@
+/* LiveControls — thanh dieu khien tuy chinh cho player live (Buoc 0).
+   Dung chung cho trang truyen-hinh, phat-thanh va khoi da phuong tien
+   trang chu. Nen toi, chu trang, do chu dao #d61f2f (khop live.css). */
+.lc-bar {
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #fff;
+}
+.lc-bar.lc-hidden { display: none; }
+.lc-seek-wrap { position: relative; padding: 2px 0 6px; }
+.lc-seek {
+  width: 100%;
+  display: block;
+  accent-color: #d61f2f;
+  cursor: pointer;
+  margin: 0;
+  height: 18px;
+}
+.lc-seek-tip {
+  position: absolute;
+  bottom: 100%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+.lc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lc-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lc-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.lc-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.lc-play { min-width: 44px; }
+.lc-live.is-live {
+  background: #d61f2f;
+  border-color: #d61f2f;
+}
+.lc-live.is-behind {
+  background: rgba(255, 255, 255, 0.16);
+  color: #e8e8e8;
+  font-variant-numeric: tabular-nums;
+}
+.lc-unmute {
+  background: #d61f2f;
+  border-color: #d61f2f;
+}
+.lc-vol {
+  width: 110px;
+  accent-color: #d61f2f;
+  cursor: pointer;
+}
+.lc-spacer { flex: 1; }
+.lc-status {
+  margin-top: 8px;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.lc-loading {
+  color: #cfe0ff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.lc-error {
+  color: #fff;
+  background: rgba(214, 31, 47, 0.25);
+  border: 1px solid rgba(214, 31, 47, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lc-retry {
+  background: #d61f2f;
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.lc-retry:hover { background: #b81a28; }
+/* Lop phu "Dang tai" tren khung video (chi video, nam trong wrap). */
+.lc-overlay-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  z-index: 3;
+  pointer-events: none;
+}
+/* Danh sach kenh tren trang truyen-hinh / phat-thanh. */
+.lc-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lc-channels:empty { display: none; }
+.lc-ch-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.lc-ch-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.lc-ch-btn.selected {
+  background: #d61f2f;
+  border-color: #d61f2f;
+}
+@media (max-width: 600px) {
+  .lc-vol { width: 80px; }
+  .lc-btn { padding: 6px 8px; font-size: 13px; }
+}

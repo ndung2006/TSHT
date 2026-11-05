@@ -8,7 +8,8 @@
 <meta property="og:title" content="Tòa soạn hội tụ">
 <meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261104-1"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/css/home.css?v=20261104-1">
+<link rel="stylesheet" href="/css/live-controls.css?v=20261105-1"><link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -107,14 +108,15 @@
         </div>
         <div class="mm-player">
           <div class="mm-media">
-            <video id="mm-video" controls playsinline preload="metadata"></video>
+            <video id="mm-video" playsinline preload="metadata"></video>
             <div id="mm-radio-art" class="mm-radio-art" style="display:none">
               <div class="mm-eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
               <p id="mm-radio-name" class="mm-radio-name"></p>
               <p class="mm-radio-hint">Đang phát trực tiếp</p>
             </div>
-            <audio id="mm-audio" controls preload="metadata" style="display:none"></audio>
+            <audio id="mm-audio" preload="metadata" style="display:none"></audio>
           </div>
+          <div id="lc-mount"></div>
           <div class="mm-badge">
             <span class="mm-live-dot" aria-hidden="true"></span>
             <span id="mm-badge-text" class="mm-badge-text"></span>
@@ -185,11 +187,12 @@
   <p><button type="button" id="to-top">Về đầu trang ↑</button></p>
 </footer>
 <script src="/js/ads.js?v=20261102-1"></script>
-<script src="/js/telemetry.js?v=20261104-1"></script>
+<script src="/js/telemetry.js?v=20261105-1"></script>
 <script src="/js/home.js?v=20261104-3"></script>
 <script src="/js/header.js?v=20261102-7"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-<script src="/js/stream-player.js?v=20261026-6"></script>
+<script src="/js/stream-player.js?v=20261105-1"></script>
+<script src="/js/live-controls.js?v=20261105-1"></script>
 <script src="/js/live-epg.js?v=20261102-1"></script>
-<script src="/js/multimedia.js?v=20261104-1"></script>
+<script src="/js/multimedia.js?v=20261105-1"></script>
 </body></html>

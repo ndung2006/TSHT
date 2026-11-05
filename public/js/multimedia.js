@@ -70,6 +70,37 @@
   var mode = "live"; // live | replay | video
   var liveHandle = null, replayHandle = null, videoHandle = null, replayingKey = null, replayTitle = "", videoTitle = "";
   var lastItems = null, lastMeta = null;
+  var replayItem = null, currentVideoId = null;
+
+  // Thanh dieu khien tuy chinh (LiveControls, Buoc 0) dung chung cho ca
+  // video va audio: doi kenh doi the media qua attachMedia. Am luong /
+  // tat tieng luu localStorage de giu qua doi kenh va qua cac trang.
+  var ctrl = null;
+  if (window.LiveControls && videoEl) {
+    ctrl = window.LiveControls.create({
+      media: videoEl,
+      isVideo: true,
+      mount: document.getElementById("lc-mount"),
+      tapTarget: root.querySelector(".mm-media"),
+      fullscreenTarget: root.querySelector(".mm-player"),
+      getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
+      onBackToLive: backToLive,
+      getProgramAt: programAt,
+      onViewState: function (st) {
+        if (window.TshtTelemetry && window.TshtTelemetry.setHeartbeatType) window.TshtTelemetry.setHeartbeatType(st);
+      },
+    });
+  }
+  function programAt(ms) {
+    if (!lastItems || !lastMeta || lastMeta.date !== saigonToday()) return null;
+    for (var i = 0; i < lastItems.length; i++) {
+      var p = lastItems[i];
+      var s = p.startTime ? new Date(p.startTime).getTime() : NaN;
+      var e = p.endTime ? new Date(p.endTime).getTime() : NaN;
+      if (isFinite(s) && isFinite(e) && ms >= s && ms < e) return p.title || null;
+    }
+    return null;
+  }
 
   function stopAll() {
     if (liveHandle) { try { liveHandle.stop(); } catch (e) {} liveHandle = null; }
@@ -94,7 +125,7 @@
       badgeText.textContent = "";
     }
   }
-  function setBadgeReplay() { if (badgeText) badgeText.textContent = "ĐANG XEM LẠI · " + replayTitle; }
+  function setBadgeReplay() { if (badgeText) badgeText.textContent = "XEM LẠI · " + replayTitle; }
   function setBadgeVideo() { if (badgeText) badgeText.textContent = "ĐANG PHÁT VIDEO · " + videoTitle; }
 
   function showMediaFor(ch) {
@@ -125,6 +156,7 @@
     showMediaFor(current);
     var media = current.kind === "radio" ? audioEl : videoEl;
     if (!media) return;
+    if (ctrl) { ctrl.attachMedia(media, current.kind !== "radio"); ctrl.setMode("live"); ctrl.setRetry(startLive); ctrl.onStart(); }
     var fallback = function () {
       if (window.playRotating) liveHandle = window.playRotating(media, current.name, showMsg);
       else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
@@ -161,10 +193,12 @@
         stopAll();
         replayingKey = replayKey(item);
         replayTitle = item.title;
+        replayItem = item;
         setMode("replay");
         setBadgeReplay();
         showMediaFor(current);
         var media = current && current.kind === "radio" ? audioEl : videoEl;
+        if (ctrl && media) { ctrl.attachMedia(media, current.kind !== "radio"); ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         if (media && window.playTimeshift) replayHandle = window.playTimeshift(media, item.replay_url, showMsg);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "timeshift", media: media });
@@ -403,11 +437,13 @@
         if (res.status !== 200 || !res.data.url) { showMsg("Không phát được video này (" + (res.data.error || res.status) + ")."); return; }
         stopAll();
         videoTitle = title;
+        currentVideoId = publicId;
         setMode("video");
         setBadgeVideo();
         if (videoEl) videoEl.style.display = "block";
         if (radioArt) radioArt.style.display = "none";
         if (audioEl) audioEl.style.display = "none";
+        if (ctrl && videoEl) { ctrl.attachMedia(videoEl, true); ctrl.setMode("vod"); ctrl.setRetry(function () { if (currentVideoId) playCatalogVideo(currentVideoId); }); ctrl.onStart(); }
         if (videoEl && window.playDirect) videoHandle = window.playDirect(videoEl, res.data.url, showMsg);
         // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh).
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
@@ -415,7 +451,11 @@
       })
       .catch(function () { showMsg("Không phát được video này (lỗi mạng)."); });
   }
-  if (liveBtn) liveBtn.addEventListener("click", backToLive);
+  // Nut ve live cua khoi da phuong tien: nhan "Ve truc tiep" (Buoc 0).
+  if (liveBtn) {
+    liveBtn.textContent = "Về trực tiếp";
+    liveBtn.addEventListener("click", backToLive);
+  }
   if (dateSel) dateSel.addEventListener("change", function () {
     // Doi ngay chi tai lai lich, tuyet doi khong cham vao player
     // (ke ca khi dang xem lai) — giong trang truyen-hinh.

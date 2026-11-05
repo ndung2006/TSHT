@@ -21,7 +21,8 @@
   var replayTitleEl = document.getElementById("replay-title");
   var backLiveBtn = document.getElementById("back-live");
   var currentChannel = "", channelSource = "", channelStreamUrl = "";
-  var liveHandle = null, replayHandle = null, replayingKey = null;
+  var channels = [];
+  var liveHandle = null, replayHandle = null, replayingKey = null, replayItem = null;
   var lastItems = null, lastMeta = null;
   function showMsg(t) { msg.textContent = t; msg.style.display = "block"; }
   function hideMsg() { msg.textContent = ""; msg.style.display = "none"; }
@@ -32,6 +33,65 @@
     return "Đang phát: " + e.title + (s && en ? " (" + s + "–" + en + ")" : "");
   }
   function saigonToday() { return window.LiveEpg.saigonToday(); }
+  // Thanh dieu khien tuy chinh (LiveControls, Buoc 0) cho audio: khong
+  // PiP/toan man hinh. Cham vao poster de hien/an thanh dieu khien
+  // (mobile), cham dup 2 nua poster de tua ±10s khi co DVR.
+  var audioEl = document.getElementById("player");
+  var ctrl = null;
+  if (audioEl && window.LiveControls) {
+    ctrl = window.LiveControls.create({
+      media: audioEl,
+      isVideo: false,
+      mount: document.getElementById("lc-mount"),
+      tapTarget: document.querySelector(".radio-poster"),
+      getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
+      onBackToLive: backToLive,
+      getProgramAt: programAt,
+      onViewState: function (st) {
+        if (window.TshtTelemetry && window.TshtTelemetry.setHeartbeatType) window.TshtTelemetry.setHeartbeatType(st);
+      },
+    });
+  }
+  function programAt(ms) {
+    if (!lastItems || !lastMeta || lastMeta.date !== saigonToday()) return null;
+    for (var i = 0; i < lastItems.length; i++) {
+      var p = lastItems[i];
+      var s = p.startTime ? new Date(p.startTime).getTime() : NaN;
+      var e = p.endTime ? new Date(p.endTime).getTime() : NaN;
+      if (isFinite(s) && isFinite(e) && ms >= s && ms < e) return p.title || null;
+    }
+    return null;
+  }
+  function renderChannelList() {
+    var box = document.getElementById("lc-channels");
+    if (!box) return;
+    var html = "";
+    for (var i = 0; i < channels.length; i++) {
+      var c = channels[i];
+      html += "<button type=\"button\" class=\"lc-ch-btn" + (c.name === currentChannel ? " selected" : "") + "\" data-name=\"" + esc(c.name) + "\">" + esc(c.name) + "</button>";
+    }
+    box.innerHTML = html;
+    var btns = box.querySelectorAll(".lc-ch-btn");
+    for (var j = 0; j < btns.length; j++) {
+      (function (btn) {
+        btn.addEventListener("click", function () { selectChannel(btn.getAttribute("data-name")); });
+      })(btns[j]);
+    }
+  }
+  function selectChannel(name) {
+    var hit = null;
+    for (var i = 0; i < channels.length; i++) { if (channels[i].name === name) { hit = channels[i]; break; } }
+    if (!hit || hit.name === currentChannel) return;
+    stopLive();
+    stopReplayOnly();
+    currentChannel = hit.name;
+    channelStreamUrl = hit.stream_url || "";
+    document.getElementById("channel-name").textContent = hit.name;
+    document.getElementById("channel-desc").textContent = hit.description || "";
+    renderChannelList();
+    startLive();
+    loadSchedule();
+  }
   function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
   function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
   function setLiveUi() {
@@ -44,10 +104,15 @@
     if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
   }
   function startLive() {
+    // Dung handle live cu truoc (neu con) de khong co 2 handle cung
+    // dieu khien mot the media — dac biet khi "Thu lai" goi lai ham nay.
+    stopLive();
     stopReplayOnly();
     setLiveUi();
     hideMsg();
+    replayItem = null;
     var audio = document.getElementById("player");
+    if (ctrl) { ctrl.setMode("live"); ctrl.setRetry(startLive); ctrl.onStart(); }
     if (channelSource === "vtcaio") {
       liveHandle = window.playVtcanyLive(audio, currentChannel, showMsg, function () {
         liveHandle = window.playRotating(audio, currentChannel, showMsg);
@@ -67,13 +132,16 @@
       .then(function (r) {
         if (timer) clearTimeout(timer);
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
+        stopReplayOnly();
         stopLive();
         replayingKey = window.LiveEpg.replayKey(item);
-        if (badge) badge.textContent = "ĐANG XEM LẠI";
+        replayItem = item;
+        if (badge) badge.textContent = "XEM LẠI";
         if (replayTitleEl) replayTitleEl.textContent = item.title;
         if (replayBar) replayBar.style.display = "block";
         hideMsg();
         var audio = document.getElementById("player");
+        if (ctrl) { ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(audio, item.replay_url, showMsg);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: audio });
@@ -117,7 +185,8 @@
   }
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
-    var ch = (d.items || []).filter(function (c) { return c.kind === "radio" && (!c.status || c.status === "RUNNING"); })[0];
+    channels = (d.items || []).filter(function (c) { return c.kind === "radio" && (!c.status || c.status === "RUNNING"); });
+    var ch = channels[0];
     if (!ch) { document.getElementById("channel-name").textContent = "Chưa có kênh phát thanh đang phát"; showMsg("Không có kênh phát thanh RUNNING trong danh mục vtcaio, và CMS cũng chưa có kênh dự phòng."); loadSchedule(); return; }
     document.getElementById("channel-name").textContent = ch.name;
     document.getElementById("channel-desc").textContent = ch.description || "";
@@ -125,6 +194,7 @@
     currentChannel = ch.name;
     channelSource = d.source || "";
     channelStreamUrl = ch.stream_url || "";
+    renderChannelList();
     startLive();
     // Nut phat/tam dung lon tren poster dieu khien cung the <audio> nay
     // (van dung ca khi dang xem lai, vi cung mot the audio).
@@ -132,7 +202,8 @@
     var btn = document.getElementById("radio-play");
     if (btn) {
       btn.onclick = function () {
-        if (audio.paused) audio.play().catch(function () {});
+        if (ctrl) ctrl.togglePlay();
+        else if (audio.paused) audio.play().catch(function () {});
         else audio.pause();
       };
       audio.addEventListener("play", function () { btn.textContent = "❚❚"; });

@@ -23,11 +23,32 @@
         var code = data.response ? data.response.code : null;
         onFatal(code);
       });
-      return { swap: function (u) { hls.loadSource(u); }, destroy: function () { try { hls.destroy(); } catch (e) {} } };
+      return {
+        swap: function (u) { hls.loadSource(u); },
+        destroy: function () { try { hls.destroy(); } catch (e) {} },
+        // Vi tri live hien tai (giay): hls.liveSyncPosition chinh xac hon
+        // seekable.end(); dung cho nut TRUC TIEP / do tre cua LiveControls.
+        getLivePosition: function () {
+          try {
+            if (hls.liveSyncPosition != null && isFinite(hls.liveSyncPosition)) return hls.liveSyncPosition;
+            if (media.seekable && media.seekable.length) return media.seekable.end(media.seekable.length - 1);
+          } catch (e) {}
+          return null;
+        },
+      };
     }
     if (media.canPlayType("application/vnd.apple.mpegurl")) {
       media.src = url;
-      return { swap: function (u) { var t = media.currentTime; media.src = u; media.play().catch(function () {}); try { media.currentTime = t; } catch (e) {} }, destroy: function () {} };
+      return {
+        swap: function (u) { var t = media.currentTime; media.src = u; media.play().catch(function () {}); try { media.currentTime = t; } catch (e) {} },
+        destroy: function () {},
+        getLivePosition: function () {
+          try {
+            if (media.seekable && media.seekable.length) return media.seekable.end(media.seekable.length - 1);
+          } catch (e) {}
+          return null;
+        },
+      };
     }
     return null;
   }
@@ -88,7 +109,7 @@
     }
     mediaEl.addEventListener("error", function () { refresh(true); });
     refresh(false);
-    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); } };
+    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
   };
 
   // playVtcanyLive(mediaEl, channelName, showMsg, onFallback)
@@ -142,7 +163,7 @@
         });
     }
     refresh(false);
-    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); } };
+    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
   };
 
   // playTimeshift(mediaEl, url, showMsg): phat playlist VOD xem lai.
@@ -156,7 +177,7 @@
     var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được bản ghi xem lại. Có thể khoảng giờ này không có bản ghi."); });
     if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");
     else mediaEl.play().catch(function () {});
-    return { stop: function () { if (engine) engine.destroy(); } };
+    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
   };
 
   // playDirect: phat thang stream_url cua DB noi bo (khong xoay).
@@ -164,6 +185,6 @@
     var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được luồng. Vui lòng thử lại sau hoặc xem lịch phát sóng."); });
     if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");
     else mediaEl.play().catch(function () {});
-    return { stop: function () { if (engine) engine.destroy(); } };
+    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
   };
 })(window);
