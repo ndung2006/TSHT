@@ -169,7 +169,7 @@
         <div class="flex flex-col gap-3">
           <div><label class="field-label">Chuyên mục</label>
             <Dropdown v-model="editForm.categoryId" :options="catOptions" option-label="label" option-value="value"
-              placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+              placeholder="Chưa chọn chuyên mục" class="w-full" show-clear filter filter-placeholder="Tìm chuyên mục..." />
           </div>
           <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="editForm.coverPath" ratio="16/9" /></div>
           <div><label class="field-label">Tác giả (nhiều người cách nhau bằng dấu phẩy)</label><InputText v-model="editAuthorsText" class="w-full" /></div>

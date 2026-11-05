@@ -72,7 +72,7 @@
         <div><label class="field-label">Mô tả</label><Textarea v-model="form.description" rows="5" class="w-full" /></div>
         <div><label class="field-label">Chuyên mục</label>
           <Dropdown v-model="form.categoryId" :options="catOptions" option-label="label" option-value="value"
-            placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+            placeholder="Chưa chọn chuyên mục" class="w-full" show-clear filter filter-placeholder="Tìm chuyên mục..." />
         </div>
         <div><label class="field-label">Ảnh bìa</label><ImagePicker v-model="form.coverPath" ratio="16/9" /></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">

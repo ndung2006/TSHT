@@ -85,7 +85,7 @@
         <div>
           <label class="field-label">Chuyên mục cha (để trống = cấp 1)</label>
           <Dropdown v-model="newsForm.parentId" :options="newsParentOptions" option-label="label" option-value="value"
-            class="w-full" show-clear />
+            class="w-full" show-clear filter filter-placeholder="Tìm chuyên mục..." />
         </div>
         <div><label class="field-label">Thứ tự</label><InputText v-model.number="newsForm.sortOrder" type="number" class="w-32" /></div>
         <div class="flex items-center gap-2">

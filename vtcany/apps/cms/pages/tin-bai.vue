@@ -25,7 +25,7 @@
     <div class="surface-card p-4 flex flex-wrap gap-2">
       <InputText v-model="q" placeholder="Tìm tiêu đề / sapo..." class="flex-1 min-w-52" @keyup.enter="load(1)" />
       <Dropdown v-model="catFilter" :options="catFilterOptions" option-label="label" option-value="value"
-        placeholder="Tất cả chuyên mục" class="w-56" show-clear @change="load(1)" />
+        placeholder="Tất cả chuyên mục" class="w-56" show-clear filter filter-placeholder="Tìm chuyên mục..." @change="load(1)" />
       <Dropdown v-model="authorFilter" :options="authorFilterOptions" option-label="label" option-value="value"
         placeholder="Tất cả tác giả" class="w-48" show-clear @change="load(1)" />
       <Dropdown v-model="statusFilter" :options="statusOptions" option-label="label" option-value="value"
@@ -188,7 +188,7 @@
             <p v-if="editing" class="text-sm text-neutral-400">{{ statusText(editing) }}</p>
             <div><label class="field-label">Chuyên mục</label>
               <Dropdown v-model="form.categoryId" :options="catOptions" option-label="label" option-value="value"
-                placeholder="Chưa chọn chuyên mục" class="w-full" show-clear />
+                placeholder="Chưa chọn chuyên mục" class="w-full" show-clear filter filter-placeholder="Tìm chuyên mục..." />
             </div>
             <div><label class="field-label">Định dạng nội dung (mỗi loại có trường nhập riêng bên dưới, 1B)</label>
               <Dropdown v-model="form.contentType" :options="contentTypeOptions" option-label="label" option-value="value" class="w-full" />
