@@ -38,3 +38,17 @@ html.p-dark .field-label {
 body.light-mode .field-label {
   @apply text-neutral-600;
 }
+
+/* Bang danh sach dang tai lai (doi loc/drill/trang): lop mo phu kin bang
+   + lam mo du lieu cu. PrimeVue 4 mac dinh chi hien spinner giua bang
+   tren nen trong suot (.p-datatable-mask khong co background/inset), nen
+   du lieu cu van doc ro nhu ket qua cua loc moi. Lop mo nay cung chan
+   click len dong cu trong luc tai. Ap dung cho moi DataTable :loading
+   trong CMS (ca 7 trang danh sach chinh). */
+.p-datatable-mask {
+  inset: 0;
+  background: rgb(255 255 255 / 0.6);
+}
+html.p-dark .p-datatable-mask {
+  background: rgb(9 23 40 / 0.65);
+}
