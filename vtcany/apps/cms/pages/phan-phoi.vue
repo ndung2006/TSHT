@@ -27,6 +27,7 @@
             <img v-if="data.mediaType === 'image' && data.mediaUrl" :src="resolveMedia(data.mediaUrl)" alt="" class="w-24 h-14 object-cover rounded" />
             <span v-else-if="data.mediaUrl" class="text-xs">Video</span>
             <span v-else class="text-xs text-neutral-400">—</span>
+            <Tag v-if="data.catalogPublicId" value="Short đã gắn" severity="info" class="mt-1" />
           </template>
         </Column>
         <Column header="Trạng thái" style="width:8rem">
@@ -62,6 +63,17 @@
       <p class="text-sm font-medium">{{ editing ? 'Sửa bài phân phối' : 'Thêm bài phân phối' }}</p>
       <InputText v-model="form.title" placeholder="Tiêu đề *" class="w-full" />
       <Textarea v-model="form.caption" placeholder="Nội dung / chú thích" rows="3" class="w-full" />
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-neutral-500">Gắn short đã xuất bản (tùy chọn) — chọn thì tự điền tiêu đề + thumbnail làm bìa, loại Video, và lưu mã short để cổng phát HLS trên /nen-tang-so. Để trống thì nhập media tay như trước.</label>
+        <div class="flex gap-2 items-center flex-wrap">
+          <Dropdown v-model="selectedShort" :options="shortOptions" option-label="title" option-value="public_id" :loading="shortLoading" filter filter-placeholder="Tìm short..." placeholder="Chọn short đã xuất bản..." show-clear class="flex-1" @change="onPickShort" />
+          <Button v-if="selectedShort" label="Bỏ gắn short" size="small" text @click="clearShort" />
+        </div>
+        <div v-if="pickedShort" class="flex gap-2 items-center mt-1">
+          <img :src="resolveMedia(pickedShort.thumbnail)" alt="" class="w-24 h-14 object-cover rounded" />
+          <span class="text-xs text-neutral-500">Mã short: <code>{{ pickedShort.public_id }}</code></span>
+        </div>
+      </div>
       <div class="flex gap-2 items-center flex-wrap">
         <InputText v-model="form.mediaUrl" placeholder="URL ảnh/video (hoặc chọn từ thư viện)" class="flex-1" />
         <Button label="Chọn từ thư viện" size="small" outlined @click="openLib" />
@@ -139,7 +151,42 @@ const items = ref<any[]>([]);
 const loading = ref(false);
 const editing = ref<any>(null);
 const previewBroken = ref(false);
-const form = ref({ title: '', caption: '', mediaUrl: '', mediaType: 'image', platforms: [] as string[] });
+const form = ref({ title: '', caption: '', mediaUrl: '', mediaType: 'image', catalogPublicId: null as string | null, platforms: [] as string[] });
+
+// Short da xuat ban de gan vao bai phan phoi (lay tu API cong khai
+// /catalog/shorts — tra public_id + title + thumbnail + publishedAt;
+// chi lay bai co publishedAt, moi nhat truoc). Chon short thi tu dien
+// tieu de + thumbnail lam bia + loai Video + luu public_id.
+const shortOptions = ref<any[]>([]);
+const shortLoading = ref(false);
+const selectedShort = ref<string | null>(null);
+const pickedShort = computed(() => shortOptions.value.find((s: any) => s.public_id === selectedShort.value) || null);
+
+async function loadShorts() {
+  shortLoading.value = true;
+  try {
+    const r = await api.get<any>('/catalog/shorts', { limit: 100 });
+    const all = (r?.data || []) as any[];
+    shortOptions.value = all
+      .filter((s: any) => s?.publishedAt)
+      .sort((a: any, b: any) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
+  } catch { shortOptions.value = []; }
+  finally { shortLoading.value = false; }
+}
+
+function onPickShort() {
+  const s = pickedShort.value;
+  if (!s) { form.value.catalogPublicId = null; return; }
+  form.value.title = s.title || form.value.title;
+  form.value.mediaUrl = s.thumbnail || form.value.mediaUrl;
+  form.value.mediaType = 'video';
+  form.value.catalogPublicId = s.public_id || null;
+}
+
+function clearShort() {
+  selectedShort.value = null;
+  form.value.catalogPublicId = null;
+}
 
 const libDlg = ref(false);
 const libItems = ref<any[]>([]);
@@ -177,7 +224,8 @@ function targetLabel(s: string) {
 function resetForm() {
   editing.value = null;
   previewBroken.value = false;
-  form.value = { title: '', caption: '', mediaUrl: '', mediaType: 'image', platforms: [] };
+  selectedShort.value = null;
+  form.value = { title: '', caption: '', mediaUrl: '', mediaType: 'image', catalogPublicId: null, platforms: [] };
 }
 
 async function load() {
@@ -190,11 +238,13 @@ async function load() {
 
 function openEdit(d: any) {
   editing.value = d;
+  selectedShort.value = d.catalogPublicId || null;
   form.value = {
     title: d.title || '',
     caption: d.caption || '',
     mediaUrl: d.mediaUrl || '',
     mediaType: d.mediaType || 'image',
+    catalogPublicId: d.catalogPublicId || null,
     platforms: (d.targets || []).map((t: any) => t.platform),
   };
 }
@@ -324,5 +374,5 @@ async function postFacebook(d: any) {
   }
 }
 
-onMounted(() => { load(); loadFb(); });
+onMounted(() => { load(); loadFb(); loadShorts(); });
 </script>

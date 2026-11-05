@@ -1,0 +1,12 @@
+-- Sua phat short tren /nen-tang-so (2026-11-05): bai phan phoi co them
+-- tham chieu toi short trong catalog de portal goi /vod/short/:id/play
+-- lay link HLS phat noi tuyen, thay vi dua mediaUrl (anh thumbnail .jpg)
+-- vao the <video>. Cot nullable: bai khong gan catalog giu NULL, hanh
+-- vi cu (link media / link ngoai) khong doi.
+--
+-- CHI THEM COT, KHONG DIEN DU LIEU (user doi 2026-11-05 ~20:02 +07):
+-- viec dien catalog_public_id cho 6 bai hien co lam SAU khi user duyet
+-- bang doi chieu (tieu de bai phan phoi / thumbnail / short khop / cach
+-- khop) — bai nao khop khong chac chan thi de trong, user chon tay
+-- tren CMS. Khong chay UPDATE o day.
+ALTER TABLE "distribution_posts" ADD COLUMN "catalog_public_id" TEXT;

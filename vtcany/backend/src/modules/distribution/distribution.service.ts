@@ -5,6 +5,7 @@ import {
   DISTRIBUTION_MEDIA_TYPES,
   DISTRIBUTION_PLATFORMS,
   cleanPlatforms,
+  isCatalogPublicId,
   isHttpUrl,
   publishTargetUpdate,
   unpublishTargetUpdate,
@@ -16,6 +17,7 @@ export interface DistributionUpsert {
   caption?: string | null;
   mediaUrl?: string | null;
   mediaType?: string;
+  catalogPublicId?: string | null;
   platforms?: string[];
 }
 
@@ -34,6 +36,7 @@ export class DistributionService {
       caption: row.caption,
       mediaUrl: row.mediaUrl,
       mediaType: row.mediaType,
+      catalogPublicId: row.catalogPublicId || null,
       status: row.status,
       publishedAt: row.publishedAt,
       createdAt: row.createdAt,
@@ -57,6 +60,9 @@ export class DistributionService {
     if (dto.mediaType && !(DISTRIBUTION_MEDIA_TYPES as readonly string[]).includes(dto.mediaType)) {
       throw new BadRequestException('mediaType khong hop le');
     }
+    if (dto.catalogPublicId?.trim() && !isCatalogPublicId(dto.catalogPublicId.trim())) {
+      throw new BadRequestException('catalogPublicId khong hop le');
+    }
     const platforms = cleanPlatforms(dto.platforms);
     const row = await this.prisma.distributionPost.create({
       data: {
@@ -65,6 +71,7 @@ export class DistributionService {
         caption: dto.caption?.trim() || null,
         mediaUrl: dto.mediaUrl?.trim() || null,
         mediaType: dto.mediaType || 'image',
+        catalogPublicId: dto.catalogPublicId?.trim() || null,
         status: 'draft',
         createdBy: actorId || null,
         targets: { create: platforms.map((platform) => ({ platform, status: 'draft' })) },
@@ -89,6 +96,9 @@ export class DistributionService {
     if (dto.mediaType && !(DISTRIBUTION_MEDIA_TYPES as readonly string[]).includes(dto.mediaType)) {
       throw new BadRequestException('mediaType khong hop le');
     }
+    if (dto.catalogPublicId?.trim() && !isCatalogPublicId(dto.catalogPublicId.trim())) {
+      throw new BadRequestException('catalogPublicId khong hop le');
+    }
     const platforms = dto.platforms === undefined ? null : cleanPlatforms(dto.platforms);
     const updated = await this.prisma.$transaction(async (tx) => {
       if (platforms !== null) {
@@ -104,6 +114,7 @@ export class DistributionService {
           caption: dto.caption === undefined ? row.caption : (dto.caption?.trim() || null),
           mediaUrl: dto.mediaUrl === undefined ? row.mediaUrl : (dto.mediaUrl?.trim() || null),
           mediaType: dto.mediaType || row.mediaType,
+          catalogPublicId: dto.catalogPublicId === undefined ? row.catalogPublicId : (dto.catalogPublicId?.trim() || null),
         },
         include: { targets: { orderBy: { platform: 'asc' } } },
       });
@@ -264,6 +275,7 @@ export class DistributionService {
         caption: r.caption,
         mediaUrl: r.mediaUrl,
         mediaType: r.mediaType,
+        catalogPublicId: r.catalogPublicId || null,
         publishedAt: r.publishedAt,
         targets: r.targets.map((t) => ({ platform: t.platform, status: t.status, url: t.status === 'posted' ? t.url : null })),
       })),

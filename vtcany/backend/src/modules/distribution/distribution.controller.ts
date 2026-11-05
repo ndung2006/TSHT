@@ -22,6 +22,12 @@ class DistributionDto {
   @IsString()
   mediaType?: string;
 
+  // public_id cua short trong catalog (24 ky tu hex). Co thi portal phat
+  // HLS noi tuyen tren /nen-tang-so; khong co thi giu hanh vi cu.
+  @IsOptional()
+  @IsString()
+  catalogPublicId?: string | null;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

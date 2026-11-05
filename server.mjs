@@ -1014,7 +1014,12 @@ const server = http.createServer(async (req, res) => {
       const items = (d.data || []).map((it) => ({
         publicId: it.publicId, title: it.title, caption: it.caption || "",
         media: it.mediaUrl ? resolveVtcanyImageUrl(it.mediaUrl) : "",
-        mediaType: it.mediaType || "image", publishedAt: it.publishedAt,
+        mediaType: it.mediaType || "image",
+        // Tham chieu short trong catalog (goi sua phat short 2026-11-05):
+        // co thi trang /nen-tang-so goi /vod/short/:id/play phat HLS noi
+        // tuyen; khong co thi giu hanh vi cu (link media / link ngoai).
+        catalogPublicId: it.catalogPublicId || null,
+        publishedAt: it.publishedAt,
         targets: (it.targets || []).map((t) => ({ platform: t.platform, status: t.status, url: t.url || null })),
       }));
       return json(res, 200, { items, total: d.total || 0, page: d.page || 1, limit: d.limit || 20 });

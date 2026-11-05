@@ -11,6 +11,15 @@
   .platforms .lead { color: #444; }
   .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; }
   .sv-card { display: block; text-decoration: none; color: inherit; }
+  .sv-card.sv-playable { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; }
+  .sv-player { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .sv-player[hidden] { display: none; }
+  .sv-player-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.75); }
+  .sv-player-box { position: relative; width: min(420px, 92vw); background: #111; border-radius: 10px; padding: 10px; }
+  .sv-player-box video { width: 100%; max-height: 78vh; background: #000; border-radius: 6px; display: block; }
+  .sv-player-close { position: absolute; top: -12px; right: -12px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: #fff; color: #111; font-size: 16px; cursor: pointer; }
+  .sv-player-title { color: #fff; font-size: 14px; margin: 8px 2px 0; line-height: 1.4; }
+  .sv-player-err { color: #ffb4b4; font-size: 14px; margin: 8px 2px 0; }
   .sv-thumb { position: relative; aspect-ratio: 2/3; overflow: hidden; border-radius: 8px; background: #111; }
   .sv-thumb img, .sv-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
   .sv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
@@ -33,8 +42,18 @@
   <p class="lead">Video ngắn của đài: nội dung của chính cổng này hiển thị trước, sau đó là các video đã đưa lên Facebook, TikTok, YouTube. Kết nối thật với Facebook/TikTok làm sau; trước mắt mỗi thẻ ghi rõ video đang ở nền tảng nào.</p>
   <div id="sv-grid" class="sv-grid"></div>
   <p id="sv-empty" class="sv-empty" style="display:none">Chưa có video ngắn nào được phân phối.</p>
+  <div id="sv-player" class="sv-player" hidden>
+    <div class="sv-player-backdrop" data-close></div>
+    <div class="sv-player-box">
+      <button type="button" class="sv-player-close" data-close aria-label="Đóng trình phát">✕</button>
+      <video id="sv-video" controls playsinline preload="none"></video>
+      <p id="sv-player-title" class="sv-player-title"></p>
+      <p id="sv-player-err" class="sv-player-err" hidden></p>
+    </div>
+  </div>
   <p class="note">Lịch phát sóng vẫn xem tại <a href="/lich-phat-song">trang Lịch phát sóng</a> và trên trang <a href="/truyen-hinh">Truyền hình</a>.</p>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/header.js?v=20261105-1"></script>
 <!-- @FOOTER -->
 <script>
@@ -56,6 +75,65 @@
   function appPosted(it) {
     return (it.targets || []).some(function (t) { return t.platform === 'app' && t.status === 'posted'; });
   }
+  // The short Web phat noi tuyen khi bai co tham chieu catalog hop le va la
+  // video; bai khong gan catalog giu hanh vi cu (link media / link ngoai).
+  function shortPlayId(it) {
+    if (it.mediaType !== 'video') return null;
+    var id = it.catalogPublicId || '';
+    return /^[0-9a-f]{24}$/.test(id) ? id : null;
+  }
+
+  // ---- Trinh phat noi tuyen cho short (modal, dung chung hls.js 1.5.13) ----
+  var player = document.getElementById('sv-player');
+  var video = document.getElementById('sv-video');
+  var playerTitle = document.getElementById('sv-player-title');
+  var playerErr = document.getElementById('sv-player-err');
+  var hls = null;
+  function stopPlayer() {
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    try { video.pause(); } catch (e) {}
+    video.removeAttribute('src');
+    try { video.load(); } catch (e) {}
+  }
+  function closePlayer() {
+    stopPlayer();
+    player.hidden = true;
+  }
+  function openPlayer(shortId, title) {
+    playerTitle.textContent = title || '';
+    playerErr.hidden = true;
+    playerErr.textContent = '';
+    player.hidden = false;
+    stopPlayer();
+    fetch('/api/v2/vod/short/' + encodeURIComponent(shortId) + '/play')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.url) throw new Error('no-url');
+        if (window.Hls && window.Hls.isSupported()) {
+          hls = new window.Hls();
+          hls.loadSource(d.url);
+          hls.attachMedia(video);
+          hls.on(window.Hls.Events.MANIFEST_PARSED, function () { video.play().catch(function () {}); });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = d.url;
+          video.play().catch(function () {});
+        } else {
+          throw new Error('no-hls');
+        }
+      })
+      .catch(function () {
+        stopPlayer();
+        playerErr.textContent = 'Video chưa sẵn sàng, thử lại sau.';
+        playerErr.hidden = false;
+      });
+  }
+  player.addEventListener('click', function (ev) {
+    if (ev.target && ev.target.closest('[data-close]')) closePlayer();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !player.hidden) closePlayer();
+  });
+
   fetch('/api/v2/distribution?limit=50').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
     var items = (d && d.items) || [];
     var grid = document.getElementById('sv-grid');
@@ -70,18 +148,32 @@
     });
     grid.innerHTML = items.map(function (it) {
       var ext = postedExternal(it);
-      var link = ext ? ext.url : (it.media || '#');
-      var badge = ext ? (labels[ext.platform] || ext.platform) : 'Web';
-      var blank = ext ? ' target="_blank" rel="noopener"' : '';
+      var playId = shortPlayId(it);
       var thumb = '';
       if (it.media) {
-        thumb = it.mediaType === 'video'
+        // Thumbnail luon hien dang anh lam poster; chi khi bai la video
+        // ma KHONG gan catalog thi the <video> cu moi dung media lam nguon.
+        thumb = (it.mediaType === 'video' && !playId)
           ? '<video src="' + esc(it.media) + '" muted playsinline preload="metadata"></video><span class="sv-play">▶</span>'
           : '<img src="' + esc(it.media) + '" alt="">';
       }
-      return '<a class="sv-card" href="' + esc(link) + '"' + blank + '><span class="sv-thumb">' + thumb +
-        '<span class="sv-badge">' + esc(badge) + '</span></span><h3>' + esc(it.title) + '</h3></a>';
+      if (playId) thumb += '<span class="sv-play">▶</span>';
+      var inner = '<span class="sv-thumb">' + thumb +
+        '<span class="sv-badge">' + esc(ext ? (labels[ext.platform] || ext.platform) : 'Web') + '</span></span><h3>' + esc(it.title) + '</h3>';
+      if (ext) {
+        return '<a class="sv-card" href="' + esc(ext.url) + '" target="_blank" rel="noopener">' + inner + '</a>';
+      }
+      if (playId) {
+        return '<button type="button" class="sv-card sv-playable" data-short-id="' + esc(playId) + '" data-title="' + esc(it.title) + '">' + inner + '</button>';
+      }
+      return '<a class="sv-card" href="' + esc(it.media || '#') + '">' + inner + '</a>';
     }).join('');
+    grid.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.sv-playable') : null;
+      if (!btn) return;
+      ev.preventDefault();
+      openPlayer(btn.getAttribute('data-short-id'), btn.getAttribute('data-title'));
+    });
   }).catch(function () {
     document.getElementById('sv-empty').style.display = 'block';
   });

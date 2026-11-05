@@ -799,6 +799,11 @@ model DistributionPost {
   caption     String?
   mediaUrl    String?              @map("media_url")
   mediaType   String               @default("image") @map("media_type")
+  // Tham chieu toi short trong catalog (public_id cua short, vd short
+  // tren /nen-tang-so): portal goi /vod/short/:id/play de phat HLS thay
+  // vi dua mediaUrl (anh thumbnail) vao <video>. Nullable: bai khong
+  // gan catalog (anh/bai cu) giu NULL, hanh vi cu khong doi.
+  catalogPublicId String?          @map("catalog_public_id")
   status      String               @default("draft") @map("status")
   publishedAt DateTime?            @map("published_at")
   createdBy   String?              @map("created_by")
