@@ -445,6 +445,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Phim - VTC ANY CMS' });
+import { sortCategories } from '~/utils/category-sort';
 
 const { can } = useCmsAuth();
 const api = useApi();
@@ -505,7 +506,8 @@ const genres = ref<any[]>([]);
 const loadingGenres = ref(false);
 const plans = ref<any[]>([]);
 function typeCategories(kind: string) {
-  return categories.value.filter((c) => {
+  // Sap xep dung chung (utils/category-sort): cha truoc, con gom theo cha.
+  return sortCategories(categories.value).filter((c) => {
     const a = c.appliesTo || [];
     return !a.length || a.includes(kind);
   });

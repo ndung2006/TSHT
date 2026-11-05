@@ -148,6 +148,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Short - VTC ANY CMS' });
+import { buildCategoryOptions, sortCategories } from '~/utils/category-sort';
 
 const { can, user } = useCmsAuth();
 const confirm = useConfirm();
@@ -167,8 +168,9 @@ const platformOptions = ['Website', 'Mobile App', 'TV App'];
 
 function categoryName(id: any): string { return categories.value.find((c) => c.id === id)?.name || '—'; }
 // Chi hien danh muc ap dung cho loai noi dung nay (appliesTo rong = hien het, tuong thich du lieu cu).
+// Sap xep dung chung (utils/category-sort): cha truoc, con gom theo cha.
 function typeCategories(kind: string) {
-  return categories.value.filter((c) => {
+  return sortCategories(categories.value).filter((c) => {
     const a = c.appliesTo || [];
     return !a.length || a.includes(kind);
   });
@@ -300,13 +302,9 @@ const convertEntity = ref('');
 const convertAuthor = ref('');
 const convertCategoryId = ref('');
 const convertCats = ref<any[]>([]);
-const convertCatOptions = computed(() => {
-  const byId = new Map(convertCats.value.map((c: any) => [c.id, c]));
-  return convertCats.value.map((c: any) => {
-    const parent = c.parentId ? byId.get(c.parentId) : null;
-    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
-  });
-});
+// Sap xep chuyen muc dung chung (utils/category-sort): cha truoc, con
+// "Cha / Con" gom theo cha; muc an giu nhan "(An)" dung vi tri.
+const convertCatOptions = computed(() => buildCategoryOptions(convertCats.value));
 async function openConvertDialog(entity: string, row: any) {
   convertPending.value = row;
   convertEntity.value = entity;

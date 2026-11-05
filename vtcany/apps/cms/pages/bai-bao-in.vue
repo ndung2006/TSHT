@@ -194,6 +194,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Bài báo in - VTC ANY CMS' });
+import { buildCategoryOptions } from '~/utils/category-sort';
 
 const { can } = useCmsAuth();
 const api = useApi();
@@ -281,13 +282,9 @@ function onPage(e: any) {
 
 // --- Sua / them bai bao in (khuon tin-bai.vue) ---
 const cats = ref<any[]>([]);
-const catOptions = computed(() => {
-  const byId = new Map(cats.value.map((c) => [c.id, c]));
-  return cats.value.map((c) => {
-    const parent = c.parentId ? byId.get(c.parentId) : null;
-    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
-  });
-});
+// Sap xep chuyen muc dung chung (utils/category-sort): cha truoc, con
+// "Cha / Con" gom theo cha; muc an giu nhan "(An)" dung vi tri.
+const catOptions = computed(() => buildCategoryOptions(cats.value));
 async function loadCats() {
   try { cats.value = await api.get<any[]>('/admin/news-categories') || []; }
   catch { cats.value = []; }

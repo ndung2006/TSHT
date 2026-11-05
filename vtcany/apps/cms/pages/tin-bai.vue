@@ -424,6 +424,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Tin bài - VTC ANY CMS' });
+import { buildCategoryOptions, buildParentCategoryOptions, compareCategories } from '~/utils/category-sort';
 
 const { can, permissions } = useCmsAuth();
 const api = useApi();
@@ -515,13 +516,9 @@ function parentName(parentId: string | null) {
   if (!parentId) return '—';
   return cats.value.find((c) => c.id === parentId || c.publicId === parentId)?.name || '—';
 }
-const catOptions = computed(() => {
-  const byId = new Map(cats.value.map((c) => [c.id, c]));
-  return cats.value.map((c) => {
-    const parent = c.parentId ? byId.get(c.parentId) : null;
-    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
-  });
-});
+// Sap xep chuyen muc dung chung (utils/category-sort): cha truoc thanh
+// khoi, con "Cha / Con" gom theo cha; muc an giu nhan "(An)" dung vi tri.
+const catOptions = computed(() => buildCategoryOptions(cats.value));
 const catFilterOptions = computed(() => [{ label: 'Tất cả chuyên mục', value: '' }, ...catOptions.value]);
 const authorFilterOptions = computed(() => [{ label: 'Tất cả tác giả', value: '' }, ...authorsList.value.map((a) => ({ label: a, value: a }))]);
 const statusLinks = [
@@ -552,9 +549,7 @@ function applyMyTile(t: any) {
   load(1);
 }
 function clearMyScope() { myScope.value = ''; load(1); }
-const catParentOptions = computed(() => cats.value
-  .filter((c) => !c.parentId)
-  .map((c) => ({ label: c.name, value: c.publicId })));
+const catParentOptions = computed(() => buildParentCategoryOptions(cats.value));
 // Dem ky tu / so tu cua noi dung (bo the HTML), hien duoi editor kieu
 // thanh trang thai cua editor mau. Chi dem phan text nhin thay, khong dem
 // the HTML hay URL anh.
@@ -568,7 +563,7 @@ const bodyCount = computed(() => {
 // lai dau danh sach de khong mat khi mo sua.
 const localNewsOptions = computed(() => {
   const parent = cats.value.find((c) => c.slug === 'tin-dia-phuong' || c.name === 'Tin địa phương');
-  const kids = parent ? cats.value.filter((c) => c.parentId === parent.id || c.parentId === parent.publicId) : [];
+  const kids = parent ? cats.value.filter((c) => c.parentId === parent.id || c.parentId === parent.publicId).sort(compareCategories) : [];
   const opts = kids.map((c) => ({ label: c.name, value: c.name }));
   const cur = (form.value.localNews || '').trim();
   if (cur && !opts.some((o) => o.value === cur)) opts.unshift({ label: cur, value: cur });

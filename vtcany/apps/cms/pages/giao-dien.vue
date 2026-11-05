@@ -252,6 +252,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Giao diện - VTC ANY CMS' });
+import { sortCategories } from '~/utils/category-sort';
 
 const { can } = useCmsAuth();
 const api = useApi();
@@ -385,7 +386,8 @@ function categoryName(id: string) {
 }
 const categoryOpts = computed(() => {
   const applies = typeToApplies[railForm.value.contentType];
-  return allCats.value.filter((c) => !applies || (c.appliesTo || []).includes(applies));
+  // Sap xep dung chung (utils/category-sort): cha truoc, con gom theo cha.
+  return sortCategories(allCats.value).filter((c) => !applies || (c.appliesTo || []).includes(applies));
 });
 
 const railDlg = ref(false);
@@ -510,7 +512,8 @@ async function loadHomeBlocks() {
 async function loadNewsCats() {
   try {
     const r = await api.get<any[]>('/admin/news-categories') || [];
-    newsCatOpts.value = r.filter((c: any) => !c.parentId);
+    // Sap xep dung chung (utils/category-sort): chi lay khoi cha, giu thu tu sortOrder / ten vi.
+    newsCatOpts.value = sortCategories(r).filter((c: any) => !c.parentId);
   } catch { /* bo qua */ }
 }
 function defaultColumnForType(t: string) {

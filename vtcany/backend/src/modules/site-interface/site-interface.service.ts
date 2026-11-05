@@ -45,6 +45,7 @@ export class SiteInterfaceService {
       slug: r.slug,
       parentId: r.parentId,
       parentName: r.parentId ? byId.get(r.parentId)?.name || null : null,
+      sortOrder: r.sortOrder,
       isVisible: r.isVisible,
     }));
   }

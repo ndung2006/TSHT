@@ -248,6 +248,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Báo in - VTC ANY CMS' });
+import { buildCategoryOptions } from '~/utils/category-sort';
 
 const { can, permissions, user } = useCmsAuth();
 const api = useApi();
@@ -433,13 +434,9 @@ const convertPending = ref<any>(null);
 const convertAuthor = ref('');
 const convertCategoryId = ref('');
 const convertCats = ref<any[]>([]);
-const convertCatOptions = computed(() => {
-  const byId = new Map(convertCats.value.map((c: any) => [c.id, c]));
-  return convertCats.value.map((c: any) => {
-    const parent = c.parentId ? byId.get(c.parentId) : null;
-    return { label: parent ? `${parent.name} / ${c.name}` : c.name, value: c.publicId };
-  });
-});
+// Sap xep chuyen muc dung chung (utils/category-sort): cha truoc, con
+// "Cha / Con" gom theo cha; muc an giu nhan "(An)" dung vi tri.
+const convertCatOptions = computed(() => buildCategoryOptions(convertCats.value));
 async function openConvertDialog(it: any) {
   convertPending.value = it;
   convertAuthor.value = user.value?.email || '';

@@ -140,6 +140,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Danh mục - VTC ANY CMS' });
+import { buildParentCategoryOptions, sortCategories } from '~/utils/category-sort';
 
 const { can } = useCmsAuth();
 const api = useApi();
@@ -283,15 +284,15 @@ const newsSaving = ref(false);
 const newsForm = ref({ name: '', slug: '', parentId: '', sortOrder: 0, isVisible: true, metaTitle: '', metaDescription: '' });
 const newsFiltered = computed(() => {
   const needle = q.value.trim().toLowerCase();
-  return newsCats.value.filter((c) => !needle || (c.name || '').toLowerCase().includes(needle));
+  // Bang quan ly hien cung thu tu chuan (utils/category-sort) de nguoi dung
+  // thay ngay thu tu sortOrder minh dat se anh xa ra cac o chon the nao.
+  return sortCategories(newsCats.value).filter((c) => !needle || (c.name || '').toLowerCase().includes(needle));
 });
 function newsParentName(parentId: string | null) {
   if (!parentId) return '—';
   return newsCats.value.find((c) => c.id === parentId || c.publicId === parentId)?.name || '—';
 }
-const newsParentOptions = computed(() => newsCats.value
-  .filter((c) => !c.parentId)
-  .map((c) => ({ label: c.name, value: c.publicId })));
+const newsParentOptions = computed(() => buildParentCategoryOptions(newsCats.value));
 async function loadNewsCats() {
   newsLoading.value = true;
   try { newsCats.value = await api.get<any[]>('/admin/news-categories') || []; }

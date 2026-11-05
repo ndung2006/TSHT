@@ -46,16 +46,17 @@ const { can } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
 const confirm = useConfirm();
+import { filterCategories } from '~/utils/category-sort';
 
 const q = ref('');
 const cats = ref<any[]>([]);
 const items = ref<any[]>([]);
 
 const pickedIds = computed(() => new Set(items.value.map((it: any) => it.categoryId)));
-const filteredCats = computed(() => {
-  const kw = q.value.trim().toLowerCase();
-  return cats.value.filter((c: any) => !kw || c.name.toLowerCase().includes(kw) || (c.parentName || '').toLowerCase().includes(kw));
-});
+// Tim kiem giu dung quy tac sap xep chung (utils/category-sort): cha khop
+// len truoc, roi cac "Cha / Con" khop; muc an giu Tag "An" dung vi tri.
+// Cot phai "Sap xep chuyen muc tren trang chu" khong doi (thu tu do tay).
+const filteredCats = computed(() => filterCategories(cats.value, q.value));
 
 async function load() {
   try {

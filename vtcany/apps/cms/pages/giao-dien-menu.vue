@@ -41,6 +41,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Menu - Quản lý giao diện - VTC ANY CMS' });
+import { filterCategories } from '~/utils/category-sort';
 
 const { can } = useCmsAuth();
 const api = useApi();
@@ -52,10 +53,9 @@ const cats = ref<any[]>([]);
 const items = ref<any[]>([]);
 
 const pickedIds = computed(() => new Set(items.value.map((it: any) => it.categoryId)));
-const filteredCats = computed(() => {
-  const kw = q.value.trim().toLowerCase();
-  return cats.value.filter((c: any) => !c.parentId && (!kw || c.name.toLowerCase().includes(kw)));
-});
+// Tim kiem giu dung quy tac sap xep chung (utils/category-sort): chi muc
+// cha, theo sortOrder roi ten vi.
+const filteredCats = computed(() => filterCategories(cats.value, q.value).filter((c: any) => !c.parentId));
 
 async function load() {
   try {
