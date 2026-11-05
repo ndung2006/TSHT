@@ -120,22 +120,15 @@
   });
 
   // ---- Tim kiem dung chung (o duoi nav + o trong ngan keo) ----
-  // Enter/"Tim" goi /api/v2/news?q= (API cong khai san co), hien toi da
-  // 8 ket qua dang link ve trang doc. Khong them trang ket qua rieng.
-  function runSearch(q, resultsEl) {
-    if (!resultsEl) return;
-    if (!q) { resultsEl.innerHTML = "<p class=\"catnav-search-note\">Nhập từ khóa rồi bấm Tìm.</p>"; return; }
-    resultsEl.innerHTML = "<p class=\"catnav-search-note\">Đang tìm…</p>";
-    fetch("/api/v2/news?q=" + encodeURIComponent(q) + "&limit=8")
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) {
-        var items = (d && d.items) || [];
-        if (!items.length) { resultsEl.innerHTML = "<p class=\"catnav-search-note\">Không tìm thấy tin bài nào cho \"" + esc(q) + "\".</p>"; return; }
-        resultsEl.innerHTML = items.map(function (it) {
-          return "<a href=\"" + esc(it.url || "#") + "\">" + esc(it.title || "") + "</a>";
-        }).join("");
-      })
-      .catch(function () { resultsEl.innerHTML = "<p class=\"catnav-search-note\">Không tải được kết quả tìm kiếm.</p>"; });
+  // Enter/"Tim kiem" chuyen sang trang /tim-kiem (giu tick "Tim chinh
+  // xac"); khong con danh sach 8 ket qua tha xuong.
+  function goToSearch(form) {
+    if (!form) return;
+    var input = form.querySelector("input[name=\"q\"]");
+    var exactBox = form.querySelector("input[name=\"exact\"]");
+    var q = input ? input.value.trim() : "";
+    var exact = exactBox ? exactBox.checked : false;
+    location.href = "/tim-kiem?q=" + encodeURIComponent(q) + "&exact=" + (exact ? 1 : 0);
   }
   (function initCatnavSearch() {
     var btn = document.querySelector(".catnav-search-btn");
@@ -143,7 +136,6 @@
     if (!btn || !panel) return;
     var form = panel.querySelector(".catnav-search-form");
     var input = form ? form.querySelector("input") : null;
-    var results = panel.querySelector(".catnav-search-results");
     function open() { panel.hidden = false; btn.setAttribute("aria-expanded", "true"); if (input) input.focus(); }
     function close() { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
     btn.addEventListener("click", function () { if (panel.hidden) open(); else close(); });
@@ -153,7 +145,7 @@
     document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") close(); });
     if (form) form.addEventListener("submit", function (ev) {
       ev.preventDefault();
-      runSearch(input ? input.value.trim() : "", results);
+      goToSearch(form);
     });
   })();
 
@@ -222,8 +214,8 @@
     var drawerForm = drawer.querySelector(".site-drawer-search");
     if (drawerForm) drawerForm.addEventListener("submit", function (ev) {
       ev.preventDefault();
-      var input = drawerForm.querySelector("input");
-      runSearch(input ? input.value.trim() : "", drawer.querySelector(".site-drawer-results"));
+      closeDrawer();
+      goToSearch(drawerForm);
     });
     // Xoay/co man hinh sang desktop thi dong ngan keo (CSS cung an no).
     var onChange = function () { if (!isMobile.matches) closeDrawer(); };

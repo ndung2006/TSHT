@@ -32,15 +32,17 @@
   <!-- @CATNAV_ITEMS -->
   <span class="catnav-icons"><button type="button" class="catnav-menu-btn" aria-expanded="false" aria-controls="catnav-mega" aria-label="Mở toàn bộ chuyên mục">☰</button><button type="button" class="catnav-search-btn" aria-expanded="false" aria-controls="catnav-search" aria-label="Mở tìm kiếm">🔍</button></span>
 </nav>
-<!-- O tim kiem: nut 🔍 tren nav mo ra; nhap tu khoa + Enter de tim tin bai
-     qua /api/v2/news?q=, hien ket qua dang link (logic o header.js).
-     An mac dinh. -->
+<!-- O tim kiem: nut 🔍 tren nav mo ra; nhap tu khoa + Enter chuyen sang
+     trang /tim-kiem (logic o header.js). An mac dinh. -->
 <div id="catnav-search" class="catnav-search" hidden>
   <form class="catnav-search-form" role="search">
-    <input type="search" name="q" placeholder="Tìm tin bài…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
-    <button type="submit">Tìm</button>
+    <input type="search" name="q" placeholder="Tìm kiếm…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
+    <button type="submit">Tìm kiếm</button>
   </form>
-  <div class="catnav-search-results" aria-live="polite"></div>
+  <div class="catnav-search-under">
+    <label class="catnav-search-exact"><input type="checkbox" name="exact"> Tìm chính xác</label>
+    <a href="/tim-kiem" class="catnav-search-advanced">Tìm kiếm nâng cao</a>
+  </div>
 </div>
 <!-- Bang day du chuyen muc kieu bao dien tu: nut ☰ tren nav mo ra (may
      tinh); nut ☰ tren mobile mo ngan keo thay cho bang nay. Noi dung do
@@ -59,10 +61,13 @@
       <button type="button" class="site-drawer-close" aria-label="Đóng menu">✕</button>
     </div>
     <form class="site-drawer-search" role="search">
-      <input type="search" name="q" placeholder="Tìm tin bài…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
-      <button type="submit">Tìm</button>
+      <input type="search" name="q" placeholder="Tìm kiếm…" aria-label="Từ khóa tìm kiếm" autocomplete="off">
+      <button type="submit">Tìm kiếm</button>
     </form>
-    <div class="site-drawer-results" aria-live="polite"></div>
+    <div class="site-drawer-under">
+      <label class="site-drawer-exact"><input type="checkbox" name="exact"> Tìm chính xác</label>
+      <a href="/tim-kiem" class="site-drawer-advanced">Tìm kiếm nâng cao</a>
+    </div>
     <!-- @DRAWER_CONTENT -->
   </div>
 </div>

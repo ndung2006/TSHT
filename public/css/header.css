@@ -76,16 +76,24 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
    Panel an mac dinh (thuoc tinh hidden); chi hien khi JS bo hidden. */
 .catnav-menu-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
 /* O tim kiem duoi nav (nut 🔍 mo ra): thanh trang kieu bang mega menu,
-   o nhap + ket qua dang link ve trang doc. */
+   o nhap rong gan het khung + nut Tim kiem; ben duoi la tick "Tim chinh
+   xac" trai + link "Tim kiem nang cao" phai. Submit chuyen sang
+   /tim-kiem (khong con danh sach ket qua tha xuong). */
 .catnav-search-btn { background: transparent; border: 0; color: #fff; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.25rem; }
 .catnav-search { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem; }
-.catnav-search-form { display: flex; gap: 0.5rem; max-width: 640px; }
+.catnav-search-form { display: flex; gap: 0.5rem; }
 .catnav-search-form input { flex: 1; min-width: 0; font: inherit; font-size: 1rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
-.catnav-search-form button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; }
-.catnav-search-results { margin-top: 0.5rem; display: flex; flex-direction: column; max-width: 640px; }
-.catnav-search-results a { color: #222; text-decoration: none; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
-.catnav-search-results a:hover { color: #c00; }
-.catnav-search-results .catnav-search-note { color: #666; font-size: 0.95rem; padding: 0.4rem 0; }
+.catnav-search-form button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; white-space: nowrap; }
+.catnav-search-under { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.catnav-search-exact { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: #333; cursor: pointer; }
+.catnav-search-advanced { color: #c00; font-size: 0.95rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.catnav-search-advanced:hover { text-decoration: underline; }
+@media (max-width: 900px) {
+  /* Mobile: dai rong het khung, le 16px hai ben; link nang cao xuong
+     dong duoi (khung 1264px tu cherry-pick giu nguyen). */
+  .catnav-search { padding-left: 16px; padding-right: 16px; }
+  .catnav-search-under { flex-direction: column; align-items: flex-start; }
+}
 .catnav-mega { background: #fff; border-bottom: 1px solid #ddd; padding: 0.75rem 1rem 1.25rem; }
 .catnav-mega .mega-close { background: transparent; border: 0; color: #c00; font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem 0.25rem 0; }
 .catnav-mega .mega-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem 1rem; margin-top: 0.5rem; }
@@ -119,11 +127,11 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .site-drawer-close { background: transparent; border: 0; color: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0.25rem 0.5rem; }
 .site-drawer-search { display: flex; gap: 0.5rem; padding: 0.75rem 1rem 0; }
 .site-drawer-search input { flex: 1; min-width: 0; font: inherit; font-size: 1rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
-.site-drawer-search button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; }
-.site-drawer-results { padding: 0 1rem; display: flex; flex-direction: column; }
-.site-drawer-results a { color: #222; text-decoration: none; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; }
-.site-drawer-results a:hover { color: #c00; }
-.site-drawer-results .catnav-search-note { color: #666; font-size: 0.95rem; padding: 0.4rem 0; }
+.site-drawer-search button { font: inherit; font-weight: 700; color: #fff; background: #c00; border: 0; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; white-space: nowrap; }
+.site-drawer-under { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; padding: 0.5rem 1rem 0; }
+.site-drawer-exact { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: #333; cursor: pointer; }
+.site-drawer-advanced { color: #c00; font-size: 0.95rem; font-weight: 700; text-decoration: none; }
+.site-drawer-advanced:hover { text-decoration: underline; }
 .site-drawer-top { display: flex; flex-direction: column; padding: 0.5rem 1rem 0; border-bottom: 1px solid #eee; }
 .site-drawer-top a { color: #333; text-decoration: none; font-weight: 700; padding: 0.5rem 0; border-bottom: 1px solid #f5f5f5; }
 .site-drawer-top a:last-child { border-bottom: 0; }
