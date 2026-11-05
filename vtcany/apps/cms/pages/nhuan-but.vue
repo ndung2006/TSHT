@@ -522,7 +522,11 @@ function applySidebarQuery() {
   initDrill(['q', 'royaltyStatus', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
   const s = route.query.royaltyStatus;
   const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
-  if (next !== statusFilter.value) { statusFilter.value = next; load(1); }
+  if (next !== statusFilter.value) statusFilter.value = next;
+  // Tai lai moi khi query doi, ke ca khi chi doi drill (returned/mine/
+  // myQueue/...) ma status khong doi: truoc day load(1) chi chay khi
+  // statusFilter doi nen bang giu du lieu cua bo loc cu.
+  load(1);
 }
 watch(() => route.query, applySidebarQuery);
 load(1);

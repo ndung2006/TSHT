@@ -653,15 +653,18 @@ function applySidebarQuery() {
   initDrill(['q', 'status', 'eventId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
   const s = route.query.status;
   const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
-  const changed = next !== statusFilter.value;
-  if (changed) statusFilter.value = next;
+  if (next !== statusFilter.value) statusFilter.value = next;
   if (route.query.new === '1') {
     openAdd();
     router.replace({ query: { ...route.query, new: undefined } });
-    if (changed) load(1);
+    // Khong load ngay: replace bo 'new' se kich watcher chay lai nhanh nay
+    // theo duong thuong va load(1) mot lan duy nhat.
     return;
   }
-  if (changed) load(1);
+  // Tai lai moi khi query doi, ke ca khi chi doi drill (returned/mine/
+  // myQueue/...) ma status khong doi: truoc day load(1) chi chay khi
+  // statusFilter doi nen bang giu du lieu cua bo loc cu.
+  load(1);
 }
 watch(() => route.query, applySidebarQuery);
 if (route.query.new === '1') {
