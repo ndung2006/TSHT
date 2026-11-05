@@ -39,6 +39,47 @@
           } catch (e) {}
           return null;
         },
+        // API muc chat luong (menu Cai dat cua LiveControls):
+        // - getLevels() -> [{index, height, bitrate}] sap xep thap -> cao
+        //   (hls.levels tu master playlist; hls.js chi tra muc video).
+        // - setLevel(i): i >= 0 khoa dung muc do qua hls.currentLevel
+        //   (doi muc ngay, xa buffer, GIU vi tri hien tai — khong ve
+        //   dau); i < 0 ve Tu dong. Goi truoc khi manifest ve thi tra
+        //   false, controller se ap lai khi MANIFEST_PARSED toi.
+        // - getCurrentLevel() -> index muc DANG PHAT THAT (khong phai muc
+        //   da chon tay); -1 khi chua co muc.
+        // - onLevelChange(cb): cb(index) khi LEVEL_SWITCHED (index >= 0),
+        //   cb(-1) khi MANIFEST_PARSED (levels da san). Tra ve ham huy.
+        getLevels: function () {
+          try {
+            var ls = hls.levels || [], out = [];
+            for (var i = 0; i < ls.length; i++) out.push({ index: i, height: ls[i].height || 0, bitrate: ls[i].bitrate || 0 });
+            return out;
+          } catch (e) { return []; }
+        },
+        setLevel: function (idx) {
+          try {
+            if (idx == null) return false;
+            if (idx < 0) { hls.currentLevel = -1; return true; }
+            if (hls.levels && idx < hls.levels.length) { hls.currentLevel = idx; return true; }
+          } catch (e) {}
+          return false;
+        },
+        getCurrentLevel: function () {
+          try {
+            var c = hls.currentLevel;
+            if (typeof c === "number" && isFinite(c)) return c;
+          } catch (e) {}
+          return -1;
+        },
+        isAutoLevel: function () { try { return !!hls.autoLevelEnabled; } catch (e) { return true; } },
+        onLevelChange: function (cb) {
+          var onSwitched = function (e, data) { try { cb(data && typeof data.level === "number" ? data.level : -1); } catch (err) {} };
+          var onParsed = function () { try { cb(-1); } catch (err) {} };
+          hls.on(global.Hls.Events.LEVEL_SWITCHED, onSwitched);
+          hls.on(global.Hls.Events.MANIFEST_PARSED, onParsed);
+          return function () { try { hls.off(global.Hls.Events.LEVEL_SWITCHED, onSwitched); hls.off(global.Hls.Events.MANIFEST_PARSED, onParsed); } catch (e) {} };
+        },
       };
     }
     if (media.canPlayType("application/vnd.apple.mpegurl")) {
@@ -52,15 +93,52 @@
           } catch (e) {}
           return null;
         },
+        // HLS native (Safari): trinh duyet tu chon muc, khong khoa duoc
+        // bang code nen menu chat luong chi hien "Tu dong".
+        getLevels: function () { return []; },
+        setLevel: function () { return false; },
+        getCurrentLevel: function () { return -1; },
+        isAutoLevel: function () { return true; },
+        onLevelChange: function () { return function () {}; },
       };
     }
     return null;
+  }
+
+  // Cau noi API muc chat luong: engine HLS chi co sau khi fetch link
+  // xong (playRotating / playVtcanyLive), nen callback dang ky truoc
+  // phai duoc gan vao engine ngay khi no xuat hien; moi goi deu chiu
+  // duoc engine null (tra gia tri mac dinh) de controller goi tu do.
+  function levelBridge() {
+    var engine = null, pending = [];
+    return {
+      setEngine: function (e) {
+        engine = e || null;
+        if (!engine) return;
+        for (var i = 0; i < pending.length; i++) {
+          try { engine.onLevelChange(pending[i]); } catch (err) {}
+        }
+        pending = [];
+      },
+      getLevels: function () { try { return engine && engine.getLevels ? engine.getLevels() : []; } catch (e) { return []; } },
+      setLevel: function (idx) { try { return engine && engine.setLevel ? engine.setLevel(idx) : false; } catch (e) { return false; } },
+      getCurrentLevel: function () { try { return engine && engine.getCurrentLevel ? engine.getCurrentLevel() : -1; } catch (e) { return -1; } },
+      isAutoLevel: function () { try { return engine && engine.isAutoLevel ? engine.isAutoLevel() : true; } catch (e) { return true; } },
+      onLevelChange: function (cb) {
+        if (engine) {
+          try { return engine.onLevelChange(cb) || function () {}; } catch (e) { return function () {}; }
+        }
+        pending.push(cb);
+        return function () { var i = pending.indexOf(cb); if (i >= 0) pending.splice(i, 1); };
+      },
+    };
   }
 
   // playRotating(mediaEl, channelName, showMsg)
   // Tra ve ham stop() de huy timer khi roi trang (khong bat buoc goi).
   global.playRotating = function (mediaEl, channelName, showMsg) {
     var engine = null, timer = null, stopped = false, immediateTries = 0;
+    var bridge = levelBridge();
     function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
     function scheduleRefresh(exp) {
       clearTimer();
@@ -87,6 +165,7 @@
         // swap() cua hls.js / native deu thay source ngay, link cu tu het tac dung.
         engine.swap(url);
       }
+      bridge.setEngine(engine);
       scheduleRefresh(exp);
     }
     function refresh(immediate) {
@@ -113,7 +192,7 @@
     }
     mediaEl.addEventListener("error", function () { refresh(true); });
     refresh(false);
-    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
+    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; }, getLevels: bridge.getLevels, setLevel: bridge.setLevel, getCurrentLevel: bridge.getCurrentLevel, isAutoLevel: bridge.isAutoLevel, onLevelChange: bridge.onLevelChange };
   };
 
   // playVtcanyLive(mediaEl, channelName, showMsg, onFallback)
@@ -127,6 +206,7 @@
   // fatal/403 thi xin moi ngay lap tuc, toi da 3 lan lien tiep.
   global.playVtcanyLive = function (mediaEl, channelName, showMsg, onFallback) {
     var engine = null, timer = null, stopped = false, immediateTries = 0, fallbackCalled = false;
+    var bridge = levelBridge();
     function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
     function scheduleRefresh(exp) {
       clearTimer();
@@ -140,6 +220,7 @@
         engine = attachHls(mediaEl, url, function (code) { if (code === 403 || code === null) refresh(true); });
         if (!engine) { showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất."); return; }
       } else engine.swap(url);
+      bridge.setEngine(engine);
       scheduleRefresh(exp);
     }
     function refresh(immediate) {
@@ -167,7 +248,7 @@
         });
     }
     refresh(false);
-    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
+    return { stop: function () { stopped = true; clearTimer(); if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; }, getLevels: bridge.getLevels, setLevel: bridge.setLevel, getCurrentLevel: bridge.getCurrentLevel, isAutoLevel: bridge.isAutoLevel, onLevelChange: bridge.onLevelChange };
   };
 
   // playTimeshift(mediaEl, url, showMsg): phat playlist VOD xem lai.
@@ -179,16 +260,20 @@
   // trinh duyet/hls.js).
   global.playTimeshift = function (mediaEl, url, showMsg) {
     var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được bản ghi xem lại. Có thể khoảng giờ này không có bản ghi."); });
+    var bridge = levelBridge();
+    if (engine) bridge.setEngine(engine);
     if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");
     else mediaEl.play().catch(function () {});
-    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
+    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; }, getLevels: bridge.getLevels, setLevel: bridge.setLevel, getCurrentLevel: bridge.getCurrentLevel, isAutoLevel: bridge.isAutoLevel, onLevelChange: bridge.onLevelChange };
   };
 
   // playDirect: phat thang stream_url cua DB noi bo (khong xoay).
   global.playDirect = function (mediaEl, url, showMsg) {
     var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được luồng. Vui lòng thử lại sau hoặc xem lịch phát sóng."); });
+    var bridge = levelBridge();
+    if (engine) bridge.setEngine(engine);
     if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");
     else mediaEl.play().catch(function () {});
-    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; } };
+    return { stop: function () { if (engine) engine.destroy(); }, getLivePosition: function () { return engine && engine.getLivePosition ? engine.getLivePosition() : null; }, getLevels: bridge.getLevels, setLevel: bridge.setLevel, getCurrentLevel: bridge.getCurrentLevel, isAutoLevel: bridge.isAutoLevel, onLevelChange: bridge.onLevelChange };
   };
 })(window);

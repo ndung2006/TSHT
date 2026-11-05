@@ -81,6 +81,7 @@
       media: videoEl,
       isVideo: true,
       mount: document.getElementById("lc-mount"),
+      frame: root.querySelector(".mm-media"),
       playerRoot: root.querySelector(".mm-player"),
       tapTarget: root.querySelector(".mm-media"),
       fullscreenTarget: root.querySelector(".mm-player"),
@@ -161,9 +162,11 @@
     var fallback = function () {
       if (window.playRotating) liveHandle = window.playRotating(media, current.name, showMsg);
       else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
+      if (ctrl) ctrl.setQualityHandle(liveHandle);
     };
     if (window.playVtcanyLive) liveHandle = window.playVtcanyLive(media, current.name, showMsg, fallback);
     else fallback();
+    if (ctrl) ctrl.setQualityHandle(liveHandle);
     // GĐ3 nen: heartbeat live (nhip 60 giay, dung khi stop/chuyen kenh).
     if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "live", media: media });
   }
@@ -203,8 +206,9 @@
         setBadgeReplay();
         showMediaFor(current);
         var media = current && current.kind === "radio" ? audioEl : videoEl;
-        if (ctrl && media) { ctrl.attachMedia(media, current.kind !== "radio"); ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
+        if (ctrl && media) { ctrl.attachMedia(media, current.kind !== "radio"); ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         if (media && window.playTimeshift) replayHandle = window.playTimeshift(media, item.replay_url, showMsg);
+        if (ctrl) ctrl.setQualityHandle(replayHandle);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "timeshift", media: media });
         renderSchedule();
@@ -483,6 +487,7 @@
         if (audioEl) audioEl.style.display = "none";
         if (ctrl && videoEl) { ctrl.attachMedia(videoEl, true); ctrl.setMode("vod"); ctrl.setRetry(function () { if (currentVideoId) playCatalogVideo(currentVideoId); }); ctrl.onStart(); }
         if (videoEl && window.playDirect) videoHandle = window.playDirect(videoEl, res.data.url, showMsg);
+        if (ctrl) ctrl.setQualityHandle(videoHandle);
         // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh).
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
         else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");

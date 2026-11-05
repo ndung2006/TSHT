@@ -62,6 +62,7 @@
       media: playerEl,
       isVideo: true,
       mount: document.getElementById("lc-mount"),
+      frame: document.querySelector(".live-player-wrap"),
       playerRoot: document.querySelector(".live-player-col"),
       fullscreenTarget: document.querySelector(".live-player-col"),
       getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
@@ -192,10 +193,12 @@
       liveHandle = window.playVtcanyLive(video, currentChannel, showMsg, function () {
         // Backend VTCANY chua san / kenh chua co link xoay: roi ve luong cu.
         liveHandle = window.playRotating(video, currentChannel, showMsg);
+        if (ctrl) ctrl.setQualityHandle(liveHandle);
       });
     } else {
       liveHandle = window.playDirect(video, channelStreamUrl, showMsg);
     }
+    if (ctrl) ctrl.setQualityHandle(liveHandle);
     // GĐ3 nen: heartbeat live (nhip 60 giay, dung khi stop/chuyen kenh).
     if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "live", media: video });
   }
@@ -223,8 +226,9 @@
         if (replayBar) replayBar.style.display = "block";
         hideMsg();
         var video = document.getElementById("player");
-        if (ctrl) { ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
+        if (ctrl) { ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(video, item.replay_url, showMsg);
+        if (ctrl) ctrl.setQualityHandle(replayHandle);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: video });
         renderLastSchedule();

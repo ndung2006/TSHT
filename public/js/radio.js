@@ -43,6 +43,7 @@
       media: audioEl,
       isVideo: false,
       mount: document.getElementById("lc-mount"),
+      frame: document.querySelector(".live-player-wrap"),
       playerRoot: document.querySelector(".live-player-col"),
       tapTarget: document.querySelector(".radio-poster"),
       getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
@@ -177,7 +178,7 @@
         if (replayBar) replayBar.style.display = "block";
         hideMsg();
         var audio = document.getElementById("player");
-        if (ctrl) { ctrl.setMode("replay"); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
+        if (ctrl) { ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(audio, item.replay_url, showMsg);
         // GĐ3 nen: heartbeat xem lai.
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: audio });

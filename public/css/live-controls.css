@@ -1,122 +1,165 @@
-/* LiveControls — thanh dieu khien tuy chinh cho player live (Buoc 0).
-   Dung chung cho trang truyen-hinh, phat-thanh va khoi da phuong tien
-   trang chu. Nen toi, chu trang, do chu dao #d61f2f (khop live.css). */
+/* LiveControls — thanh dieu khien PHU trong khung video (overlay).
+   Thanh nam o day khung (khung = .lc-frame, co position: relative),
+   nen gradient toi dan len trong suot de doc duoc tren ca nen sang va
+   nen toi. Tu an sau 3s khong re chuot khi dang phat (class
+   .lc-ui-hidden tren khung), hien lai khi re chuot / bam nut / phim
+   tat; luon hien khi tam dung; toan man hinh cung an con tro cung nhip.
+   Mau nhan duy nhat: #d61f2f (thanh tua, thanh am luong, cham TRUC
+   TIEP). Icon SVG net manh mau trang. */
+.lc-frame { position: relative; }
+.lc-frame.lc-ui-hidden { cursor: none; }
+
+/* Thanh phu day khung */
 .lc-bar {
-  margin-top: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  padding: 8px 10px;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+  background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0) 100%);
+  padding: 20px 10px 8px;
   color: #fff;
+  opacity: 1; visibility: visible;
+  transition: opacity .3s ease, visibility .3s ease;
 }
-.lc-bar.lc-hidden { display: none; }
+.lc-frame.lc-ui-hidden .lc-bar { opacity: 0; visibility: hidden; pointer-events: none; }
+/* Du phong: khong co khung thi thanh hien dang tinh ben duoi video nhu cu. */
+.lc-bar.lc-bar-static { position: static; background: #0f1b2d; padding: 8px 10px; }
+
+/* Thanh tua (hang tren, manh, toan chieu rong) */
 .lc-seek-wrap { position: relative; padding: 2px 0 6px; }
 .lc-seek {
-  width: 100%;
-  display: block;
-  accent-color: #d61f2f;
-  cursor: pointer;
-  margin: 0;
-  height: 18px;
+  -webkit-appearance: none; appearance: none;
+  width: 100%; display: block; height: 4px; border-radius: 2px;
+  background: rgba(255,255,255,0.35); outline: none; cursor: pointer;
+  margin: 0; padding: 0; transition: height .15s ease;
 }
+.lc-seek-wrap:hover .lc-seek { height: 6px; }
+.lc-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #fff; border: none; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.lc-seek::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #fff; border: none; cursor: pointer;
+}
+.lc-seek::-moz-range-track { height: 4px; border-radius: 2px; background: transparent; }
+.lc-seek::-moz-range-progress { height: 4px; border-radius: 2px; background: #d61f2f; }
 .lc-seek-tip {
-  position: absolute;
-  bottom: 100%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  color: #fff;
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 3;
+  position: absolute; bottom: 100%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85); color: #fff; font-size: 12px;
+  padding: 4px 8px; border-radius: 4px; white-space: nowrap;
+  pointer-events: none; z-index: 5;
 }
-.lc-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+
+/* Hang nut ben duoi */
+.lc-row { display: flex; align-items: center; gap: 4px; }
 .lc-btn {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 7px 10px;
-  cursor: pointer;
-  white-space: nowrap;
+  background: transparent; border: 0; color: #fff;
+  border-radius: 6px; padding: 7px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 0;
 }
-.lc-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.lc-btn:hover { background: rgba(255,255,255,0.18); }
 .lc-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.lc-play { min-width: 44px; }
-.lc-live.is-live {
-  background: #d61f2f;
-  border-color: #d61f2f;
+.lc-btn svg { width: 22px; height: 22px; display: block; }
+.lc-play svg { width: 26px; height: 26px; }
+.lc-live {
+  font: inherit; font-size: 13px; font-weight: 700;
+  padding: 7px 10px; white-space: nowrap; line-height: 1.2;
 }
-.lc-live.is-behind {
-  background: rgba(255, 255, 255, 0.16);
-  color: #e8e8e8;
-  font-variant-numeric: tabular-nums;
+.lc-live .lc-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: #d61f2f; margin-right: 6px; vertical-align: 1px;
 }
-.lc-unmute {
-  background: #d61f2f;
-  border-color: #d61f2f;
-}
+.lc-live.is-live { color: #fff; }
+.lc-live.is-behind { color: #c9d2e0; font-variant-numeric: tabular-nums; }
+.lc-live.is-replay { color: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.lc-live.is-vod { font-variant-numeric: tabular-nums; }
+.lc-spacer { flex: 1; }
+
+/* Loa + thanh am luong chi hien khi re chuot vao loa (desktop);
+   tren mobile (pointer: coarse) luon hien de cham duoc. */
+.lc-vol-wrap { display: inline-flex; align-items: center; }
 .lc-vol {
-  width: 110px;
-  accent-color: #d61f2f;
+  width: 0; opacity: 0; accent-color: #d61f2f; cursor: pointer;
+  transition: width .2s ease, opacity .2s ease;
+  padding: 0; margin: 0;
+}
+.lc-vol-wrap:hover .lc-vol,
+.lc-vol-wrap:focus-within .lc-vol { width: 96px; opacity: 1; }
+@media (pointer: coarse) {
+  .lc-vol { width: 72px; opacity: 1; }
+}
+
+/* Cai dat -> Chat luong */
+.lc-settings { position: relative; display: inline-flex; }
+.lc-menu {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 6;
+  min-width: 180px;
+  background: rgba(20, 20, 20, 0.96);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 8px; padding: 6px;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.lc-menu-title {
+  font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.65);
+  padding: 6px 10px 4px; text-transform: uppercase; letter-spacing: .4px;
+}
+.lc-menu-item {
+  display: flex; width: 100%; text-align: left;
+  background: transparent; border: 0; color: #fff;
+  font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 6px;
   cursor: pointer;
 }
-.lc-spacer { flex: 1; }
-.lc-status {
-  margin-top: 8px;
-  font-size: 14px;
-  padding: 8px 10px;
-  border-radius: 6px;
+.lc-menu-item:hover, .lc-menu-item:focus-visible { background: rgba(255,255,255,0.14); outline: none; }
+.lc-menu-item.is-active { font-weight: 700; }
+
+/* Nut Phat tron lon giua khung khi tam dung */
+.lc-center-play {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); border: 2px solid rgba(255,255,255,0.85);
+  color: #fff; cursor: pointer; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
 }
-.lc-loading {
-  color: #cfe0ff;
-  background: rgba(255, 255, 255, 0.08);
+.lc-center-play:hover { background: rgba(214,31,47,0.85); border-color: #fff; }
+.lc-center-play svg { width: 28px; height: 28px; margin-left: 3px; }
+
+/* Nhan nho "Bam de bat tieng" trong khung khi dang tat tieng.
+   Khong bi an cung thanh (chi an khi da bat tieng). */
+.lc-mute-hint {
+  position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%);
+  z-index: 4; display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px; padding: 7px 14px;
+  font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
 }
+.lc-mute-hint:hover { background: rgba(214,31,47,0.9); }
+.lc-mute-hint svg { width: 16px; height: 16px; }
+
+/* Trang thai tai / loi (nam trong thanh, duoi hang nut) */
+.lc-status { margin-top: 8px; font-size: 13px; }
+.lc-loading { color: #cfe0ff; }
 .lc-error {
-  color: #fff;
-  background: rgba(214, 31, 47, 0.25);
-  border: 1px solid rgba(214, 31, 47, 0.6);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  color: #ffb4b4; display: flex; align-items: center; gap: 8px;
 }
 .lc-retry {
-  background: #d61f2f;
-  color: #fff;
-  border: 0;
-  border-radius: 4px;
-  font: inherit;
-  font-size: 13px;
+  background: #d61f2f; color: #fff; border: 0; border-radius: 6px;
+  padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px;
   font-weight: 700;
-  padding: 6px 12px;
-  cursor: pointer;
 }
 .lc-retry:hover { background: #b81a28; }
-/* Lop phu "Dang tai" tren khung video (chi video, nam trong wrap). */
+
+/* Lop phu "Dang tai" tren khung video */
 .lc-overlay-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-weight: 700;
-  font-size: 16px;
-  z-index: 3;
-  pointer-events: none;
+  position: absolute; inset: 0; z-index: 3;
+  background: rgba(0,0,0,0.45); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; pointer-events: none;
 }
+
 /* Danh sach kenh tren trang truyen-hinh / phat-thanh. */
 .lc-channels {
   display: flex;
@@ -141,7 +184,15 @@
   background: #d61f2f;
   border-color: #d61f2f;
 }
+
 @media (max-width: 600px) {
-  .lc-vol { width: 80px; }
-  .lc-btn { padding: 6px 8px; font-size: 13px; }
+  .lc-bar { padding: 14px 6px 6px; }
+  .lc-btn { padding: 6px; }
+  .lc-btn svg { width: 20px; height: 20px; }
+  .lc-play svg { width: 24px; height: 24px; }
+  .lc-live { font-size: 12px; padding: 6px 8px; }
+  .lc-live.is-replay { max-width: 160px; }
+  .lc-center-play { width: 52px; height: 52px; }
+  .lc-center-play svg { width: 22px; height: 22px; }
+  .lc-mute-hint { bottom: 64px; font-size: 12px; padding: 6px 12px; }
 }
