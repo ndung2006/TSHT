@@ -41,7 +41,7 @@
     <section v-if="tierA.length" class="flex flex-col gap-4">
       <h2 class="font-semibold">Việc của tôi hôm nay</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <DashboardWidgetCard v-for="code in tierA" :key="code" :state="widgets[code]" @retry="loadWidget(code)" />
+        <DashboardWidgetCard v-for="code in tierA" :key="code" :state="widgets[code]" :id="code === 'A1' ? 'widget-A1' : undefined" @retry="loadWidget(code)" />
       </div>
       <!-- D5 len dau tren mobile (chung state voi o D5 o tang D) -->
       <div v-if="widgets['D5']" class="xl:hidden">
@@ -218,5 +218,22 @@ watch([period, line, customFrom, customTo], () => {
   if (layoutCodes.value.length) loadNonAWidgets();
 });
 
-onMounted(init);
+onMounted(async () => {
+  await init();
+  scrollToFocusWidget();
+});
+// Sidebar dot 2 phuong an (a): bam "Cho toi duyet" -> /?focus=A1, cuon
+// toi card A1. A1 co trong moi layout ke ca fallback nen ai cung toi
+// duoc; khong lam trang gop that o dot nay. Param focus giu nguyen
+// tren URL de muc ghim giu trang thai sang.
+const route = useRoute();
+function scrollToFocusWidget() {
+  if (route.query.focus !== 'A1') return;
+  const go = () => document.getElementById('widget-A1')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  nextTick(() => {
+    if (!document.getElementById('widget-A1')) setTimeout(go, 500);
+    else go();
+  });
+}
+watch(() => route.query.focus, scrollToFocusWidget);
 </script>

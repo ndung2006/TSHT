@@ -4,7 +4,7 @@
   Do chi cho canh bao (trang thai error / sap het han / tre han); so 0
   that hien 0, khong co nguon hien empty.reason (khong phai 0). -->
 <template>
-  <div class="surface-card flex flex-col p-5">
+  <div :id="id" class="surface-card flex flex-col p-5">
     <div class="mb-1 flex items-start justify-between gap-2">
       <h3 class="truncate font-semibold" :title="state.title">{{ state.title }}</h3>
       <span class="shrink-0 text-xs text-neutral-500">Tầng {{ state.tier }}</span>
@@ -303,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ state: any }>();
+const props = defineProps<{ state: any; id?: string }>();
 defineEmits(['retry', 'filter']);
 
 // Loc D4 khoi tao tu filters ma widget tra ve (neu co).
