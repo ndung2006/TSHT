@@ -40,7 +40,7 @@
 // chung, nen chay o container nao cung duoc mien la 3 dieu kien tren dung.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -66,7 +66,24 @@ export const CONFIG = {
   pollMs: Number(process.env.TRANSCODE_POLL_MS || 10000),
   ffmpegBin: process.env.FFMPEG_BIN || 'ffmpeg',
   ffprobeBin: process.env.FFPROBE_BIN || 'ffprobe',
+  // File heartbeat cho Dockerfile HEALTHCHECK (xem Dockerfile): worker ghi
+  // timestamp moi lan poll; healthcheck chi can file nay tuoi <= 90s,
+  // KHONG cham DB/backend. Mac dinh /tmp/worker-alive.
+  heartbeatFile: process.env.WORKER_HEARTBEAT_FILE || '/tmp/worker-alive',
 };
+
+// ---------------------------------------------------------------------------
+// Heartbeat: chung minh worker con song + dang lap (khong chi process ton tai)
+// ---------------------------------------------------------------------------
+
+/** Ghi timestamp hien tai (ms) ra file heartbeat; loi ghi KHONG duoc giet worker. */
+export function touchHeartbeat(file = CONFIG.heartbeatFile) {
+  try {
+    writeFileSync(file, `${Date.now()}\n`);
+  } catch {
+    // Ghi loi -> healthcheck se thay file cu/mat va bao truot; worker van chay.
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helper thuan (duoc test rieng trong transcode-worker.test.mjs)
@@ -437,7 +454,15 @@ async function main() {
   process.on('SIGTERM', () => { stopping = true; console.log('[worker] stopping after current job...'); });
   const inProgress = new Set();
   let lastRollupCall = 0;
+  // Heartbeat moi vong poll + them setInterval: 1 transcode dai (phut) await
+  // trong mainLoopOnce se chan vong lap — neu chi ghi o dau vong lap thi
+  // file se cu qua 90s giua transcode va healthcheck bao truot oan, co the
+  // bi restart giua chung. setInterval chay tren event loop nen van ghi
+  // deu trong luc ffmpeg dang chay.
+  touchHeartbeat();
+  const heartbeatTimer = setInterval(touchHeartbeat, CONFIG.pollMs);
   while (!stopping) {
+    touchHeartbeat();
     await mainLoopOnce(inProgress);
     if (stopping) break;
     // Tick gop ngay (GĐ3 nen): goi endpoint internal toi da 1 lan/gio.
@@ -453,6 +478,7 @@ async function main() {
     }
     await sleep(CONFIG.pollMs);
   }
+  clearInterval(heartbeatTimer);
   console.log('[worker] stopped');
 }
 
