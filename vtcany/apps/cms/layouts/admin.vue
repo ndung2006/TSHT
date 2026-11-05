@@ -1,9 +1,14 @@
 <template>
   <div class="flex min-h-screen">
-    <aside class="w-60 shrink-0 bg-admin p-4 text-neutral-200">
-      <NuxtLink to="/" class="flex items-center gap-2 px-2 py-3">
-        <img src="/icons/vtc-tsht/logo-vtc-tsht-transparent.svg" alt="VTC TSHT" width="130" height="50" />
-      </NuxtLink>
+    <!-- Drawer mobile: lop mo dong drawer khi bam ra ngoai -->
+    <div v-if="sidebarOpen" class="fixed inset-0 z-30 bg-black/50 md:hidden" @click="sidebarOpen = false" />
+    <aside :class="asideClass">
+      <div class="flex items-center justify-between">
+        <NuxtLink to="/" class="flex items-center gap-2 px-2 py-3">
+          <img src="/icons/vtc-tsht/logo-vtc-tsht-transparent.svg" alt="VTC TSHT" width="130" height="50" />
+        </NuxtLink>
+        <span class="md:hidden"><Button icon="pi pi-times" text rounded aria-label="Đóng menu" @click="sidebarOpen = false" /></span>
+      </div>
       <nav class="mt-2 flex flex-col text-sm">
         <div class="flex flex-col">
           <NuxtLink to="/"
@@ -63,7 +68,12 @@
     </aside>
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="flex items-center justify-between border-b border-neutral-800 bg-neutral-900 px-6 py-3">
-        <h1 class="text-base font-semibold">{{ pageTitle }}</h1>
+        <div class="flex items-center gap-2">
+          <span class="md:hidden"><Button icon="pi pi-bars" text rounded aria-label="Mở menu" @click="sidebarOpen = true" /></span>
+          <span class="hidden md:inline-block"><Button :icon="sidebarHidden ? 'pi pi-angle-double-right' : 'pi pi-angle-double-left'" text rounded
+            :aria-label="sidebarHidden ? 'Hiện sidebar' : 'Thu gọn sidebar'" @click="toggleSidebar" /></span>
+          <h1 class="text-base font-semibold">{{ pageTitle }}</h1>
+        </div>
         <div class="flex items-center gap-3">
           <Button :icon="dark ? 'pi pi-sun' : 'pi pi-moon'" text rounded @click="toggleDark" aria-label="Đổi giao diện" />
           <span class="text-sm text-neutral-400">{{ displayName }}</span>
@@ -326,7 +336,7 @@ async function loadCounts() {
   } catch { /* fail-open: giu so cu / an so */ }
 }
 onMounted(loadCounts);
-watch(() => route.path, () => { loadCounts(); });
+watch(() => route.path, () => { loadCounts(); openGroupForRoute(); sidebarOpen.value = false; });
 
 // Sidebar: tung nhom workspace dong/mo duoc bang mui ten (giong mau
 // tham chieu: '>' la dang thu, 'V' la dang mo). Mac dinh mo het nhu
@@ -346,9 +356,39 @@ onMounted(() => {
     const parsed = raw ? JSON.parse(raw) : [];
     if (Array.isArray(parsed)) collapsedGroups.value = parsed.filter((x) => typeof x === 'string');
   } catch { /* bo qua du lieu hong, giu mac dinh mo het */ }
+  try {
+    sidebarHidden.value = localStorage.getItem('cms_sidebar_hidden') === '1';
+  } catch { /* bo qua */ }
+  openGroupForRoute();
 });
 watch(collapsedGroups, (v) => {
   try { localStorage.setItem('cms_sidebar_collapsed', JSON.stringify(v)); } catch { /* bo qua */ }
+});
+
+// Sidebar dot 2: doi route -> tu mo nhom workspace dang thu ma chua
+// route hien tai (tinh ca muc con accordion); khong dong nhom khac,
+// khong ghi de lua chon thu/gap cua user cho cac nhom khac.
+function openGroupForRoute() {
+  const g = groups.value.find((grp) => grp.items.some((m) => m.to === route.path));
+  if (g && isCollapsed(g.id)) toggleGroup(g.id);
+}
+
+// Drawer mobile + thu gon sidebar toan cuc (dot 2). Truoc day aside
+// co dinh w-60, chi thu/gap tung nhom/cha. Drawer: tren mobile aside
+// an, bam nut menu thi hien dang drawer co dinh + lop mo; chon muc
+// (doi route) tu dong dong drawer. Nut thu gon chi tren desktop:
+// an han aside, bam lai thi hien; trang thai luu localStorage.
+const sidebarOpen = ref(false);
+const sidebarHidden = ref(false);
+const asideClass = computed(() => {
+  const base = 'w-60 shrink-0 bg-admin p-4 text-neutral-200';
+  if (sidebarHidden.value && !sidebarOpen.value) return `${base} hidden`;
+  if (sidebarOpen.value) return `${base} fixed inset-y-0 left-0 z-40 shadow-xl md:static md:z-auto md:shadow-none`;
+  return `${base} hidden md:block`;
+});
+function toggleSidebar() {
+  sidebarHidden.value = !sidebarHidden.value;
+  try { localStorage.setItem('cms_sidebar_hidden', sidebarHidden.value ? '1' : '0'); } catch { /* bo qua */ }
 });
 
 const titles: Record<string, string> = {
