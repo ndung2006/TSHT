@@ -105,26 +105,58 @@ test('Banner nam ngay sau Quang cao trong nhom Bao dien tu', () => {
   assert.equal(tos.indexOf('/banner'), tos.indexOf('/quang-cao-toa-soan') + 1);
 });
 
-test('3 muc cha accordion co dung menu con loc theo trang thai', () => {
+test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
   const tin = itemByTo('/tin-bai');
   assert.deepEqual(tin.children.map((c) => c.to), [
-    '/tin-bai?new=1', '/tin-bai?status=draft', '/tin-bai?status=pending_review', '/tin-bai?status=published',
+    '/tin-bai?new=1', '/tin-bai?status=draft', '/tin-bai?mine=1', '/tin-bai?mine=1&status=draft',
+    '/tin-bai?status=draft&returned=1', '/tin-bai?status=pending_review', '/tin-bai?status=published',
   ]);
-  assert.deepEqual(tin.children.map((c) => c.status), [null, 'draft', 'pending_review', 'published']);
+  assert.deepEqual(tin.children.map((c) => c.label), [
+    'Thêm bài viết', 'Bài nháp', 'Bài của tôi', 'Nháp của tôi', 'Bị trả về', 'Chờ duyệt', 'Đã xuất bản',
+  ]);
+  assert.deepEqual(tin.children.map((c) => c.countKey), [
+    null, 'draft', 'authored', 'draftMine', 'returned', 'pending', 'published',
+  ]);
   assert.equal(tin.children[0].action, 'create');
   assert.ok(tin.children.slice(1).every((c) => c.action === null));
 
   const print = itemByTo('/bai-bao-in');
   assert.deepEqual(print.children.map((c) => c.to), [
-    '/bai-bao-in?new=1', '/bai-bao-in?status=pending_review', '/bai-bao-in?status=approved',
+    '/bai-bao-in?new=1', '/bai-bao-in?status=draft', '/bai-bao-in?status=draft&returned=1',
+    '/bai-bao-in?status=pending_review', '/bai-bao-in?status=approved',
   ]);
-  assert.deepEqual(print.children.map((c) => c.status), [null, 'pending_review', 'approved']);
+  assert.deepEqual(print.children.map((c) => c.label), [
+    'Viết bài', 'Nháp', 'Bị trả về', 'Chờ duyệt', 'Đã duyệt, chờ dàn trang',
+  ]);
+  assert.deepEqual(print.children.map((c) => c.countKey), [null, 'draft', 'returned', 'pending', 'approved']);
+
+  const issue = itemByTo('/bao-in');
+  assert.deepEqual(issue.children.map((c) => c.to), [
+    '/bao-in?new=1', '/bao-in', '/bao-in?status=pending_review',
+  ]);
+  assert.deepEqual(issue.children.map((c) => c.label), ['Tạo số báo', 'Danh sách số báo', 'Chờ duyệt']);
+  assert.deepEqual(issue.children.map((c) => c.countKey), [null, 'total', 'pending']);
+  assert.equal(issue.children[0].action, 'create');
 
   const live = itemByTo('/tuong-thuat');
   assert.deepEqual(live.children.map((c) => c.to), [
-    '/tuong-thuat?new=1', '/tuong-thuat?status=draft', '/tuong-thuat?status=pending_review', '/tuong-thuat?status=published',
+    '/tuong-thuat?new=1', '/tuong-thuat?status=draft', '/tuong-thuat?status=draft&returned=1',
+    '/tuong-thuat?status=pending_review', '/tuong-thuat?status=published',
   ]);
-  assert.deepEqual(live.children.map((c) => c.status), [null, 'draft', 'pending_review', 'published']);
+  assert.deepEqual(live.children.map((c) => c.countKey), [null, 'draft', 'returned', 'pending', 'published']);
+
+  // countKey khong trung trong cung muc cha (ke ca 'draft' toan cuc vs
+  // 'draftMine' cua minh); muc Tao... khong co so.
+  for (const m of [tin, print, issue, live]) {
+    const keys = m.children.map((c) => c.countKey).filter((k) => k !== null);
+    assert.equal(new Set(keys).size, keys.length, `${m.to} co countKey trung`);
+    assert.ok(m.children[0].countKey === null);
+  }
+});
+
+test('dot 2 khong doi so muc cap 1 (van 40 khi toan quyen)', () => {
+  const groups = visibleMenu(['*']);
+  assert.equal(routes(groups).length, 40);
 });
 
 test('hasModuleAction: menu Them chi hien khi co quyen create', () => {

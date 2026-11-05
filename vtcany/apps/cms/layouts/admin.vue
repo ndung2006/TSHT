@@ -5,6 +5,20 @@
         <img src="/icons/vtc-tsht/logo-vtc-tsht-transparent.svg" alt="VTC TSHT" width="130" height="50" />
       </NuxtLink>
       <nav class="mt-2 flex flex-col text-sm">
+        <div class="flex flex-col">
+          <NuxtLink to="/"
+            class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
+            :class="{ '!bg-white/15 font-semibold': route.path === '/' && !route.query.focus }">
+            <i class="pi pi-home" />
+            Tổng quan
+          </NuxtLink>
+          <NuxtLink to="/?focus=A1"
+            class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/10"
+            :class="{ '!bg-white/15 font-semibold': route.path === '/' && route.query.focus === 'A1' }">
+            <i class="pi pi-inbox" />
+            <span class="truncate">Chờ tôi duyệt<template v-if="myQueueCount !== null"> ({{ myQueueCount }})</template></span>
+          </NuxtLink>
+        </div>
         <template v-for="g in groups" :key="g.id">
           <button type="button"
             class="mt-3 flex w-full items-center gap-2 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-300"
@@ -32,7 +46,7 @@
                   <NuxtLink v-for="c in visibleChildren(m)" :key="c.to" :to="c.to"
                     class="flex items-center gap-3 rounded-lg py-2 pl-11 pr-3 hover:bg-white/10"
                     :class="{ '!bg-white/15 font-semibold': isChildActive(m, c) }">
-                    <span class="truncate">{{ c.label }}<template v-if="countFor(m, c) !== null"> ({{ countFor(m, c) }})</template></span>
+                    <span class="truncate">{{ c.label }}<template v-if="countFor(m, c) !== null"> (<span :title="countTitle(m, c)">{{ countFor(m, c).value }}</span>)</template></span>
                   </NuxtLink>
                 </template>
               </template>
@@ -257,43 +271,59 @@ function toggleParent(m: any) {
 function visibleChildren(m: any) {
   return (m.children || []).filter((c: any) => hasModuleAction(permissions.value, m.module, c.action));
 }
+// Muc con sang khi path khop muc cha VA moi tham so query trong link
+// con deu khop query hien tai (khong chi status nhu dot 1): bao quat
+// ?new=1, ?mine=1, ?status=draft&returned=1, ?mine=1&status=draft...
+// Link con khong co query (vd 'Danh sach so bao' -> /bao-in) thi chi
+// can path khop (moi muc con deu sang khi dang o trang cha khong loc).
+function childQuery(to: string): Record<string, string> {
+  const i = to.indexOf('?');
+  if (i < 0) return {};
+  const out: Record<string, string> = {};
+  for (const part of to.slice(i + 1).split('&')) {
+    const [k, v] = part.split('=');
+    if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || '');
+  }
+  return out;
+}
 function isChildActive(m: any, c: any) {
   if (route.path !== m.to) return false;
-  if (c.status === null) return route.query.new === '1';
-  return route.query.status === c.status;
+  const q = childQuery(c.to);
+  return Object.entries(q).every(([k, v]) => String((route.query as any)[k] ?? '') === v);
 }
 
-// Dem so cho menu con accordion: tin bai dung endpoint counts san co
-// (1 goi, tra du cac trang thai); bai bao in + tuong thuat dung list
-// limit=1 doc total (chua co endpoint counts rieng). Fail-open: loi thi
-// an so, khong chan sidebar. Tai lai moi lan chuyen trang de so khong
-// loi thoi sau khi tao/duyet bai.
-const counts = ref<Record<string, number | null>>({});
-function countKey(parentTo: string, status: string) { return `${parentTo}|${status}`; }
-function countFor(m: any, c: any): number | null {
-  if (c.status === null) return null;
-  return counts.value[countKey(m.to, c.status)] ?? null;
+// Dem so cho menu con accordion dot 2: 1 lan goi duy nhat
+// GET /admin/sidebar-counts (thay news/counts + list limit=1 dot 1).
+// Sidebar hien ngay, so tai sau: truoc khi goi xong thi khong render
+// so (null); loi thi an so, khong hien 0 (fail-open). Tai lai moi lan
+// chuyen trang de so khong loi thoi sau khi tao/duyet bai.
+const sidebarCounts = ref<any>(null);
+const myQueueCount = computed(() => {
+  const v = sidebarCounts.value?.myQueue?.value;
+  return typeof v === 'number' ? v : null;
+});
+// Anh xa muc cha -> muc trong response sidebar-counts.
+const countSection: Record<string, string> = {
+  '/tin-bai': 'news',
+  '/bai-bao-in': 'printArticle',
+  '/bao-in': 'epaper',
+  '/tuong-thuat': 'liveblog',
+};
+function countFor(m: any, c: any): { value: number; scope: string } | null {
+  if (!c.countKey) return null;
+  const cell = sidebarCounts.value?.[countSection[m.to]]?.[c.countKey];
+  return cell && typeof cell.value === 'number' ? cell : null;
+}
+function countTitle(m: any, c: any): string {
+  const cell = countFor(m, c);
+  if (!cell) return '';
+  return cell.scope === 'wide' ? 'Tính tất cả trong tòa soạn' : 'Chỉ tính trong phạm vi của bạn';
 }
 async function loadCounts() {
-  const jobs: Array<Promise<void>> = [];
-  const parents = groups.value.flatMap((g) => g.items).filter((m: any) => m.children?.length);
-  for (const m of parents) {
-    if (m.to === '/tin-bai') {
-      jobs.push(api.get<any>('/admin/news/counts', {}).then((r: any) => {
-        if (!r) return;
-        for (const s of ['draft', 'pending_review', 'published']) counts.value[countKey(m.to, s)] = typeof r[s] === 'number' ? r[s] : null;
-      }).catch(() => {}));
-    } else if (m.to === '/bai-bao-in' || m.to === '/tuong-thuat') {
-      const ep = m.to === '/bai-bao-in' ? '/admin/print-articles' : '/admin/liveblogs';
-      for (const c of m.children) {
-        if (!c.status) continue;
-        jobs.push(api.get<any>(ep, { status: c.status, limit: 1 }).then((r: any) => {
-          counts.value[countKey(m.to, c.status)] = typeof r?.total === 'number' ? r.total : null;
-        }).catch(() => {}));
-      }
-    }
-  }
-  await Promise.all(jobs);
+  try {
+    const r = await api.get<any>('/admin/sidebar-counts', {});
+    if (r) sidebarCounts.value = r;
+  } catch { /* fail-open: giu so cu / an so */ }
 }
 onMounted(loadCounts);
 watch(() => route.path, () => { loadCounts(); });

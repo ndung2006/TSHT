@@ -20,6 +20,14 @@
 //   theo endpoint /admin/catalog/files/all ma trang do dang dung.
 // - Vung hien thi (Zones) giu quyen zones:* rieng, chi doi vi tri hien
 //   thi: cuoi nhom Quan ly giao dien.
+// - Dot 2 sidebar 2026-11-05: So bao thanh accordion (Tao so bao / Danh
+//   sach / Cho duyet); Bai bao in them Nhap + Bi tra ve, doi nhan
+//   "Them bai bao in" -> "Viet bai", "Da duyet" -> "Da duyet, cho dan
+//   trang"; Tin bai them Bai cua toi / Nhap cua toi / Bi tra ve; Tuong
+//   thuat them Bi tra ve. Moi muc co so co countKey rieng de doc tu
+//   GET /admin/sidebar-counts (khong dung lai list limit=1 hay
+//   news/counts nua). Khoi ghim Tong quan / Cho toi duyet nam o
+//   layouts/admin.vue, khong nam trong MENU_ITEMS.
 // - Trang khong gate quyen (Thong ke, module = null) luon hien nhu hien
 //   tai, vi trang do tu than khong kiem tra quyen.
 
@@ -32,10 +40,16 @@ export interface Workspace {
 export interface MenuChild {
   to: string;
   label: string;
-  /** Gia tri status de loc danh sach; null = menu "Them..." (mo dialog). */
+  /** Gia tri status de loc danh sach; null = khong loc theo status (menu
+   *  "Them..." hoac "Bai cua toi" / "Danh sach so bao"). */
   status: string | null;
   /** Hanh dong quyen bo sung (vd 'create'); null = chi can quyen module. */
   action: string | null;
+  /** Khoa so dem trong GET /admin/sidebar-counts (theo muc cha); null =
+   *  muc khong co so (menu "Them..." / "Tao..."). Moi muc co so trong
+   *  cung muc cha phai co countKey khac nhau (vd 'draft' toan cuc vs
+   *  'draftMine' cua minh) de so khong de len nhau. */
+  countKey: string | null;
 }
 
 export interface MenuItem {
@@ -71,33 +85,46 @@ export const MENU_ITEMS: MenuItem[] = [
   { to: '/danh-sach-phat', label: 'Danh sách phát', icon: 'pi-list', workspace: 'tv', module: 'playlists' },
   { to: '/thu-vien', label: 'Kho Media (DAM)', icon: 'pi-images', workspace: 'tv', module: 'media' },
   // (2) Xuat ban Bao in
-  { to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper' },
+  {
+    to: '/bao-in', label: 'Báo in', icon: 'pi-book', workspace: 'print', module: 'epaper',
+    children: [
+      { to: '/bao-in?new=1', label: 'Tạo số báo', status: null, action: 'create', countKey: null },
+      { to: '/bao-in', label: 'Danh sách số báo', status: null, action: null, countKey: 'total' },
+      { to: '/bao-in?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
+    ],
+  },
   {
     to: '/bai-bao-in', label: 'Bài báo in', icon: 'pi-file-edit', workspace: 'print', module: 'print_articles',
     children: [
-      { to: '/bai-bao-in?new=1', label: 'Thêm bài báo in', status: null, action: 'create' },
-      { to: '/bai-bao-in?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
-      { to: '/bai-bao-in?status=approved', label: 'Đã duyệt', status: 'approved', action: null },
+      { to: '/bai-bao-in?new=1', label: 'Viết bài', status: null, action: 'create', countKey: null },
+      { to: '/bai-bao-in?status=draft', label: 'Nháp', status: 'draft', action: null, countKey: 'draft' },
+      { to: '/bai-bao-in?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/bai-bao-in?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
+      { to: '/bai-bao-in?status=approved', label: 'Đã duyệt, chờ dàn trang', status: 'approved', action: null, countKey: 'approved' },
     ],
   },
   // (3) Xuat ban Bao dien tu
   {
     to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles',
     children: [
-      { to: '/tin-bai?new=1', label: 'Thêm bài viết', status: null, action: 'create' },
-      { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null },
-      { to: '/tin-bai?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
-      { to: '/tin-bai?status=published', label: 'Đã xuất bản', status: 'published', action: null },
+      { to: '/tin-bai?new=1', label: 'Thêm bài viết', status: null, action: 'create', countKey: null },
+      { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null, countKey: 'draft' },
+      { to: '/tin-bai?mine=1', label: 'Bài của tôi', status: null, action: null, countKey: 'authored' },
+      { to: '/tin-bai?mine=1&status=draft', label: 'Nháp của tôi', status: 'draft', action: null, countKey: 'draftMine' },
+      { to: '/tin-bai?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/tin-bai?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
+      { to: '/tin-bai?status=published', label: 'Đã xuất bản', status: 'published', action: null, countKey: 'published' },
     ],
   },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
   {
     to: '/tuong-thuat', label: 'Tường thuật', icon: 'pi-megaphone', workspace: 'online', module: 'liveblog',
     children: [
-      { to: '/tuong-thuat?new=1', label: 'Thêm tường thuật', status: null, action: 'create' },
-      { to: '/tuong-thuat?status=draft', label: 'Nháp', status: 'draft', action: null },
-      { to: '/tuong-thuat?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null },
-      { to: '/tuong-thuat?status=published', label: 'Đã xuất bản', status: 'published', action: null },
+      { to: '/tuong-thuat?new=1', label: 'Thêm tường thuật', status: null, action: 'create', countKey: null },
+      { to: '/tuong-thuat?status=draft', label: 'Nháp', status: 'draft', action: null, countKey: 'draft' },
+      { to: '/tuong-thuat?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/tuong-thuat?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
+      { to: '/tuong-thuat?status=published', label: 'Đã xuất bản', status: 'published', action: null, countKey: 'published' },
     ],
   },
   { to: '/quang-cao-toa-soan', label: 'Quảng cáo', icon: 'pi-bullseye', workspace: 'online', module: 'newsroom_ads' },
