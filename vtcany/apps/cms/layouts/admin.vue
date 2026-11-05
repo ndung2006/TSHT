@@ -292,7 +292,10 @@ function childQuery(to: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const part of to.slice(i + 1).split('&')) {
     const [k, v] = part.split('=');
-    if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    // src la metadata chip (vd src=menu cua muc Bi tra ve), khong phai
+    // loc — bo qua khi so khop de drill B1 (khong co src) van sang
+    // dung muc con nhu truoc.
+    if (k && k !== 'src') out[decodeURIComponent(k)] = decodeURIComponent(v || '');
   }
   return out;
 }

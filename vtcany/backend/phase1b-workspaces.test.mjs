@@ -122,7 +122,7 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
   const tin = itemByTo('/tin-bai');
   assert.deepEqual(tin.children.map((c) => c.to), [
     '/tin-bai?new=1', '/tin-bai?status=draft', '/tin-bai?mine=1', '/tin-bai?mine=1&status=draft',
-    '/tin-bai?status=draft&returned=1', '/tin-bai?status=pending_review', '/tin-bai?status=published',
+    '/tin-bai?status=draft&returned=1&src=menu', '/tin-bai?status=pending_review', '/tin-bai?status=published',
   ]);
   assert.deepEqual(tin.children.map((c) => c.label), [
     'Thêm bài viết', 'Bài nháp', 'Bài của tôi', 'Nháp của tôi', 'Bị trả về', 'Chờ duyệt', 'Đã xuất bản',
@@ -135,7 +135,7 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
 
   const print = itemByTo('/bai-bao-in');
   assert.deepEqual(print.children.map((c) => c.to), [
-    '/bai-bao-in?new=1', '/bai-bao-in?status=draft', '/bai-bao-in?status=draft&returned=1',
+    '/bai-bao-in?new=1', '/bai-bao-in?status=draft', '/bai-bao-in?status=draft&returned=1&src=menu',
     '/bai-bao-in?status=pending_review', '/bai-bao-in?status=approved',
   ]);
   assert.deepEqual(print.children.map((c) => c.label), [
@@ -153,7 +153,7 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
 
   const live = itemByTo('/tuong-thuat');
   assert.deepEqual(live.children.map((c) => c.to), [
-    '/tuong-thuat?new=1', '/tuong-thuat?status=draft', '/tuong-thuat?status=draft&returned=1',
+    '/tuong-thuat?new=1', '/tuong-thuat?status=draft', '/tuong-thuat?status=draft&returned=1&src=menu',
     '/tuong-thuat?status=pending_review', '/tuong-thuat?status=published',
   ]);
   assert.deepEqual(live.children.map((c) => c.countKey), [null, 'draft', 'returned', 'pending', 'published']);
@@ -165,6 +165,12 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
     assert.equal(new Set(keys).size, keys.length, `${m.to} co countKey trung`);
     assert.ok(m.children[0].countKey === null);
   }
+});
+
+test('chi 3 muc con Bi tra ve mang src=menu de chip phan biet nguon menu voi drill B1', () => {
+  const withSrc = MENU_ITEMS.flatMap((m) => (m.children || []).filter((c) => c.to.includes('src=menu')));
+  assert.deepEqual(withSrc.map((c) => c.label), ['Bị trả về', 'Bị trả về', 'Bị trả về']);
+  for (const c of withSrc) assert.ok(c.to.includes('status=draft&returned=1&src=menu'), c.to);
 });
 
 test('dot 2 khong doi so muc cap 1 trong cac nhom (van 40 khi toan quyen; 20 muc con)', () => {

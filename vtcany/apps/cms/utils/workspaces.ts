@@ -98,7 +98,7 @@ export const MENU_ITEMS: MenuItem[] = [
     children: [
       { to: '/bai-bao-in?new=1', label: 'Viết bài', status: null, action: 'create', countKey: null },
       { to: '/bai-bao-in?status=draft', label: 'Nháp', status: 'draft', action: null, countKey: 'draft' },
-      { to: '/bai-bao-in?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/bai-bao-in?status=draft&returned=1&src=menu', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
       { to: '/bai-bao-in?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
       { to: '/bai-bao-in?status=approved', label: 'Đã duyệt, chờ dàn trang', status: 'approved', action: null, countKey: 'approved' },
     ],
@@ -111,7 +111,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null, countKey: 'draft' },
       { to: '/tin-bai?mine=1', label: 'Bài của tôi', status: null, action: null, countKey: 'authored' },
       { to: '/tin-bai?mine=1&status=draft', label: 'Nháp của tôi', status: 'draft', action: null, countKey: 'draftMine' },
-      { to: '/tin-bai?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/tin-bai?status=draft&returned=1&src=menu', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
       { to: '/tin-bai?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
       { to: '/tin-bai?status=published', label: 'Đã xuất bản', status: 'published', action: null, countKey: 'published' },
     ],
@@ -122,7 +122,7 @@ export const MENU_ITEMS: MenuItem[] = [
     children: [
       { to: '/tuong-thuat?new=1', label: 'Thêm tường thuật', status: null, action: 'create', countKey: null },
       { to: '/tuong-thuat?status=draft', label: 'Nháp', status: 'draft', action: null, countKey: 'draft' },
-      { to: '/tuong-thuat?status=draft&returned=1', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
+      { to: '/tuong-thuat?status=draft&returned=1&src=menu', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
       { to: '/tuong-thuat?status=pending_review', label: 'Chờ duyệt', status: 'pending_review', action: null, countKey: 'pending' },
       { to: '/tuong-thuat?status=published', label: 'Đã xuất bản', status: 'published', action: null, countKey: 'published' },
     ],

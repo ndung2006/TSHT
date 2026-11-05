@@ -47,15 +47,29 @@ export function useDrillQuery() {
     channel: () => 'theo kênh',
     date: (v) => `ngày ${v}`,
   };
-  const drillLabel = computed(() => Object.entries(drill.value)
-    .map(([k, v]) => (LABELS[k] ? LABELS[k](v) : `${k}=${v}`)).join(' · '));
+  // Tham so nguon chi de phan biet chip, khong phai loc: menu sidebar
+  // gan src=menu cho muc con "Bi tra ve" (workspaces.ts); drill tu B1
+  // khong co src. src doc truc tiep tu route.query, khong nam trong
+  // drill.value nen khong bao gio gui kem API danh sach (khong can
+  // sua initDrill cac trang).
+  const drillSrc = computed(() => (route.query.src === 'menu' ? 'menu' : null));
+
+  const drillLabel = computed(() => {
+    // Chip cua muc con menu "Bi tra ve" (src=menu): ghi dung ten muc
+    // "Bi tra ve" thay cho "Nhap · bi tra ve" cua drill B1.
+    if (drillSrc.value === 'menu' && drill.value.returned) return 'Bị trả về';
+    return Object.entries(drill.value)
+      .map(([k, v]) => (LABELS[k] ? LABELS[k](v) : `${k}=${v}`)).join(' · ');
+  });
 
   // Chip loc: khi drill chi co duy nhat status (truong hop vao tu menu
   // sidebar ?status=), hien "Dang loc: <trang thai>" thay cho "Dang loc
   // theo dashboard". Dashboard drill thuong kem q/myQueue/... nen van
-  // giu chu cu khi co them khoa khac.
+  // giu chu cu khi co them khoa khac. Rieng drill tu menu (src=menu)
+  // luon hien "Dang loc:" du query co nhieu khoa (vd Bi tra ve gom
+  // status + returned) — phan biet voi drill cung query tu B1.
   const isStatusOnlyDrill = computed(() => Object.keys(drill.value).length === 1 && drill.value.status !== undefined);
-  const chipPrefix = computed(() => (isStatusOnlyDrill.value ? 'Đang lọc:' : 'Đang lọc theo dashboard:'));
+  const chipPrefix = computed(() => (drillSrc.value === 'menu' || isStatusOnlyDrill.value ? 'Đang lọc:' : 'Đang lọc theo dashboard:'));
 
-  return { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix };
+  return { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix, drillSrc };
 }
