@@ -118,10 +118,11 @@ export class EpaperController {
   @RequirePerms('epaper:view')
   @Get()
   async list(@Query() q: any, @Req() req: any) {
+    const id = await this.identity(req);
     return this.epaper.list({
       issueType: q?.issueType, q: q?.q, status: q?.status, page: q?.page, limit: q?.limit,
       workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned,
-      neverSubmitted: q?.neverSubmitted, actorId: req.user?.sub || null,
+      neverSubmitted: q?.neverSubmitted, actorId: id.actorId, actorRoleName: id.actorRole, actorIsFullAdmin: id.isFullAdmin,
       issueNumber: q?.issueNumber, publishDate: q?.publishDate,
     });
   }

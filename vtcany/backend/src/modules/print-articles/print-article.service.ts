@@ -9,6 +9,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
+import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
 import { slugify, type Actor } from '../news/news.service';
 import {
   WORKFLOW_ACTION_LABELS,
@@ -276,10 +277,10 @@ export class PrintArticleService {
 
   // ---------------- Admin: danh sach / chi tiet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null }) {
+  async listAdmin(params: { q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean }) {
     const page = Math.max(1, parseInt(String(params.page ?? 1), 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(String(params.limit ?? 20), 10) || 20));
-    const where: any = {};
+    let where: any = {};
     if (params.q?.trim()) where.title = { contains: params.q.trim(), mode: 'insensitive' };
     if (params.status) where.status = params.status;
     // Drill myQueue: truyen roleNames cua buoc hien tai de vong lap cung
@@ -292,6 +293,15 @@ export class PrintArticleService {
       if (st) drillParams.stepRoleNames = st.roleNames?.length ? st.roleNames : [st.roleName];
     }
     await applyDrillWhere(this.prisma, 'printArticle', 'printArticleApproval', 'articleId', where, drillParams, params.actorId);
+    // Gioi han pham vi dot 2 cho role hep (chi draft / pending_review),
+    // ap SAU drill de AND voi where drill (returned -> nhap bi tra cua
+    // minh). Drill myQueue / theo buoc duoc loai tru trong helper.
+    where = applyNarrowScope(where, {
+      status: params.status, myQueue: params.myQueue, workflowStep: params.workflowStep,
+      mine: params.mine, returned: params.returned, neverSubmitted: params.neverSubmitted,
+      actor: { id: params.actorId ?? null, roleName: params.actorRoleName ?? null, isFullAdmin: !!params.actorIsFullAdmin },
+      mySteps: myStepNumbers(this.wf.steps('print-article'), params.actorRoleName ?? null),
+    });
     const [rows, total] = await Promise.all([
       this.prisma.printArticle.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       this.prisma.printArticle.count({ where }),

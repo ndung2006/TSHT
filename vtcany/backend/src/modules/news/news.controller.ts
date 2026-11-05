@@ -140,7 +140,7 @@ export class NewsController {
   @Get()
   async list(@Query() q: any, @Req() req: any) {
     const a = await this.actor(req);
-    return this.news.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo, page: q?.page, limit: q?.limit, scope: q?.scope, actorId: a.id, workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned, neverSubmitted: q?.neverSubmitted, scheduled: q?.scheduled, publishFrom: q?.publishFrom, publishTo: q?.publishTo, unpublishedFrom: q?.unpublishedFrom, unpublishedTo: q?.unpublishedTo });
+    return this.news.listAdmin({ q: q?.q, status: q?.status, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo, page: q?.page, limit: q?.limit, scope: q?.scope, actorId: a.id, actorRoleName: a.roleName, actorIsFullAdmin: a.isFullAdmin, workflowStep: q?.workflowStep, myQueue: q?.myQueue, mine: q?.mine, returned: q?.returned, neverSubmitted: q?.neverSubmitted, scheduled: q?.scheduled, publishFrom: q?.publishFrom, publishTo: q?.publishTo, unpublishedFrom: q?.unpublishedFrom, unpublishedTo: q?.unpublishedTo });
   }
 
   // PHAI dat truoc @Get(':publicId'): neu khong Nest se hieu 'counts' /
@@ -149,7 +149,7 @@ export class NewsController {
   @Get('counts')
   async counts(@Query() q: any, @Req() req: any) {
     const a = await this.actor(req);
-    return this.news.countsAdmin({ q: q?.q, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo, scope: q?.scope, actorId: a.id });
+    return this.news.countsAdmin({ q: q?.q, categoryId: q?.categoryId, author: q?.author, contentType: q?.contentType, dateFrom: q?.dateFrom, dateTo: q?.dateTo, scope: q?.scope, actorId: a.id, actorRoleName: a.roleName, actorIsFullAdmin: a.isFullAdmin });
   }
 
   // So lieu "Bai viet cua toi" cho tai khoan dang nhap (2026-11-01).

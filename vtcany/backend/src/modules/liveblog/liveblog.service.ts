@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
+import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
 import {
   WORKFLOW_ACTION_LABELS, checkSeparationOfDuties,
 } from './liveblog-workflow';
@@ -195,10 +196,10 @@ export class LiveblogService {
 
   // ---------------- Admin: liveblog ----------------
 
-  async listAdmin(params: { q?: string; status?: string; eventId?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null }) {
+  async listAdmin(params: { q?: string; status?: string; eventId?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
-    const where: any = {};
+    let where: any = {};
     if (params.status) where.status = params.status;
     if (params.eventId) {
       const ev = await this.prisma.newsroomEvent.findFirst({
@@ -214,6 +215,14 @@ export class LiveblogService {
       ];
     }
     await applyDrillWhere(this.prisma, 'liveblog', 'liveblogApproval', 'liveblogId', where, params, params.actorId);
+    // Gioi han pham vi dot 2 cho role hep (xem sidebar-scope.ts), ap SAU
+    // drill de AND voi where drill. Drill myQueue / theo buoc loai tru.
+    where = applyNarrowScope(where, {
+      status: params.status, myQueue: params.myQueue, workflowStep: params.workflowStep,
+      mine: params.mine, returned: params.returned, neverSubmitted: params.neverSubmitted,
+      actor: { id: params.actorId ?? null, roleName: params.actorRoleName ?? null, isFullAdmin: !!params.actorIsFullAdmin },
+      mySteps: myStepNumbers(this.wf.steps('liveblog'), params.actorRoleName ?? null),
+    });
     const [total, rows] = await Promise.all([
       this.prisma.liveblog.count({ where }),
       this.prisma.liveblog.findMany({

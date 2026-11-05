@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
+import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
 import { UploadsService } from '../uploads/uploads.service';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -225,10 +226,10 @@ export class EpaperService {
     });
   }
 
-  async list(query: { issueType?: string; q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; issueNumber?: string; publishDate?: string }) {
+  async list(query: { issueType?: string; q?: string; status?: string; page?: number; limit?: number; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean; issueNumber?: string; publishDate?: string }) {
     const page = Math.max(1, Math.trunc(Number(query.page) || 1));
     const limit = Math.min(100, Math.max(1, Math.trunc(Number(query.limit) || 20)));
-    const where: any = {};
+    let where: any = {};
     if (query.issueType && isIssueType(query.issueType)) where.issueType = query.issueType;
     if (query.status && ['draft', 'pending_review', 'published'].includes(query.status)) where.status = query.status;
     if (query.q && String(query.q).trim()) {
@@ -249,6 +250,14 @@ export class EpaperService {
       where.publishDate = { gte: from, lt: new Date(from.getTime() + 24 * 3600_000) };
     }
     await applyDrillWhere(this.prisma, 'epaperIssue', 'epaperIssueApproval', 'issueId', where, query, query.actorId);
+    // Gioi han pham vi dot 2 cho role hep (xem sidebar-scope.ts), ap SAU
+    // drill de AND voi where drill. Drill myQueue / theo buoc loai tru.
+    where = applyNarrowScope(where, {
+      status: query.status, myQueue: query.myQueue, workflowStep: query.workflowStep,
+      mine: query.mine, returned: query.returned, neverSubmitted: query.neverSubmitted,
+      actor: { id: query.actorId ?? null, roleName: query.actorRoleName ?? null, isFullAdmin: !!query.actorIsFullAdmin },
+      mySteps: myStepNumbers(this.wf.steps('epaper'), query.actorRoleName ?? null),
+    });
     const [rows, total] = await Promise.all([
       this.prisma.epaperIssue.findMany({
         where, orderBy: [{ publishDate: 'desc' }, { issueNumber: 'desc' }],

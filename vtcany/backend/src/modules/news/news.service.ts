@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { drillNeverSubmittedIds, drillReturnedIds, drillUnpublishedIds } from '../dashboard/dashboard-queries';
+import { applyNarrowScope, isNarrowScopeActor, myStepNumbers } from '../dashboard/sidebar-scope';
 import { pvEditCheck } from '../auth/author-edit-guard';
 import { resolveCoverAndDedupe } from './cover-dedupe';
 import {
@@ -338,7 +339,7 @@ export class NewsService {
 
   // ---------------- Admin: bai viet ----------------
 
-  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
+  async listAdmin(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number; scope?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
     const where = await this.buildListWhere(params);
@@ -358,13 +359,14 @@ export class NewsService {
 
   /**
    * Dieu kien loc dung chung cho list + counts de hai cho khong bao gio
-   * lech nhau. listAdmin hien khong loc theo role/phong ban — counts cung
-   * khong, co tinh (neu sau nay them scoping thi them o day, ca hai cung
-   * huong). Ngay loc tren createdAt (luon co, ke ca bai nhap chua co
-   * publishAt); ngay sai dinh dang thi bo qua (giong cach loc lenh lac
-   * hien co: status la cung tra 0 dong chu khong 400).
+   * lech nhau. Tu dot 2 sidebar, listAdmin CO gioi han pham vi voi role
+   * hep (xem sidebar-scope.ts): status=draft chi cua minh,
+   * status=pending_review la cua minh hoac buoc minh duoc duyet; cac
+   * trang thai khac van toan cuc. Ngay loc tren createdAt (luon co, ke
+   * ca bai nhap chua co publishAt); ngay sai dinh dang thi bo qua (giong
+   * cach loc lenh lac hien co: status la cung tra 0 dong chu khong 400).
    */
-  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
+  private async buildListWhere(params: { q?: string; status?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean; workflowStep?: string; myQueue?: string; mine?: string; returned?: string; neverSubmitted?: string; scheduled?: string; publishFrom?: string; publishTo?: string; unpublishedFrom?: string; unpublishedTo?: string }) {
     const where: any = {};
     if (params.status) where.status = params.status;
     // Loc "cua toi" (day so lieu ca nhan, 2026-11-01): mine = bai do chinh
@@ -448,11 +450,20 @@ export class NewsService {
       if (from) where.createdAt.gte = new Date(`${from}T00:00:00`);
       if (to) where.createdAt.lte = new Date(`${to}T23:59:59.999`);
     }
-    return where;
+    // Gioi han pham vi dot 2 cho role hep (chi draft / pending_review;
+    // cac trang thai khac giu toan cuc). Ap CUOI CUNG de AND voi toan bo
+    // where tren, ke ca loc drill (returned/neverSubmitted -> draft).
+    return applyNarrowScope(where, {
+      status: params.status, myQueue: params.myQueue, workflowStep: params.workflowStep,
+      mine: params.mine, scopeParam: params.scope, returned: params.returned,
+      neverSubmitted: params.neverSubmitted,
+      actor: { id: params.actorId ?? null, roleName: params.actorRoleName ?? null, isFullAdmin: !!params.actorIsFullAdmin },
+      mySteps: myStepNumbers(this.wf.steps('news'), params.actorRoleName ?? null),
+    });
   }
 
   /** So dem theo trang thai duoi cung bo loc (tru status) voi listAdmin. */
-  async countsAdmin(params: { q?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null }) {
+  async countsAdmin(params: { q?: string; categoryId?: string; author?: string; contentType?: string; dateFrom?: string; dateTo?: string; scope?: string; actorId?: string | null; actorRoleName?: string | null; actorIsFullAdmin?: boolean }) {
     const where = await this.buildListWhere(params);
     const [total, groups] = await Promise.all([
       this.prisma.newsArticle.count({ where }),
@@ -460,6 +471,18 @@ export class NewsService {
     ]);
     const out: any = { total, draft: 0, pending_review: 0, published: 0, unpublished: 0 };
     for (const g of groups) if (g.status in out) out[g.status] = g._count._all;
+    // Role hep: 2 ngan draft / pending_review phai dem theo pham vi hep
+    // (giong list) chu khong lay so toan cuc tu groupBy — neu khong so
+    // tren menu se lech so dong danh sach khi bam.
+    const actor = { id: params.actorId ?? null, roleName: params.actorRoleName ?? null, isFullAdmin: !!params.actorIsFullAdmin };
+    if (isNarrowScopeActor(actor)) {
+      const [draft, pending] = await Promise.all([
+        this.prisma.newsArticle.count({ where: await this.buildListWhere({ ...params, status: 'draft' }) }),
+        this.prisma.newsArticle.count({ where: await this.buildListWhere({ ...params, status: 'pending_review' }) }),
+      ]);
+      out.draft = draft;
+      out.pending_review = pending;
+    }
     return out;
   }
 
