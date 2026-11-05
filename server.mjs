@@ -403,6 +403,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/epaper" ||
       /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover|\/pages\/\d+)?$/.test(u.pathname) ||
       u.pathname === "/api/v2/news" ||
+      u.pathname === "/api/v2/news/search" ||
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/news-categories" ||
       u.pathname === "/api/v2/site-interface" ||
@@ -891,6 +892,22 @@ const server = http.createServer(async (req, res) => {
       const per = Math.max(1, Number(d.limit) || 20);
       return json(res, 200, { items, total: d.total || 0, page: d.page || 1, total_pages: Math.max(1, Math.ceil((d.total || 0) / per)) });
     }
+    // GET /api/v2/news/search — proxy sang backend GET /api/v1/news/search
+    // (forward du tham so q,q2,scope,category,contentType,from,to,exact,
+    // sort,page,limit); tra {data:[newsListItem], total, page, limit}.
+    // Dat TRUOC newsSlugMatch ben duoi: "search" khop regex slug.
+    if (req.method === "GET" && u.pathname === "/api/v2/news/search") {
+      const bq = new URLSearchParams();
+      for (const k of ["q", "q2", "scope", "category", "contentType", "from", "to", "exact", "sort", "page", "limit"]) {
+        const v = u.searchParams.get(k);
+        if (v) bq.set(k, v);
+      }
+      const ext = await fetchVtcanyEpaperJson(`/news/search?${bq}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong tim duoc tin bai");
+      const d = ext.data || {};
+      const items = (d.data || []).map(newsListItem);
+      return json(res, 200, { data: items, total: d.total || 0, page: d.page || 1, limit: d.limit || 20 });
+    }
     const newsSlugMatch = u.pathname.match(/^\/api\/v2\/news\/([a-z0-9-]+)$/);
     if (req.method === "GET" && newsSlugMatch) {
       const ext = await fetchVtcanyEpaperJson(`/news/${newsSlugMatch[1]}`);
@@ -1250,6 +1267,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/nen-tang-so") return serveFile(res, path.join(PUBLIC, "nen-tang-so.html"), undefined, u.pathname);
     if (u.pathname === "/su-kien") return serveFile(res, path.join(PUBLIC, "su-kien.html"), undefined, u.pathname);
     if (u.pathname === "/tuong-thuat") return serveFile(res, path.join(PUBLIC, "tuong-thuat.html"), undefined, u.pathname);
+    if (u.pathname === "/tim-kiem") return serveFile(res, path.join(PUBLIC, "tim-kiem.html"), undefined, u.pathname);
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     // Dang nhap CMS: /login phuc vu trang login.html cu (trang dang nhap
     // noi bo cu, form username/password -> POST /api/v1/auth/login; khong

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tìm kiếm — Tòa soạn hội tụ</title>
+<link rel="stylesheet" href="/css/home.css?v=20261105-2">
+<link rel="stylesheet" href="/css/header.css?v=20261105-3">
+<link rel="stylesheet" href="/css/footer.css?v=20261105-1">
+<link rel="stylesheet" href="/css/search.css?v=20261105-1"><link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+</head>
+<body id="top">
+<!-- @HEADER -->
+
+<main class="wrap">
+  <h1 class="section-title">Tìm kiếm</h1>
+  <form id="search-form" class="search-filters" role="search">
+    <div class="search-field">
+      <label for="f-q">Từ khóa</label>
+      <input id="f-q" type="search" name="q" maxlength="200" placeholder="Nhập từ khóa…" autocomplete="off">
+    </div>
+    <div class="search-field">
+      <label for="f-q2">Từ khóa thêm</label>
+      <input id="f-q2" type="search" name="q2" maxlength="200" placeholder="Kết quả phải chứa cả từ khóa này" autocomplete="off">
+    </div>
+    <div class="search-field">
+      <label for="f-cat">Chuyên mục</label>
+      <select id="f-cat" name="cat">
+        <option value="all">Tất cả chuyên mục</option>
+      </select>
+    </div>
+    <div class="search-field">
+      <label for="f-scope">Tìm theo</label>
+      <select id="f-scope" name="scope">
+        <option value="title">Tiêu đề</option>
+        <option value="title-sapo" selected>Tiêu đề và sapo</option>
+        <option value="all">Toàn bộ nội dung</option>
+      </select>
+    </div>
+    <div class="search-field">
+      <label for="f-type">Loại nội dung</label>
+      <select id="f-type" name="type">
+        <option value="all">Tất cả loại nội dung</option>
+        <option value="text">Bài viết</option>
+        <option value="video">Video</option>
+        <option value="audio">Audio / Podcast</option>
+        <option value="gallery">Chùm ảnh</option>
+        <option value="infographic">Infographic</option>
+        <option value="emagazine">Emagazine</option>
+      </select>
+    </div>
+    <div class="search-field">
+      <label for="f-sort">Sắp xếp</label>
+      <select id="f-sort" name="sort">
+        <option value="relevance">Liên quan nhất</option>
+        <option value="newest">Mới nhất</option>
+      </select>
+    </div>
+    <div class="search-field">
+      <label for="f-from">Từ ngày</label>
+      <input id="f-from" type="date" name="from">
+    </div>
+    <div class="search-field">
+      <label for="f-to">Đến ngày</label>
+      <input id="f-to" type="date" name="to">
+    </div>
+    <div class="search-field search-exact">
+      <label><input id="f-exact" type="checkbox" name="exact" value="1"> Tìm chính xác</label>
+    </div>
+    <div class="search-field search-submit">
+      <button type="submit">Tìm</button>
+    </div>
+  </form>
+  <p id="search-note" class="search-note" hidden></p>
+  <p id="search-status" class="search-status" aria-live="polite"></p>
+  <div id="search-hint" class="search-hint">
+    <p>Nhập từ khóa hoặc chọn bộ lọc rồi bấm <strong>Tìm</strong>.</p>
+  </div>
+  <div id="search-results" class="search-results"></div>
+  <p id="search-pager" class="pager"></p>
+  <p><a href="/">← Về trang chủ</a></p>
+</main>
+<!-- @FOOTER -->
+<script src="/js/header.js?v=20261105-2"></script>
+<script src="/js/search.js?v=20261105-1"></script>
+</body></html>
