@@ -898,6 +898,10 @@
         },
         showError: function () { showError(true); },
         hideError: function () { showError(false); },
+        // Tat overlay "Dang tai…" (ke ca watchdog): dung khi khoi dong
+        // phat that bai truoc khi co media (vd fetch link VOD loi) de
+        // khong ket overlay dang tai tren player dung im.
+        hideLoading: function () { clearWatchdog(); showLoading(false); },
         togglePlay: togglePlay,
         seekToLive: seekToLive,
         skip: skip,

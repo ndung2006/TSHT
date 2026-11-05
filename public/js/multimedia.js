@@ -71,6 +71,16 @@
   var liveHandle = null, replayHandle = null, videoHandle = null, replayingKey = null, replayTitle = "", videoTitle = "";
   var lastItems = null, lastMeta = null;
   var replayItem = null, currentVideoId = null;
+  // VOD last-click-wins (loi thumbnail 2026-11-05: 3 cum bam dau khong
+  // doi player, nhan hien sai tieu de truoc roi moi dung): moi cum bam
+  // tang seq + huy fetch /play cu; phan hoi cu (du ve sau) bi bo qua
+  // hoan toan, khong doi badge/tieu de/heartbeat/handle.
+  var vodSeq = 0;
+  var vodAborter = null;
+  // Prefetch link phat cho cac the hien thi (xem loadVideos): link co
+  // han 15 phut (server tra) nen chi dung khi con tuoi < 10 phut.
+  var vodPrefetch = {}; // publicId -> { url, fetchedAt }
+  var VOD_PREFETCH_MAX_AGE_MS = 10 * 60 * 1000;
 
   // Thanh dieu khien tuy chinh (LiveControls, Buoc 0) dung chung cho ca
   // video va audio: doi kenh doi the media qua attachMedia. Am luong /
@@ -467,32 +477,87 @@
             card.addEventListener("click", function () { playCatalogVideo(card.getAttribute("data-id")); });
           })(cards[i]);
         }
+        // Prefetch link phat cho cac the vua ve: cum bam sau do khong
+        // phai doi leg /play (~1s) nua. Link chi co han 15 phut nen
+        // luu kem thoi diem lay; khi bam, link qua 10 phut tuoi se bi
+        // bo va fetch moi (xem playCatalogVideo). Loi prefetch thi im
+        // lang — cum bam se fetch lai nhu cu.
+        items.forEach(function (it) {
+          if (!it.publicId) return;
+          fetch("/api/v2/vod/video/" + encodeURIComponent(it.publicId) + "/play")
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.url) vodPrefetch[it.publicId] = { url: d.url, fetchedAt: Date.now() }; })
+            .catch(function () {});
+        });
       })
       .catch(function () { videosBox.innerHTML = "<p class=\"mm-videos-empty\">Chưa tải được danh sách video.</p>"; });
+  }
+  function fetchVodPlayUrl(publicId, signal) {
+    return fetch("/api/v2/vod/video/" + encodeURIComponent(publicId) + "/play", signal ? { signal: signal } : {})
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); });
+  }
+  function markSelectedVideoCard(publicId) {
+    if (!videosBox) return;
+    var cards = videosBox.querySelectorAll(".mm-video-card");
+    for (var i = 0; i < cards.length; i++) {
+      var on = cards[i].getAttribute("data-id") === publicId;
+      if (on) { cards[i].classList.add("is-selected"); cards[i].setAttribute("aria-current", "true"); }
+      else { cards[i].classList.remove("is-selected"); cards[i].removeAttribute("aria-current"); }
+    }
   }
   function playCatalogVideo(publicId) {
     var card = videosBox ? videosBox.querySelector(".mm-video-card[data-id=\"" + publicId + "\"]") : null;
     var title = card ? card.getAttribute("aria-label") : "";
-    fetch("/api/v2/vod/video/" + encodeURIComponent(publicId) + "/play")
-      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    // Last-click-wins: tang seq + huy fetch /play dang do cua cum bam
+    // truoc (neu co). Phan hoi cu ve sau se bi bo qua o .then/.catch.
+    var seq = ++vodSeq;
+    if (vodAborter) { try { vodAborter.abort(); } catch (e) {} }
+    var aborter = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    vodAborter = aborter;
+    // Phan hoi NGAY, dong bo — khong doi mang: the duoc chon sang len,
+    // dung phat + heartbeat cu (khong chong tieng), hien "Dang tai…" +
+    // tieu de video vua bam, chuyen khung player sang video.
+    markSelectedVideoCard(publicId);
+    stopAll();
+    videoTitle = title;
+    currentVideoId = publicId;
+    setMode("video");
+    setBadgeVideo();
+    if (videoEl) videoEl.style.display = "block";
+    if (radioArt) radioArt.style.display = "none";
+    if (audioEl) audioEl.style.display = "none";
+    if (ctrl && videoEl) { ctrl.attachMedia(videoEl, true); ctrl.setMode("vod"); ctrl.setRetry(function () { if (currentVideoId) playCatalogVideo(currentVideoId); }); ctrl.onStart(); }
+    // Link phat: dung link prefetch neu con tuoi, khong thi fetch moi.
+    var cached = vodPrefetch[publicId];
+    var urlPromise;
+    if (cached && cached.url && Date.now() - cached.fetchedAt < VOD_PREFETCH_MAX_AGE_MS) {
+      urlPromise = Promise.resolve({ status: 200, data: { url: cached.url } });
+    } else {
+      urlPromise = fetchVodPlayUrl(publicId, aborter ? aborter.signal : null);
+    }
+    urlPromise
       .then(function (res) {
-        if (res.status !== 200 || !res.data.url) { showMsg("Không phát được video này (" + (res.data.error || res.status) + ")."); return; }
-        stopAll();
-        videoTitle = title;
-        currentVideoId = publicId;
-        setMode("video");
-        setBadgeVideo();
-        if (videoEl) videoEl.style.display = "block";
-        if (radioArt) radioArt.style.display = "none";
-        if (audioEl) audioEl.style.display = "none";
-        if (ctrl && videoEl) { ctrl.attachMedia(videoEl, true); ctrl.setMode("vod"); ctrl.setRetry(function () { if (currentVideoId) playCatalogVideo(currentVideoId); }); ctrl.onStart(); }
+        if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua
+        if (res.status !== 200 || !res.data.url) {
+          if (ctrl && ctrl.hideLoading) ctrl.hideLoading();
+          showMsg("Không phát được video này (" + (res.data.error || res.status) + ").");
+          return;
+        }
+        // Ghi lai link vua dung de cum bam lai cung the khong fetch nua.
+        vodPrefetch[publicId] = { url: res.data.url, fetchedAt: Date.now() };
         if (videoEl && window.playDirect) videoHandle = window.playDirect(videoEl, res.data.url, showMsg);
         if (ctrl) ctrl.setQualityHandle(videoHandle);
-        // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh).
+        // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh) — chi
+        // cua video dang phat that (seq moi nhat).
         if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
         else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
       })
-      .catch(function () { showMsg("Không phát được video này (lỗi mạng)."); });
+      .catch(function (e) {
+        if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua
+        if (e && e.name === "AbortError") return; // bi cum moi hon huy: im lang
+        if (ctrl && ctrl.hideLoading) ctrl.hideLoading();
+        showMsg("Không phát được video này (lỗi mạng).");
+      });
   }
   // Nut ve live cua khoi da phuong tien: nhan "Ve truc tiep" (Buoc 0).
   if (liveBtn) {

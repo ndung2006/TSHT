@@ -234,3 +234,7 @@ button.mm-row.is-now:hover { background: #c21717; }
   #home-body { grid-template-columns: 1fr; }
   .cat-block-body { grid-template-columns: 1fr; }
 }
+
+/* VOD (p1-vod-thumbnail): the video dang chon trong khoi Da phuong tien — sang len ngay khi bam. */
+.mm-video-card.is-selected .mm-thumb { outline: 2px solid #d61f2f; outline-offset: 2px; }
+.mm-video-card.is-selected .mm-video-title { font-weight: 700; }
