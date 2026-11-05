@@ -16,7 +16,7 @@
     </div>
 
     <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
-      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <span class="text-sm">{{ chipPrefix }} <b>{{ drillLabel }}</b></span>
       <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
     </div>
 
@@ -293,7 +293,7 @@ const q = ref('');
 const issueType = ref('');
 const statusFilter = ref('');
 // Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
-const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
+const { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix } = useDrillQuery();
 
 async function load(page = 1) {
   loading.value = true;
@@ -779,5 +779,31 @@ async function removeItem(it: any) {
 }
 
 initDrill(['q', 'status', 'issueType', 'issueNumber', 'publishDate', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
+// Sidebar submenu (?status= / ?new=1): dong bo dropdown loc theo query,
+// ca khi chuyen query ngay tren cung trang (mau tin-bai.vue dot 1).
+const route = useRoute();
+const router = useRouter();
+const SIDEBAR_STATUSES = ['draft', 'pending_review', 'published'];
+const _qs = route.query.status;
+if (typeof _qs === 'string' && SIDEBAR_STATUSES.includes(_qs)) statusFilter.value = _qs;
+function applySidebarQuery() {
+  initDrill(['q', 'status', 'issueType', 'issueNumber', 'publishDate', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted']);
+  const s = route.query.status;
+  const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
+  const changed = next !== statusFilter.value;
+  if (changed) statusFilter.value = next;
+  if (route.query.new === '1') {
+    openAdd();
+    router.replace({ query: { ...route.query, new: undefined } });
+    if (changed) load(1);
+    return;
+  }
+  if (changed) load(1);
+}
+watch(() => route.query, applySidebarQuery);
+if (route.query.new === '1') {
+  openAdd();
+  router.replace({ query: { ...route.query, new: undefined } });
+}
 load(1);
 </script>

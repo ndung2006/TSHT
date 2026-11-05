@@ -15,7 +15,7 @@
     </div>
 
     <div v-if="hasDrill" class="surface-card flex flex-wrap items-center gap-2 p-3">
-      <span class="text-sm">Đang lọc theo dashboard: <b>{{ drillLabel }}</b></span>
+      <span class="text-sm">{{ chipPrefix }} <b>{{ drillLabel }}</b></span>
       <Button label="Xóa lọc" size="small" severity="secondary" text @click="clearDrill(); load(1);" />
     </div>
 
@@ -215,7 +215,7 @@ const loading = ref(false);
 const q = ref('');
 const statusFilter = ref('');
 // Drill-down tu dashboard GĐ1 (doc route.query, truyen vao API danh sach).
-const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
+const { drill, hasDrill, initDrill, clearDrill, drillLabel, chipPrefix } = useDrillQuery();
 const cats = ref<any[]>([]);
 
 const statusOptions = [
@@ -578,6 +578,20 @@ watch(returnDlg, async (v) => {
 });
 
 initDrill(['q', 'status', 'categoryId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted', 'scheduled']);
+// Dong bo dropdown loc theo query (mau tin-bai.vue dot 1): hien dropdown
+// dung trang thai ngay ca khi vao trang tu drill/menu co ?status=, va
+// khi chuyen query ngay tren cung trang.
+const route = useRoute();
+const SIDEBAR_STATUSES = ['draft', 'pending_review', 'published', 'unpublished'];
+const _qs = route.query.status;
+if (typeof _qs === 'string' && SIDEBAR_STATUSES.includes(_qs)) statusFilter.value = _qs;
+function applySidebarQuery() {
+  initDrill(['q', 'status', 'categoryId', 'workflowStep', 'myQueue', 'mine', 'returned', 'neverSubmitted', 'scheduled']);
+  const s = route.query.status;
+  const next = typeof s === 'string' && SIDEBAR_STATUSES.includes(s) ? s : '';
+  if (next !== statusFilter.value) { statusFilter.value = next; load(1); }
+}
+watch(() => route.query, applySidebarQuery);
 loadCats();
 load(1);
 </script>
