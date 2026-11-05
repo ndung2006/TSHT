@@ -408,6 +408,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v2/site-interface" ||
       u.pathname === "/api/v2/home-blocks" ||
       /^\/api\/v2\/zones\/[a-z0-9-]+$/.test(u.pathname) ||
+      /^\/api\/v2\/home-slots\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/distribution" ||
       u.pathname === "/api/v2/events" ||
       /^\/api\/v2\/events\/[a-z0-9-]+$/.test(u.pathname) ||
@@ -981,6 +982,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && zoneMatch) {
       const ext = await fetchVtcanyEpaperJson(`/zones/${zoneMatch[1]}`);
       if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong lay duoc vung hien thi");
+      const d = ext.data || {};
+      return json(res, 200, { key: d.key, name: d.name, slotLimit: d.slotLimit, items: (d.items || []).map(newsListItem) });
+    }
+
+    // ---- Sap xep Tin noi bat / Tin tieu diem (Buoc 0, phuong an A) ----
+    // GET /api/v2/home-slots/:block — danh sach da sap (noi-bat |
+    // tieu-diem), nguon duy nhat cho 2 khoi hero trang chu. Rong la hop
+    // le (tra items rong, home.js hien "Chua co tin."); chi khi backend
+    // chua co endpoint thi tra 502 de home.js roi ve duong cu.
+    const homeSlotMatch = u.pathname.match(/^\/api\/v2\/home-slots\/([a-z0-9-]+)$/);
+    if (req.method === "GET" && homeSlotMatch) {
+      const ext = await fetchVtcanyEpaperJson(`/home-slots/${homeSlotMatch[1]}`);
+      if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong lay duoc danh sach sap xep");
       const d = ext.data || {};
       return json(res, 200, { key: d.key, name: d.name, slotLimit: d.slotLimit, items: (d.items || []).map(newsListItem) });
     }

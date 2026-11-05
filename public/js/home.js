@@ -10,7 +10,10 @@
 //     co trong danh sach public.
 //   GET /api/v2/news?category=<slug>&limit=5 -> bai da xuat ban cua
 //     mot chuyen muc (khoi chuyen muc: 1 bai lon + toi da 4 bai sau).
-//   GET /api/v2/zones/tieu-diem -> khoi Hero (bai ghim + lap day).
+//   GET /api/v2/zones/tieu-diem -> khoi Hero CU (bai ghim + lap day),
+//     chi dung lam fallback khi endpoint moi loi (xem loadHeroBlock).
+//   GET /api/v2/home-slots/noi-bat | tieu-diem -> 2 khoi Hero (nguon
+//     duy nhat, danh sach da sap; rong la hop le, khong tu lap).
 // Cac khoi trung da go 2026-11-04: luoi Tin tieu diem duoi hero, dai
 // Dang phat cu, cum TV/PHAT THANH TRUC TUYEN/VIDEO MOI, khoi Noi bat
 // giua trang (bao in + BAN DOC QUAN TAM lap lan 2), danh sach Tin moi
@@ -83,8 +86,10 @@
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></button>";
   }
-  // Link duoi tin lon: chi tu bai tick Tieu diem rieng (khong lay tu
-  // zone, khong lay tu bai Noi bat), tru tin lon dang hien, toi da 3.
+  // Link duoi tin lon: tu danh sach Tin tieu diem da sap, tru tin lon
+  // dang hien, toi da 3. Neu tin lon cung nam trong danh sach (bai vua
+  // la Bai chinh vua trong Tieu diem) thi bo link trung do, khong lap
+  // bai khac vao cho do.
   function heroLinks(spotItems, heroUrl) {
     var links = (spotItems || []).filter(function (it) { return it.url && it.url !== heroUrl; }).slice(0, 3);
     if (!links.length) return "";
@@ -160,6 +165,12 @@
       renderHeroBlock(el, zoneItems, sideItems, (heroIdx + 1) % zoneItems.length, spotItems);
     });
   }
+  // Khoi Tin noi bat / Tin tieu diem — danh sach sap xep rieng (Buoc 0
+  // 2026-11-05, phuong an A): trang chu doc GET /api/v2/home-slots/
+  // noi-bat va /tieu-diem lam nguon duy nhat. Fallback ve nguon cu
+  // (zone tieu-diem, roi isFeatured) CHI khi endpoint moi LOI (fetch
+  // fail / HTTP >= 400); danh sach moi rong la hop le (hien "Chua co
+  // tin."), khong tu lap bai khac.
   function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
     var el = document.getElementById(elId);
     if (!el) return;
@@ -170,9 +181,8 @@
     }
     function show(zoneItems) {
       if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; return; }
-      // Bai Tieu diem rieng (spotlight=1): luoi toi da 4 + link toi da
-      // 3 tru hero -> limit 4 la du trong moi truong hop (hero co
-      // trong danh sach hay khong). Loi tai -> coi nhu rong (an khoi).
+      // Danh sach Tieu diem da sap (toi da 3); heroLinks() tru tin lon
+      // dang hien roi lay toi da 3. Loi tai -> coi nhu rong (an khoi).
       function renderWithSpot(spotItems) {
         fetchItems("/api/v2/news?limit=12").then(function (latest) {
           var seen = {};
@@ -181,15 +191,18 @@
           renderHeroBlock(el, zoneItems, side, 0, spotItems);
         }).catch(function () { renderHeroBlock(el, zoneItems, [], 0, spotItems); });
       }
-      fetchItems("/api/v2/news?spotlight=1&limit=4").then(renderWithSpot, function () { renderWithSpot([]); });
+      fetchItems("/api/v2/home-slots/tieu-diem").then(renderWithSpot, function () { renderWithSpot([]); });
     }
     function loadFallback() {
-      fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
+      // Duong cu: zone tieu-diem truoc (ghim + lap day), roi featured.
+      fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
+        if (items.length) show(items);
+        else fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
+      }).catch(function () {
+        fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
+      });
     }
-    fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
-      if (items.length) show(items);
-      else loadFallback();
-    }).catch(loadFallback);
+    fetchItems("/api/v2/home-slots/noi-bat").then(show).catch(loadFallback);
   }
   loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (hot link, khoi
