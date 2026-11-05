@@ -55,6 +55,13 @@
       var tapTarget = opts.tapTarget || media;
       var fsTarget = opts.fullscreenTarget || null;
       var mode = "live"; // live | replay | vod
+      // behind = nguoi dung da chu dong lui/kéo ve sau mep live (vd bam -10s
+      // mot lan). Nhan TRUC TIẾP chi do theo lag > LIVE_LAG_S (10s) thi
+      // mot lan -10s roi dung ngay nguong 10s se van hien do — sai tieu chi
+      // (loi live 2026-11-05: bam -10s 1 lan van do, 2 lan moi xam -00:20).
+      // behind duoc dat khi lui/kéo ve sau, xoa khi ve live hoac khi seek
+      // hoan tat va da o trong 2s quanh mep live (onSeeked).
+      var behind = false;
       var retryFn = null;
       var lastViewState = null;
       var started = false;
@@ -207,7 +214,7 @@
       function viewState() {
         if (mode === "vod") return "vod";
         if (mode === "replay") return "timeshift";
-        return currentLag() > LIVE_LAG_S ? "timeshift" : "live";
+        return (behind || currentLag() > LIVE_LAG_S) ? "timeshift" : "live";
       }
       function reportViewState() {
         var st = viewState();
@@ -233,6 +240,7 @@
           target = media.currentTime + sec;
           if (target < r.start) target = r.start;
           if (target > edge) target = edge;
+          if (sec < 0) behind = true; // chu dong lui: hien xam ngay ca khi lag dung o nguong 10s
         } else {
           if (!isFinite(media.duration)) return;
           target = media.currentTime + sec;
@@ -244,6 +252,7 @@
       function seekToLive() {
         var edge = liveEdge();
         if (edge == null) return;
+        behind = false;
         media.currentTime = edge;
         if (media.paused) media.play().catch(function () {});
       }
@@ -305,7 +314,7 @@
       function updateLiveLabel() {
         if (mode === "live") {
           var lag = currentLag();
-          if (lag > LIVE_LAG_S) {
+          if (behind || lag > LIVE_LAG_S) {
             liveBtn.textContent = "−" + fmtMMSS(lag);
             liveBtn.classList.remove("is-live");
             liveBtn.classList.add("is-behind");
@@ -352,11 +361,22 @@
       function onMediaError() { if (started && !media.paused) showError(true); }
       function onVolumeChange() { syncMuteUi(); }
       function onLoadedMetadata() { updateSeek(); }
+      // Seek hoan tat: chot lai co dang o sau mep live khong. Day la noi
+      // duy nhat xoa 'behind' theo vi tri that (tranh race: tick 500ms co
+      // the do truoc khi seek ap dung, lam mat co behind vua dat).
+      function onSeeked() {
+        if (mode === "live") {
+          var e = liveEdge();
+          if (e != null) behind = (e - media.currentTime) > 2;
+          tick();
+        }
+      }
 
       var mediaHandlers = [
         ["play", onPlay], ["pause", onPause], ["timeupdate", onTimeUpdate],
         ["waiting", onWaiting], ["playing", onPlaying], ["error", onMediaError],
         ["volumechange", onVolumeChange], ["loadedmetadata", onLoadedMetadata],
+        ["seeked", onSeeked],
       ];
       function bindMedia() {
         for (var i = 0; i < mediaHandlers.length; i++) media.addEventListener(mediaHandlers[i][0], mediaHandlers[i][1]);
@@ -387,6 +407,7 @@
         if (mode === "live") {
           var edge = liveEdge();
           if (edge != null && v > edge) v = edge;
+          if (edge != null && edge - v > 2) behind = true; // kéo ve sau mep live
         } else if (isFinite(media.duration) && v > media.duration) v = media.duration;
         if (v < 0) v = 0;
         media.currentTime = v;
@@ -501,6 +522,7 @@
       return {
         setMode: function (m) {
           if (m === "live" || m === "replay" || m === "vod") mode = m;
+          behind = false;
           lastViewState = null;
           tick();
         },
@@ -518,6 +540,7 @@
         skip: skip,
         setMuted: setMuted,
         attachMedia: function (newMedia, newIsVideo) {
+          behind = false;
           if (!newMedia || newMedia === media) {
             isVideo = !!newIsVideo;
             syncPipFsUi();

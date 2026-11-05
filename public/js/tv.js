@@ -172,9 +172,13 @@
     if (!item.replay_url) return;
     // Kiem tra truoc khi dung live: neu timeshift loi thi giu nguyen live
     // dang phat va bao ro ly do, khong de player dung hinh o trang thai loi.
-    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 45000) : null;
-    fetch(item.replay_url, ctrl ? { signal: ctrl.signal } : {})
+    // LUU Y: bien aborter (AbortController cho fetch kiem tra) KHONG duoc
+    // dat ten 'ctrl' — 'ctrl' o day la LiveControls o pham vi ngoai, va
+    // dung ten trung se che mat no khien ctrl.setMode bi loi (loi live
+    // 2026-11-05: "ctrl.setMode is not a function", xem lai khong chay).
+    var aborter = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = aborter ? setTimeout(function () { aborter.abort(); }, 45000) : null;
+    fetch(item.replay_url, aborter ? { signal: aborter.signal } : {})
       .then(function (r) {
         if (timer) clearTimeout(timer);
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
