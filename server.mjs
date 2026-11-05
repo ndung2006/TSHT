@@ -415,6 +415,7 @@ const server = http.createServer(async (req, res) => {
       /^\/api\/v2\/liveblogs\/[a-z0-9-]+$/.test(u.pathname) ||
       u.pathname === "/api/v2/ads" ||
       u.pathname === "/api/v2/catalog-videos" ||
+      u.pathname === "/api/v2/catalog-categories" ||
       /^\/api\/v2\/vod\/(video|short|episode)\/[0-9a-f]{24}\/play$/.test(u.pathname) ||
       /^\/api\/v2\/media\/[A-Za-z0-9_-]{1,64}\/mp4$/.test(u.pathname) ||
       u.pathname === "/api/v1/auth/me"
@@ -1089,19 +1090,25 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- Khoi Da phuong tien trang chu: video thu vien + link phat VOD ----
-    // GET /api/v2/catalog-videos?limit= — video da xuat ban tu backend
-    // (proxy map truong hien thi + loc: chi giu video co publishedAt
-    // va khong phai bai test [P1]/[P2], vi list cong khai cua backend
-    // van tra ca mau seed chua xuat ban). Lay du 24 roi loc + cat ve limit
-    // yeu cau de bai test khong lam thieu slot. Hien tai chua co video
-    // thoi su that nen khoi tra items rong, khong mock cung.
+    // GET /api/v2/catalog-videos?limit=&categoryId= — video da xuat ban
+    // tu backend (proxy map truong hien thi + loc: chi giu video co
+    // publishedAt va khong phai bai test [P1]/[P2], vi list cong khai
+    // cua backend van tra ca mau seed chua xuat ban). Lay du 24 roi loc
+    // + cat ve limit yeu cau de bai test khong lam thieu slot.
+    // categoryId NHAN ID NOI BO cua chuyen muc (dang cat-...), KHONG
+    // nhan public_id (backend tra rong) — FE lay id noi bo tu
+    // /api/v2/catalog-categories theo slug truoc khi goi (trang
+    // truyen-hinh dung de nap video theo tung chuyen muc).
     // GET /api/v2/vod/:kind/:id/play — link phat VOD co ky han (15 phut)
     // tu backend; browser khong goi thang backend. Backend tra 404
     // (not_published / vod_not_ready) thi proxy giu nguyen 404 de FE
     // bao dung ly do thay vi loi chung.
     if (req.method === "GET" && u.pathname === "/api/v2/catalog-videos") {
       const limit = Math.max(1, Math.min(24, Number(u.searchParams.get("limit") || 4) || 4));
-      const ext = await fetchVtcanyEpaperJson(`/catalog/videos?limit=24`);
+      const rawCat = u.searchParams.get("categoryId") || "";
+      const categoryId = /^[A-Za-z0-9_-]{1,64}$/.test(rawCat) ? rawCat : "";
+      if (rawCat && !categoryId) return err(res, 400, "categoryId khong hop le");
+      const ext = await fetchVtcanyEpaperJson(`/catalog/videos?limit=24` + (categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ""));
       if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh sach video");
       const d = ext.data || {};
       const items = (d.data || [])
@@ -1118,6 +1125,20 @@ const server = http.createServer(async (req, res) => {
           duration: it.duration || null,
         }));
       return json(res, 200, { items, total: d.total || items.length }, { "Cache-Control": "no-store" });
+    }
+    // GET /api/v2/catalog-categories?type=video — danh muc video tu
+    // backend (de FE map slug chuyen muc -> id noi bo; API videos chi
+    // nhan categoryId dang id noi bo, khong nhan public_id).
+    if (req.method === "GET" && u.pathname === "/api/v2/catalog-categories") {
+      const type = u.searchParams.get("type") || "video";
+      if (!/^[a-z0-9_-]{1,32}$/i.test(type)) return err(res, 400, "type khong hop le");
+      const ext = await fetchVtcanyEpaperJson(`/catalog/categories?type=${encodeURIComponent(type)}`);
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc danh muc video");
+      const d = ext.data || {};
+      const items = (d.data || [])
+        .map((it) => ({ id: it.id, publicId: it.public_id || it.publicId || "", slug: it.slug || "", name: it.name || "", type: it.type || "" }))
+        .filter((it) => it.id && it.slug);
+      return json(res, 200, { items, total: items.length }, { "Cache-Control": "no-store" });
     }
     const vodPlayMatch = u.pathname.match(/^\/api\/v2\/vod\/(video|short|episode)\/([0-9a-f]{24})\/play$/);
     if (req.method === "GET" && vodPlayMatch) {

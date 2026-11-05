@@ -23,6 +23,20 @@
 .latest-norecord { color: #888; font-size: 0.9rem; }
 .latest-replaying { display: inline-block; background: #b45309; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
 .cat-placeholder { border: 1px solid #ddd; padding: 1rem; background: #fafafa; }
+/* Luoi video theo chuyen muc (2026-11-05): the video nhu khoi Da phuong
+   tien trang chu (.mm-video-card) nhung nen sang cho hop nen trang
+   trang TV; the duoc chon vien do + tieu de dam (giong .is-selected
+   o trang chu). */
+.tv-cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.tv-cat-card { background: transparent; border: 0; padding: 0; color: #222; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.tv-cat-thumb { display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #071a33; }
+.tv-cat-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
+.tv-cat-card:hover .tv-cat-thumb img { transform: scale(1.05); }
+.tv-cat-thumb-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 1.6rem; color: #cfe0ff; }
+.tv-cat-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.5rem; font-size: 0.95rem; line-height: 1.35; font-weight: 600; }
+.tv-cat-duration { display: block; color: #666; font-size: 0.85rem; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.tv-cat-card.is-selected .tv-cat-thumb { outline: 2px solid #d61f2f; outline-offset: 2px; }
+.tv-cat-card.is-selected .tv-cat-title { font-weight: 700; }
 /* Bố cục 2 cột kiểu trang tham khảo (chỉ trang TV; live.css và radio
    không đụng tới): desktop, player ở cột trái, cột LỊCH PHÁT SÓNG ở
    cột phải; mobile (<=900px), 2 cột xếp dọc và lịch cuộn theo
@@ -68,5 +82,6 @@
 }
 @media (max-width: 800px) {
   .latest-grid { grid-template-columns: 1fr; }
+  .tv-cat-grid { grid-template-columns: 1fr; }
   .live-section .sched-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
 }

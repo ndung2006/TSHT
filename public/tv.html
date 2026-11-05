@@ -4,7 +4,7 @@
 <title>Truyền hình trực tuyến</title>
 <link rel="stylesheet" href="/css/style.css?v=20261105-1">
 <link rel="stylesheet" href="/css/live.css?v=20261102-1">
-<link rel="stylesheet" href="/css/tv-page.css?v=20261105-2">
+<link rel="stylesheet" href="/css/tv-page.css?v=20261105-3">
 <link rel="stylesheet" href="/css/header.css?v=20261105-1">
 <link rel="stylesheet" href="/css/footer.css?v=20261105-1">
 <link rel="stylesheet" href="/css/live-controls.css?v=20261105-4"><link rel="icon" href="/favicon.ico" sizes="any">
@@ -18,8 +18,9 @@
      Tuyên Quang TV (chỉ cấu trúc, không copy logo/ảnh/tiêu đề chương trình
      của trang tham khảo). Nội dung thật duy nhất: luồng live, lịch EPG và
      xem lại qua API TSHT (nguồn backend VTCANY trước, fallback AIO trực
-     tiếp). TSHT chưa có kho video theo chuyên mục, nên các mục chuyên mục
-     dưới đây chỉ là khung ghi rõ trạng thái chờ, không bịa chương trình.
+     tiếp). Các mục chuyên mục dưới đây lấy video đã xuất bản từ API
+     catalog theo chuyên mục (tv.js); chuyên mục chưa có video thì giữ
+     khung chờ, không bịa chương trình.
      Không còn nhãn thương hiệu TSHTTV trên trang (đã bỏ theo yêu cầu);
      mã kênh nguồn trong mọi API vẫn là TUYENQUANG. -->
 <!-- @HEADER -->
@@ -152,6 +153,6 @@
 <script src="/js/live-epg.js?v=20261102-1"></script>
 <script src="/js/telemetry.js?v=20261105-1"></script>
 <script src="/js/header.js?v=20261105-1"></script>
-<script src="/js/tv.js?v=20261105-1"></script>
+<script src="/js/tv.js?v=20261105-2"></script>
 <script src="/js/tv-extra.js?v=20261027-8"></script>
 </body></html>

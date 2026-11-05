@@ -24,6 +24,27 @@
   var currentChannel = "", channelSource = "", channelStreamUrl = "";
   var channels = [];
   var liveHandle = null, replayHandle = null, replayingKey = null, replayItem = null;
+  // Kho video theo chuyen muc (2026-11-05): 8 section duoi trang lay
+  // video da xuat ban tu API catalog theo slug chuyen muc. Id noi bo
+  // lay dong tu /api/v2/catalog-categories (API videos chi nhan
+  // categoryId dang id noi bo, khong nhan public_id).
+  var TV_CATEGORY_SECTIONS = [
+    { section: "chuong-trinh-thoi-su", slug: "thoi-su" },
+    { section: "chuong-trinh-kinh-te-van-hoa-xa-hoi", slug: "kinh-te-van-hoa-xa-hoi" },
+    { section: "chuong-trinh-van-nghe", slug: "van-nghe" },
+    { section: "chuong-trinh-tieng-dan-toc", slug: "tieng-dan-toc" },
+    { section: "chuong-trinh-chuyen-doi-so", slug: "chuyen-doi-so" },
+    { section: "chuong-trinh-quoc-phong-an-ninh", slug: "quoc-phong-an-ninh" },
+    { section: "chuong-trinh-xay-dung-dang", slug: "xay-dung-dang" },
+    { section: "chuong-trinh-tap-chi-toa-dam", slug: "tap-chi-toa-dam" },
+  ];
+  // VOD theo chuyen muc: last-click-wins (seq + abort) + prefetch link
+  // phat, giong playCatalogVideo o trang chu (multimedia.js).
+  var vodSeq = 0;
+  var vodAborter = null;
+  var vodPrefetch = {}; // publicId -> { url, fetchedAt }
+  var VOD_PREFETCH_MAX_AGE_MS = 10 * 60 * 1000;
+  var videoHandle = null, currentVideoId = null;
   var lastItems = null, lastMeta = null;
   // Can khung lich dung bang khung video (mau tuyenquangtv.vn/truyen-hinh):
   // chieu cao khung lich = chieu cao .live-player-wrap (video 16:9) tru
@@ -111,6 +132,7 @@
     // kenh moi (khong chong tieng/heartbeat).
     stopLive();
     stopReplayOnly();
+    stopVideoOnly();
     currentChannel = hit.name;
     channelStreamUrl = hit.stream_url || "";
     document.getElementById("channel-desc").textContent = hit.description || "";
@@ -129,6 +151,127 @@
   function saigonToday() { return window.LiveEpg.saigonToday(); }
   function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
   function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
+  function stopVideoOnly() {
+    if (videoHandle) { videoHandle.stop(); videoHandle = null; }
+    currentVideoId = null;
+    if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat();
+    markSelectedCatCard(null);
+  }
+  function markSelectedCatCard(publicId) {
+    var cards = document.querySelectorAll(".tv-cat-card");
+    for (var i = 0; i < cards.length; i++) {
+      var on = publicId && cards[i].getAttribute("data-id") === publicId;
+      if (on) { cards[i].classList.add("is-selected"); cards[i].setAttribute("aria-current", "true"); }
+      else { cards[i].classList.remove("is-selected"); cards[i].removeAttribute("aria-current"); }
+    }
+  }
+  // Phat video chuyen muc trong player chinh (giong playCatalogVideo o
+  // trang chu): phan hoi ngay khi bam, last-click-wins, heartbeat chi
+  // cua video dang xem. Nut "Ve truc tiep" (backToLive) dua ve live.
+  function playCategoryVideo(publicId, title) {
+    var seq = ++vodSeq;
+    if (vodAborter) { try { vodAborter.abort(); } catch (e) {} }
+    var aborter = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    vodAborter = aborter;
+    // Dung moi luong dang chay truoc (live/xem lai/video cu) roi moi
+    // hien trang thai dang tai — khong chong tieng/heartbeat.
+    stopVideoOnly();
+    stopReplayOnly();
+    stopLive();
+    markSelectedCatCard(publicId);
+    currentVideoId = publicId;
+    if (badge) badge.textContent = "VIDEO";
+    if (replayTitleEl) replayTitleEl.textContent = title || "";
+    if (replayBar) replayBar.style.display = "block";
+    hideMsg();
+    var video = document.getElementById("player");
+    if (ctrl && video) { ctrl.setMode("vod"); ctrl.setRetry(function () { if (currentVideoId) playCategoryVideo(currentVideoId, title); }); ctrl.onStart(); }
+    // Player o dau trang, the video o cac section ben duoi: dua player
+    // ve tam nhin de nguoi xem thay video bat dau phat.
+    var liveSection = document.getElementById("live-section");
+    if (liveSection && liveSection.scrollIntoView) liveSection.scrollIntoView();
+    var cached = vodPrefetch[publicId];
+    var urlPromise;
+    if (cached && cached.url && Date.now() - cached.fetchedAt < VOD_PREFETCH_MAX_AGE_MS) {
+      urlPromise = Promise.resolve({ status: 200, data: { url: cached.url } });
+    } else {
+      urlPromise = fetch("/api/v2/vod/video/" + encodeURIComponent(publicId) + "/play", aborter ? { signal: aborter.signal } : {})
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); });
+    }
+    urlPromise
+      .then(function (res) {
+        if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua
+        if (res.status !== 200 || !res.data.url) {
+          if (ctrl && ctrl.hideLoading) ctrl.hideLoading();
+          showMsg("Không phát được video này (" + (res.data.error || res.status) + ").");
+          return;
+        }
+        vodPrefetch[publicId] = { url: res.data.url, fetchedAt: Date.now() };
+        if (video && window.playDirect) videoHandle = window.playDirect(video, res.data.url, showMsg);
+        if (ctrl) ctrl.setQualityHandle(videoHandle);
+        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: video });
+        else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
+      })
+      .catch(function (e) {
+        if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua
+        if (e && e.name === "AbortError") return; // bi cum moi hon huy: im lang
+        if (ctrl && ctrl.hideLoading) ctrl.hideLoading();
+        showMsg("Không phát được video này (lỗi mạng).");
+      });
+  }
+  function renderCategorySection(entry, items) {
+    var section = document.getElementById(entry.section);
+    if (!section) return;
+    var box = section.querySelector(".cat-placeholder");
+    if (!box) return;
+    // Chuyen muc chua co video da xuat ban: GIU NGUYEN khung cho tinh.
+    if (!items || !items.length) return;
+    box.classList.remove("cat-placeholder");
+    box.classList.add("tv-cat-grid");
+    box.innerHTML = items.map(function (it) {
+      var thumb = it.thumbnail
+        ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\">"
+        : "<span class=\"tv-cat-thumb-fallback\">▶</span>";
+      var dur = it.duration ? "<span class=\"tv-cat-duration\">" + esc(String(it.duration)) + "</span>" : "";
+      return "<button type=\"button\" class=\"tv-cat-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\">" +
+        "<span class=\"tv-cat-thumb\">" + thumb + "</span>" +
+        "<span class=\"tv-cat-title\">" + esc(it.title) + "</span>" + dur + "</button>";
+    }).join("");
+    var cards = box.querySelectorAll(".tv-cat-card");
+    for (var i = 0; i < cards.length; i++) {
+      (function (card) {
+        card.addEventListener("click", function () { playCategoryVideo(card.getAttribute("data-id"), card.getAttribute("aria-label")); });
+      })(cards[i]);
+    }
+    // Prefetch link phat cho cac the vua ve (nhu trang chu): cum bam
+    // sau do khong phai doi leg /play (~1s). Link han 15 phut, chi
+    // dung khi tuoi < 10 phut; loi prefetch im lang.
+    items.forEach(function (it) {
+      if (!it.publicId) return;
+      fetch("/api/v2/vod/video/" + encodeURIComponent(it.publicId) + "/play")
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.url) vodPrefetch[it.publicId] = { url: d.url, fetchedAt: Date.now() }; })
+        .catch(function () {});
+    });
+  }
+  function loadCategoryVideos() {
+    fetch("/api/v2/catalog-categories?type=video")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var cats = (d && d.items) || [];
+        var bySlug = {};
+        for (var i = 0; i < cats.length; i++) { if (cats[i].slug && cats[i].id) bySlug[cats[i].slug] = cats[i].id; }
+        TV_CATEGORY_SECTIONS.forEach(function (entry) {
+          var id = bySlug[entry.slug];
+          if (!id) return; // khong co chuyen muc nay: giu khung cho
+          fetch("/api/v2/catalog-videos?categoryId=" + encodeURIComponent(id) + "&limit=8")
+            .then(function (r) { return r.json(); })
+            .then(function (vd) { renderCategorySection(entry, (vd && vd.items) || []); })
+            .catch(function () { /* loi tai: giu khung cho tinh */ });
+        });
+      })
+      .catch(function () { /* khong tai duoc danh muc: giu khung cho tinh */ });
+  }
   function setLiveUi() {
     if (badge) badge.textContent = "● TRỰC TIẾP";
     if (replayBar) replayBar.style.display = "none";
@@ -184,6 +327,7 @@
     // dieu khien mot the media — dac biet khi "Thu lai" goi lai ham nay.
     stopLive();
     stopReplayOnly();
+    stopVideoOnly();
     setLiveUi();
     hideMsg();
     replayItem = null;
@@ -202,7 +346,7 @@
     // GĐ3 nen: heartbeat live (nhip 60 giay, dung khi stop/chuyen kenh).
     if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "live", media: video });
   }
-  function backToLive() { stopReplayOnly(); renderLastSchedule(); startLive(); }
+  function backToLive() { stopVideoOnly(); stopReplayOnly(); renderLastSchedule(); startLive(); }
   function onReplay(item) {
     if (!item.replay_url) return;
     // Kiem tra truoc khi dung live: neu timeshift loi thi giu nguyen live
@@ -218,6 +362,7 @@
         if (timer) clearTimeout(timer);
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
         stopReplayOnly();
+        stopVideoOnly();
         stopLive();
         replayingKey = window.LiveEpg.replayKey(item);
         replayItem = item;
@@ -270,6 +415,9 @@
     // dang xem lai).
     dateInput.onchange = loadSchedule;
   }
+  // Kho video theo chuyen muc: doc lap voi kenh live/lich (loi tai
+  // thi cac section giu khung cho tinh nhu cu).
+  loadCategoryVideos();
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);
     channels = (d.items || []).filter(function (c) { return c.kind === "tv" && (!c.status || c.status === "RUNNING"); });
