@@ -81,6 +81,7 @@
       media: videoEl,
       isVideo: true,
       mount: document.getElementById("lc-mount"),
+      playerRoot: root.querySelector(".mm-player"),
       tapTarget: root.querySelector(".mm-media"),
       fullscreenTarget: root.querySelector(".mm-player"),
       getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
@@ -256,6 +257,36 @@
     var target = schedList.scrollTop + delta - (schedList.clientHeight - currentRow.offsetHeight) / 2;
     schedList.scrollTop = Math.max(0, Math.min(target, maxScroll));
   }
+  // "Dang phat:" phai doi dung luc chuong trinh hien tai ket thuc, khong
+  // cho lam moi dinh ky (truoc day chi doi khi tai lai lich). Hen gio
+  // theo EPG: het chuong trinh thi tai lai lich (chi cham lich + badge,
+  // tuyet doi khong cham player, ke ca khi dang xem lai).
+  var nowTimer = null;
+  function endMsOf(p, dateStr) {
+    if (!p) return null;
+    if (p.endTime) { var e = new Date(p.endTime).getTime(); return isFinite(e) ? e : null; }
+    if (p.end_time && dateStr) {
+      var m = /^(\d{1,2}):(\d{2})/.exec(p.end_time);
+      if (!m) return null;
+      var hh = m[1].length < 2 ? "0" + m[1] : m[1];
+      var d = new Date(dateStr + "T" + hh + ":" + m[2] + ":00+07:00").getTime();
+      return isFinite(d) ? d : null;
+    }
+    return null;
+  }
+  function armNowTimer(live, date) {
+    if (nowTimer) { clearTimeout(nowTimer); nowTimer = null; }
+    if (!live || date !== saigonToday()) return;
+    var end = endMsOf(live, date);
+    if (end == null) return;
+    var delay = end - Date.now() + 2000;
+    if (delay <= 0 || delay > 12 * 3600 * 1000) return;
+    var ch = current ? current.name : null, d = date;
+    nowTimer = setTimeout(function () {
+      if (!current || current.name !== ch || selectedDate !== d) return;
+      loadSchedule();
+    }, delay);
+  }
   function renderSchedule() {
     if (!schedList) return;
     var items = lastItems || [];
@@ -269,10 +300,12 @@
       return;
     }
     var html = "";
+    var liveItem = null;
     for (var i = 0; i < items.length; i++) {
       var p = items[i];
       var st = statusOf(p, date);
       var isNow = st === "LIVE" && date === today;
+      if (isNow && !liveItem) liveItem = p;
       var isReplaying = replayingKey && replayKey(p) === replayingKey;
       var action = "";
       if (isReplaying) {
@@ -311,6 +344,7 @@
     // Chi tu cuon ve dong dang phat khi dang xem live ngay hom nay;
     // dang xem lai / xem video thi khong giat khung lich.
     if (date === today && mode === "live") scrollListToLive();
+    armNowTimer(liveItem, date);
   }
   function loadSchedule() {
     if (!schedList || !current) { if (schedList) schedList.innerHTML = "<p class=\"mm-sched-empty\">Chưa có lịch phát sóng cho ngày đã chọn.</p>"; return; }

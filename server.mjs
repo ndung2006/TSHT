@@ -21,6 +21,41 @@ import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 
+// ---- Cache link live + master manifest (rut ngan khoi dong player) ----
+// Do truoc (2026-11-05, curl tu VM): /api/v1/live fetch EPG tu VTCANY
+// mat ~1,9s, trinh duyet lai fetch master manifest tu AIO ~1,4s, media
+// playlist ~1,3s, segment dau 360p ~2,0s — noi tiep nhau ~7s moi co
+// frame dau (khop quan sat 10–12s tren trinh duyet). Cache o day giu
+// san URL + noi dung master (TTL 10 phut, lam moi nen moi 5 phut) de
+// lan mo sau chi con: live (local) + master proxy (local) + media
+// playlist + segment dau (~3,5s). Master van giu nguyen noi dung goc
+// (URL bien the tuyet doi kem token) nen hls.js van tu chon muc + ABR
+// binh thuong; het han thi lam moi, loi thi roi ve URL truc tiep.
+const LIVE_LINK_TTL_MS = 10 * 60 * 1000;
+const liveLinkCache = new Map(); // channel -> { masterText, hlsUrl, exp, publicId, fetchedAt }
+async function fetchLiveLink(channel, { force = false } = {}) {
+  const now = Date.now();
+  const hit = liveLinkCache.get(channel);
+  if (!force && hit && now - hit.fetchedAt < LIVE_LINK_TTL_MS && (hit.exp == null || hit.exp > now + 5 * 60 * 1000)) return hit;
+  if (!vtcanyConfigured()) return hit || null;
+  const epg = await fetchVtcanyEpg(channel, saigonToday());
+  if (!epg.ok || !epg.channel.hls_url) return hit || null;
+  const entry = { masterText: hit && hit.hlsUrl === epg.channel.hls_url ? hit.masterText : null, hlsUrl: epg.channel.hls_url, exp: epg.channel.hls_exp || null, publicId: epg.public_id, fetchedAt: now };
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 8000);
+    const r = await fetch(entry.hlsUrl, { signal: ac.signal });
+    clearTimeout(to);
+    if (r.ok) entry.masterText = await r.text();
+  } catch (e) { /* giu hlsUrl truc tiep, client tu fetch master */ }
+  entry.fetchedAt = Date.now();
+  liveLinkCache.set(channel, entry);
+  return entry;
+}
+setInterval(() => {
+  for (const ch of [...liveLinkCache.keys()]) fetchLiveLink(ch, { force: true }).catch(() => {});
+}, 5 * 60 * 1000);
+
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
 const VENDOR = {
@@ -150,6 +185,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/channels" ||
       u.pathname === "/api/v1/schedule" ||
       u.pathname === "/api/v1/live" ||
+      u.pathname === "/api/v1/live-master" ||
       u.pathname === "/api/v1/timeshift" ||
       u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v2/epaper" ||
@@ -306,13 +342,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/v1/live") {
       const channel = String(u.searchParams.get("channel") || "").trim().toUpperCase();
       if (!channel || !/^[A-Z0-9_-]+$/.test(channel)) return err(res, 400, "channel khong hop le (ten kenh viet hoa, khong dau)");
-      if (vtcanyConfigured()) {
-        const epg = await fetchVtcanyEpg(channel, saigonToday());
-        if (epg.ok && epg.channel.hls_url) {
-          return json(res, 200, { ok: true, source: "vtcany", channel, public_id: epg.public_id, url: epg.channel.hls_url, exp: epg.channel.hls_exp || null });
-        }
+      const link = await fetchLiveLink(channel);
+      if (link && link.hlsUrl) {
+        return json(res, 200, { ok: true, source: "vtcany", channel, public_id: link.publicId, url: link.masterText ? `/api/v1/live-master?channel=${encodeURIComponent(channel)}` : link.hlsUrl, directUrl: link.hlsUrl, exp: link.exp || null });
       }
       return json(res, 200, { ok: false, source: "fallback", channel });
+    }
+
+    // Master manifest qua proxy portal (noi dung da cache o server):
+    // trinh duyet lay master tu portal (local, nhanh) thay vi tu AIO
+    // (~1,4s). Noi dung y nhu master goc nen hls.js van chon muc + ABR
+    // binh thuong. Chua co cache thi fetch moi; khong co masterText thi
+    // chuyen huong ve URL goc.
+    if (req.method === "GET" && u.pathname === "/api/v1/live-master") {
+      const channel = String(u.searchParams.get("channel") || "").trim().toUpperCase();
+      if (!channel || !/^[A-Z0-9_-]+$/.test(channel)) return err(res, 400, "channel khong hop le (ten kenh viet hoa, khong dau)");
+      const link = await fetchLiveLink(channel);
+      if (link && link.masterText) return send(res, 200, link.masterText, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
+      if (link && link.hlsUrl) { res.writeHead(302, { Location: link.hlsUrl }); res.end(); return; }
+      return err(res, 404, "khong co link phat truc tiep");
     }
 
     // Timeshift proxy: VTCANY backend first (it stitches <=6h chunks

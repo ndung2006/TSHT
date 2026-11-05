@@ -43,6 +43,7 @@
       media: audioEl,
       isVideo: false,
       mount: document.getElementById("lc-mount"),
+      playerRoot: document.querySelector(".live-player-col"),
       tapTarget: document.querySelector(".radio-poster"),
       getLiveEdge: function () { return liveHandle && liveHandle.getLivePosition ? liveHandle.getLivePosition() : null; },
       onBackToLive: backToLive,
@@ -98,10 +99,41 @@
     if (badge) badge.textContent = "● TRỰC TIẾP";
     if (replayBar) replayBar.style.display = "none";
   }
+  // "Dang phat:" phai doi dung luc chuong trinh hien tai ket thuc, khong
+  // cho lam moi dinh ky (truoc day chi doi khi tai lai lich). Hen gio
+  // theo EPG: het chuong trinh thi tai lai lich (chi cham lich + nhan,
+  // tuyet doi khong cham player, ke ca khi dang xem lai).
+  var nowTimer = null;
+  function endMsOf(p, dateStr) {
+    if (!p) return null;
+    if (p.endTime) { var e = new Date(p.endTime).getTime(); return isFinite(e) ? e : null; }
+    if (p.end_time && dateStr) {
+      var m = /^(\d{1,2}):(\d{2})/.exec(p.end_time);
+      if (!m) return null;
+      var hh = m[1].length < 2 ? "0" + m[1] : m[1];
+      var d = new Date(dateStr + "T" + hh + ":" + m[2] + ":00+07:00").getTime();
+      return isFinite(d) ? d : null;
+    }
+    return null;
+  }
+  function armNowTimer(live) {
+    if (nowTimer) { clearTimeout(nowTimer); nowTimer = null; }
+    if (!live || !lastMeta || lastMeta.date !== saigonToday()) return;
+    var end = endMsOf(live, lastMeta.date);
+    if (end == null) return;
+    var delay = end - Date.now() + 2000;
+    if (delay <= 0 || delay > 12 * 3600 * 1000) return;
+    var ch = currentChannel, date = lastMeta.date;
+    nowTimer = setTimeout(function () {
+      if (ch !== currentChannel || !lastMeta || lastMeta.date !== date) return;
+      loadSchedule();
+    }, delay);
+  }
   function renderLastSchedule() {
     if (!lastItems) return;
     var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát" });
     if (live && nowEl) nowEl.textContent = "Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : "");
+    armNowTimer(live);
   }
   function startLive() {
     // Dung handle live cu truoc (neu con) de khong co 2 handle cung

@@ -14,7 +14,11 @@
 (function (global) {
   function attachHls(media, url, onFatal) {
     if (global.Hls && global.Hls.isSupported()) {
-      var hls = new global.Hls();
+      // startLevel 0 = muc thap nhat (360p): segment dau nhe nhat nen
+      // len hinh nhanh nhat; ABR tu chuyen len muc cao sau khi do bang
+      // thong. (Mac dinh hls.js cung khoi dong o muc thap, dat tuong
+      // minh de chac chan khong doi theo phien ban thu vien.)
+      var hls = new global.Hls({ startLevel: 0 });
       hls.loadSource(url);
       hls.attachMedia(media);
       hls.on(global.Hls.Events.ERROR, function (e, data) {

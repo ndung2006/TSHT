@@ -53,6 +53,7 @@
       var isVideo = !!opts.isVideo;
       var mount = opts.mount || null;
       var tapTarget = opts.tapTarget || media;
+      var playerRoot = opts.playerRoot || null; // vung player: phim tat chay khi focus o bat ky phan tu nao trong nay
       var fsTarget = opts.fullscreenTarget || null;
       var mode = "live"; // live | replay | vod
       // behind = nguoi dung da chu dong lui/kéo ve sau mep live (vd bam -10s
@@ -358,7 +359,15 @@
       function onTimeUpdate() { updateSeek(); updateLiveLabel(); reportViewState(); }
       function onWaiting() { showLoading(true); }
       function onPlaying() { clearWatchdog(); showLoading(false); showError(false); syncPlayUi(); }
-      function onMediaError() { if (started && !media.paused) showError(true); }
+      function onMediaError() {
+        // Dang thu nguon (retry tu dong trong stream-player) thi CHI hien
+        // bieu tuong dang tai, KHONG hien panel loi — loi chi hien khi
+        // watchdog het han (15s chua phat duoc) hoac khi da het cach thu.
+        // Hien panel loi o day se tat overlay dang tai, de lo ca chu loi
+        // mac dinh cua trinh duyet ("Khong the phat noi dung da phuong
+        // tien.") trong luc van dang thu (loi live 2026-11-05).
+        if (started && !media.paused) showLoading(true);
+      }
       function onVolumeChange() { syncMuteUi(); }
       function onLoadedMetadata() { updateSeek(); }
       // Seek hoan tat: chot lai co dang o sau mep live khong. Day la noi
@@ -456,14 +465,26 @@
         } catch (e) {}
       }
 
-      // ---- Phim tat (khong cuop khi dang go trong input/textarea/select,
-      //   nut, link, hoac kem Ctrl/Cmd/Alt) ----
+      // ---- Phim tat: chay khi focus o bat ky phan tu nao trong player
+      //   (ke ca sau khi bam nut — nut giu focus nhung van nam trong
+      //   playerRoot), va khi trang co player ma khong co o nhap lieu nao
+      //   dang duoc focus (focus o body). Chi khong cuop khi dang go trong
+      //   input/textarea/select, khi kem Ctrl/Cmd/Alt, hoac khi focus o
+      //   nut/link NGOAI player (de control do xu ly, vd nut PHAT LAI
+      //   trong lich). ----
       function onKeydown(e) {
         if (!e || e.ctrlKey || e.metaKey || e.altKey) return;
         var t = e.target;
         if (t) {
           var tag = (t.tagName || "").toUpperCase();
-          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || tag === "A" || t.isContentEditable) return;
+          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable) return;
+          if (tag === "BUTTON" || tag === "A") {
+            var inPlayer = false;
+            try {
+              inPlayer = (playerRoot && playerRoot.contains(t)) || (mount && mount.contains(t)) || t === media;
+            } catch (err) {}
+            if (!inPlayer) return;
+          }
         }
         var k = e.key;
         if (k === " " || k === "Spacebar") { e.preventDefault(); togglePlay(); }
