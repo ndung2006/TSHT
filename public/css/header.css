@@ -65,7 +65,7 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 /* Khung chung kieu bao dien tu (2026-10-31): cac hang tren/chan trang
    (link tren, logo, nav do, day hot link, ghi chu, chan trang) cung nam
    trong khung 1264px can giua nhu main.wrap, khong tran full man hinh. */
-.utilitybar, .masthead, .catnav, .catnav-mega, .hotlink-strip, .footer {
+.utilitybar, .masthead, .catnav, .catnav-mega, .catnav-search, .hotlink-strip, .footer {
   box-sizing: border-box;
   max-width: 1264px;
   margin-left: auto;
