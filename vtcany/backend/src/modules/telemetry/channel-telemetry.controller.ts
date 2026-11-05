@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, HttpException, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { ChannelTelemetryService } from './channel-telemetry.service';
@@ -45,12 +45,21 @@ export class ChannelTelemetryController {
     return this.telemetry.heartbeat(body, ua);
   }
 
+  // Gop tay 1 ngay cu: POST /internal/rollup-daily?date=YYYY-MM-DD.
+  // Khong co ?date= thi job gio chi gop lai N ngay VN gan nhat.
   @Post('internal/rollup-daily')
-  async rollup(@Headers('x-webhook-secret') secret: string) {
+  async rollup(@Headers('x-webhook-secret') secret: string, @Query('date') date?: string) {
     const expected = this.config.get<string>('MEDIA_WEBHOOK_SECRET', '');
     if (!expected || secret !== expected) {
       throw new HttpException('forbidden', HttpStatus.FORBIDDEN);
     }
-    return this.telemetry.rollupDaily();
+    try {
+      return await this.telemetry.rollupDaily(date);
+    } catch (e: any) {
+      if (e?.message?.startsWith('INVALID_DATE:')) {
+        throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      }
+      throw e;
+    }
   }
 }

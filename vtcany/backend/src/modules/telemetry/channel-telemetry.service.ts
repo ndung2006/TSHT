@@ -130,7 +130,7 @@ export class ChannelTelemetryService {
     return { ok: true };
   }
 
-  async rollupDaily(): Promise<{ dates: string[]; pruned: { pageViews: number; heartbeats: number } }> {
-    return runRollupDaily(this.prisma as any);
+  async rollupDaily(onlyDate?: string): Promise<{ dates: string[]; pruned: { pageViews: number; heartbeats: number } }> {
+    return runRollupDaily(this.prisma as any, onlyDate !== undefined ? { onlyDate } : undefined);
   }
 }

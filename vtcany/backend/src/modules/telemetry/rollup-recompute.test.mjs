@@ -148,10 +148,11 @@ describe('rollupDaily: loc isClean va ngay khong co dong tho', () => {
   });
 });
 
-describe('rollupDaily: ngay dang bi prune do (from < cutoff < to)', () => {
+describe('rollupDaily: ngay dang bi prune do (from < cutoff < to) — gop tay ?date=', () => {
   // now = 2026-11-06T10:00+07 -> cutoff = 2026-08-08T10:00+07, nam giua
   // ngay VN 2026-08-08 (00:00 -> 24:00). Dong tho sau cutoff van con,
-  // dong truoc cutoff da bi prune o cac luot truoc.
+  // dong truoc cutoff da bi prune o cac luot truoc. Ngay nay nam ngoai
+  // cua so 7 ngay cua job tu dong nen phai gop bang ?date=.
   test('ngay da co dong daily thi khong bi ghi de bang du lieu tho con mot phan', async () => {
     const db = makeDb();
     db.tables.channelTelemetryDaily.push({
@@ -161,7 +162,7 @@ describe('rollupDaily: ngay dang bi prune do (from < cutoff < to)', () => {
     db.addHeartbeat({ channelPublicId: 'ch-1', viewType: 'live', sessionId: 's1', createdAt: vn('2026-08-08T12:00:00'), isClean: true });
     db.addHeartbeat({ channelPublicId: 'ch-1', viewType: 'live', sessionId: 's2', createdAt: vn('2026-08-08T12:01:00'), isClean: true });
     db.addHeartbeat({ channelPublicId: 'ch-1', viewType: 'live', sessionId: 's3', createdAt: vn('2026-08-08T12:02:00'), isClean: true });
-    const res = await rollupDaily(db, OPTS);
+    const res = await rollupDaily(db, { ...OPTS, onlyDate: '2026-08-08' });
     assert.equal(dailyChannel(db, '2026-08-08', 'ch-1', 'live').heartbeats, 13);
     assert.ok(!res.dates.includes('2026-08-08'));
   });
@@ -170,7 +171,7 @@ describe('rollupDaily: ngay dang bi prune do (from < cutoff < to)', () => {
     const db = makeDb();
     db.addHeartbeat({ channelPublicId: 'ch-1', viewType: 'live', sessionId: 's1', createdAt: vn('2026-08-08T12:00:00'), isClean: true });
     db.addHeartbeat({ channelPublicId: 'ch-1', viewType: 'live', sessionId: 's2', createdAt: vn('2026-08-08T12:01:00'), isClean: true });
-    await rollupDaily(db, OPTS);
+    await rollupDaily(db, { ...OPTS, onlyDate: '2026-08-08' });
     assert.equal(dailyChannel(db, '2026-08-08', 'ch-1', 'live').heartbeats, 2);
   });
 });
