@@ -3,7 +3,7 @@
 // Vue/Nuxt).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { WORKSPACES, MENU_ITEMS, hasModulePermission, hasModuleAction, visibleMenu } from '../apps/cms/utils/workspaces.ts';
+import { WORKSPACES, MENU_ITEMS, hasModulePermission, hasModuleAction, visibleMenu, isChildVisibleForScope } from '../apps/cms/utils/workspaces.ts';
 
 const routes = (groups) => groups.flatMap((g) => g.items.map((i) => i.to));
 const labels = (groups) => groups.map((g) => g.label);
@@ -165,6 +165,25 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
     assert.equal(new Set(keys).size, keys.length, `${m.to} co countKey trung`);
     assert.ok(m.children[0].countKey === null);
   }
+});
+
+test('role hep an muc Bai nhap toan cuc, chi giu Nhap cua toi; role rong thay ca hai', () => {
+  const tin = itemByTo('/tin-bai');
+  const nhap = tin.children.find((c) => c.label === 'Bài nháp');
+  const nhapCuaToi = tin.children.find((c) => c.label === 'Nháp của tôi');
+  assert.equal(nhap.wideOnly, true);
+  assert.equal(nhapCuaToi.wideOnly, undefined);
+  assert.equal(isChildVisibleForScope(nhap, true), true);
+  assert.equal(isChildVisibleForScope(nhap, null), true);
+  assert.equal(isChildVisibleForScope(nhap, false), false);
+  assert.equal(isChildVisibleForScope(nhapCuaToi, false), true);
+  // Chi nhom tin bai co cap trung nay: bai bao in chi co 1 muc Nhap
+  // (khong wideOnly), tuong thuat khong co cap trung.
+  const wideOnlyChildren = MENU_ITEMS.flatMap((m) => (m.children || []).filter((c) => c.wideOnly));
+  assert.equal(wideOnlyChildren.length, 1);
+  assert.equal(wideOnlyChildren[0].label, 'Bài nháp');
+  const print = itemByTo('/bai-bao-in');
+  assert.ok(print.children.find((c) => c.label === 'Nháp') && !print.children.find((c) => c.label === 'Nháp')?.wideOnly);
 });
 
 test('chi 3 muc con Bi tra ve mang src=menu de chip phan biet nguon menu voi drill B1', () => {

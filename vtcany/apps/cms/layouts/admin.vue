@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { visibleMenu, hasModuleAction } from '~/utils/workspaces';
+import { visibleMenu, hasModuleAction, isChildVisibleForScope } from '~/utils/workspaces';
 
 const { user, role, logout, dark, toggleDark, permissions } = useCmsAuth();
 const api = useApi();
@@ -279,7 +279,7 @@ function toggleParent(m: any) {
   }
 }
 function visibleChildren(m: any) {
-  return (m.children || []).filter((c: any) => hasModuleAction(permissions.value, m.module, c.action));
+  return (m.children || []).filter((c: any) => hasModuleAction(permissions.value, m.module, c.action) && isChildVisibleForScope(c, scopeIsWide.value));
 }
 // Muc con sang khi path khop muc cha VA moi tham so query trong link
 // con deu khop query hien tai (khong chi status nhu dot 1): bao quat
@@ -314,6 +314,15 @@ const sidebarCounts = ref<any>(null);
 const myQueueCount = computed(() => {
   const v = sidebarCounts.value?.myQueue?.value;
   return typeof v === 'number' ? v : null;
+});
+// Pham vi rong/hep lay tu GET /admin/sidebar-counts (scope top-level
+// do backend tinh tu role that qua quan he role): 'wide' -> rong,
+// 'mine' -> hep, chua co/khong co -> null (fail-open, hien het).
+// KHONG dung cms_role: login tra 'admin' cho moi tai khoan nen khong
+// phan biet duoc PV/TP/T.PP o frontend.
+const scopeIsWide = computed(() => {
+  const s = sidebarCounts.value?.scope;
+  return s === 'wide' ? true : s === 'mine' ? false : null;
 });
 // Anh xa muc cha -> muc trong response sidebar-counts.
 const countSection: Record<string, string> = {

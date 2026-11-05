@@ -50,6 +50,11 @@ export interface MenuChild {
    *  cung muc cha phai co countKey khac nhau (vd 'draft' toan cuc vs
    *  'draftMine' cua minh) de so khong de len nhau. */
   countKey: string | null;
+  /** Chi role xem toan toa soan thay (vd muc "Bai nhap" toan cuc cua
+   *  Tin bai — role hep chi thay "Nhap cua toi"). CMS xac dinh rong/hep
+   *  bang scope tra ve tu GET /admin/sidebar-counts (backend la nguon
+   *  that, khong dung cms_role vi login tra 'admin' cho moi tai khoan). */
+  wideOnly?: boolean;
 }
 
 export interface MenuItem {
@@ -108,7 +113,7 @@ export const MENU_ITEMS: MenuItem[] = [
     to: '/tin-bai', label: 'Tin bài', icon: 'pi-newspaper', workspace: 'online', module: 'articles',
     children: [
       { to: '/tin-bai?new=1', label: 'Thêm bài viết', status: null, action: 'create', countKey: null },
-      { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null, countKey: 'draft' },
+      { to: '/tin-bai?status=draft', label: 'Bài nháp', status: 'draft', action: null, countKey: 'draft', wideOnly: true },
       { to: '/tin-bai?mine=1', label: 'Bài của tôi', status: null, action: null, countKey: 'authored' },
       { to: '/tin-bai?mine=1&status=draft', label: 'Nháp của tôi', status: 'draft', action: null, countKey: 'draftMine' },
       { to: '/tin-bai?status=draft&returned=1&src=menu', label: 'Bị trả về', status: 'draft', action: null, countKey: 'returned' },
@@ -186,6 +191,14 @@ export interface WorkspaceGroup {
   id: string;
   label: string;
   items: MenuItem[];
+}
+
+/** Muc con co hien voi pham vi cua user khong: wideOnly chi hien khi
+ *  rong; isWide null (chua tai xong sidebar-counts hoac loi) thi hien
+ *  het — fail-open, khong lam mat muc khi chua biet pham vi. */
+export function isChildVisibleForScope(child: MenuChild, isWide: boolean | null): boolean {
+  if (!child.wideOnly) return true;
+  return isWide !== false;
 }
 
 /** Nhom menu theo workspace, chi giu workspace co it nhat 1 item hien.
