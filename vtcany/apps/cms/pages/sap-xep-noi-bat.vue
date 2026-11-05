@@ -125,6 +125,10 @@ async function load() {
   // mount lan dau): khong de bang/kho hien du lieu cua khoi cu trong luc
   // cho fetch moi. DataTable hien lop mo loading tren bang rong (rule
   // .p-datatable-mask); kho trai an dong "Kho trong" nho poolLoading=true.
+  // Dat loaded=false truoc de dirty khong hien oan trong luc tai (khi doi
+  // khoi, loaded van true tu khoi truoc nen so snapshot cu voi danh sach
+  // rong se bao 'Co thay doi chua luu' thoang qua).
+  loaded.value = false;
   items.value = [];
   pool.value = [];
   poolTotal.value = 0;
@@ -194,7 +198,11 @@ function removeItem(index: number) {
   items.value = [...items.value];
   // (c) Dua bai vua go ve kho NGAY tai cho (dung vi tri theo publishAt
   // moi nhat truoc, nhu thu tu kho), khong cho fetch server tra ve.
-  // reloadPool() nen van chay de doi soat voi server.
+  // KHONG goi reloadPool() o day: pool tren server van loai bai vua go
+  // (danh sach da luu chua doi cho toi khi bam Luu) nen lan tai nen se
+  // ghi de pool local va lam bai vua go bien mat khoi kho — dung loi
+  // nghiem thu (c). Trang thai local da dung; pool tai moi o load()
+  // sau, server bat kip sau khi Luu.
   if (removed?.article && !pool.value.some((x: any) => x.publicId === removed.articlePublicId)) {
     const at = removed.article.publishAt || '';
     let pos = pool.value.findIndex((x: any) => (x.publishAt || '') < at);
@@ -202,7 +210,6 @@ function removeItem(index: number) {
     pool.value.splice(pos, 0, removed.article);
     poolTotal.value += 1;
   }
-  reloadPool();
 }
 function move(index: number, dir: number) {
   const j = index + dir;
