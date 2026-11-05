@@ -9,13 +9,26 @@ const routes = (groups) => groups.flatMap((g) => g.items.map((i) => i.to));
 const labels = (groups) => groups.map((g) => g.label);
 const itemByTo = (to) => MENU_ITEMS.find((i) => i.to === to);
 
-test('toan quyen (*) thay du 6 workspace va 40 muc cap 1', () => {
+test('toan quyen (*) thay du 6 nhom; 40 la TONG muc cap 1 TRONG cac nhom (cha accordion tinh 1), khong phai cap ngoai cung', () => {
   const groups = visibleMenu(['*']);
   assert.deepEqual(labels(groups), WORKSPACES.map((w) => w.label));
+  // Cap ngoai cung cua sidebar = khoi ghim (Tong quan / Cho toi duyet,
+  // nam o layouts/admin.vue, KHONG nam trong MENU_ITEMS) + 6 nhom
+  // workspace; cac muc menu nam TRONG nhom, muc con nam trong cha
+  // accordion. "40" truoc day gay hieu nham la cap ngoai cung — thuc
+  // chat la tong muc cap 1 trong cac nhom:
+  assert.equal(WORKSPACES.length, 6);
+  assert.equal(MENU_ITEMS.length, 40);
   // Tong muc cap 1 tang tu 35 len 40 sau sua sidebar 2026-11-04:
   // them Upload video (nhom TV) + 4 muc OTT gom vao nhom moi
-  // "Nen tang so (OTT)". 3 muc cha accordion van tinh la 1 muc cap 1.
+  // "Nen tang so (OTT)". 4 muc cha accordion van tinh la 1 muc cap 1.
   assert.equal(routes(groups).length, 40);
+  // So lieu day du: 40 muc cap 1 + 20 muc con = 60 muc ke ca con
+  // (khoi ghim 2 link khong tinh trong MENU_ITEMS).
+  const childCount = MENU_ITEMS.flatMap((m) => m.children || []).length;
+  assert.equal(childCount, 20);
+  assert.equal(MENU_ITEMS.length + childCount, 60);
+  assert.ok(!MENU_ITEMS.some((m) => m.to === '/' || m.to.startsWith('/?focus=')));
 });
 
 test('chi co quyen epaper thi thay workspace Bao in, cong trang Thong ke khong gate quyen', () => {
@@ -154,9 +167,10 @@ test('4 muc cha accordion dot 2 co dung menu con + countKey rieng', () => {
   }
 });
 
-test('dot 2 khong doi so muc cap 1 (van 40 khi toan quyen)', () => {
+test('dot 2 khong doi so muc cap 1 trong cac nhom (van 40 khi toan quyen; 20 muc con)', () => {
   const groups = visibleMenu(['*']);
   assert.equal(routes(groups).length, 40);
+  assert.equal(MENU_ITEMS.flatMap((m) => m.children || []).length, 20);
 });
 
 test('hasModuleAction: menu Them chi hien khi co quyen create', () => {
