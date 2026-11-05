@@ -54,6 +54,7 @@
   <p class="note">Lịch phát sóng vẫn xem tại <a href="/lich-phat-song">trang Lịch phát sóng</a> và trên trang <a href="/truyen-hinh">Truyền hình</a>.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="/js/telemetry.js?v=20261105-1"></script>
 <script src="/js/header.js?v=20261105-1"></script>
 <!-- @FOOTER -->
 <script>
@@ -94,6 +95,11 @@
     try { video.pause(); } catch (e) {}
     video.removeAttribute('src');
     try { video.load(); } catch (e) {}
+    // Dung heartbeat VOD khi dong modal / doi video (cung mau
+    // multimedia.js:552 — startHeartbeat type 'vod', contentId la
+    // public_id short; neu khong goi thi luot phat short khong ghi
+    // heartbeat nao vao channel_heartbeats).
+    if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat();
   }
   function closePlayer() {
     stopPlayer();
@@ -105,6 +111,9 @@
     playerErr.textContent = '';
     player.hidden = false;
     stopPlayer();
+    // Heartbeat VOD: gui ngay 1 nhip (neu video chua pause) roi moi
+    // 60s khi dang phat; beat tu bo qua khi video pause (telemetry.js).
+    if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: '', type: 'vod', contentId: shortId, media: video });
     fetch('/api/v2/vod/short/' + encodeURIComponent(shortId) + '/play')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
