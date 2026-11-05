@@ -42,10 +42,14 @@
         // API muc chat luong (menu Cai dat cua LiveControls):
         // - getLevels() -> [{index, height, bitrate}] sap xep thap -> cao
         //   (hls.levels tu master playlist; hls.js chi tra muc video).
-        // - setLevel(i): i >= 0 khoa dung muc do qua hls.currentLevel
-        //   (doi muc ngay, xa buffer, GIU vi tri hien tai — khong ve
-        //   dau); i < 0 ve Tu dong. Goi truoc khi manifest ve thi tra
-        //   false, controller se ap lai khi MANIFEST_PARSED toi.
+        // - setLevel(i): i >= 0 khoa dung muc do qua hls.nextLevel
+        //   (doi muc o segment ke tiep, KHONG xa buffer, KHONG gian
+        //   doan phat — API chuyen muot cua hls.js). currentLevel cu
+        //   (immediateLevelSwitch, xa het buffer + dong bo lai live)
+        //   gay dung hinh ~15s khi doi muc va den man hinh khi mo
+        //   trang voi muc 360p da luu nen KHONG dung nua; i < 0 ve
+        //   Tu dong. Goi truoc khi manifest ve thi tra false,
+        //   controller se ap lai khi MANIFEST_PARSED toi.
         // - getCurrentLevel() -> index muc DANG PHAT THAT (khong phai muc
         //   da chon tay); -1 khi chua co muc.
         // - onLevelChange(cb): cb(index) khi LEVEL_SWITCHED (index >= 0),
@@ -60,8 +64,8 @@
         setLevel: function (idx) {
           try {
             if (idx == null) return false;
-            if (idx < 0) { hls.currentLevel = -1; return true; }
-            if (hls.levels && idx < hls.levels.length) { hls.currentLevel = idx; return true; }
+            if (idx < 0) { hls.nextLevel = -1; return true; }
+            if (hls.levels && idx < hls.levels.length) { hls.nextLevel = idx; return true; }
           } catch (e) {}
           return false;
         },
