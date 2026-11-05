@@ -174,35 +174,57 @@
   function loadHeroBlock(zoneKey, elId, fallbackUrl, emptyText) {
     var el = document.getElementById(elId);
     if (!el) return;
-    function fetchItems(url) {
-      return fetch(url)
-        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-        .then(function (d) { return (d && d.items) || []; });
+    // Timeout rieng cho moi fetch phia client (ngan hon 8s cua proxy):
+    // 3 nguon doc lap (noi-bat, tieu-diem, news) chay SONG SONG nen tong
+    // thoi gian cho ~1 timeout thay vi 3 timeout noi tiep (20-60s) nhu
+    // cu. Duong fallback (zone + featured) cung chay song song, uu tien
+    // zone khi co bai. Giu nguyen ngu nghia cu: endpoint moi loi moi
+    // fallback; danh sach rong la hop le, khong tu lap.
+    var HERO_TIMEOUT_MS = 6000;
+    // Tuong duong Promise.allSettled (file nay giu kieu ES5, khong dung
+    // API moi): tra [{ok, value}] cho moi promise, khong reject som.
+    function settled(promises) {
+      return Promise.all(promises.map(function (p) {
+        return p.then(function (v) { return { ok: true, value: v }; }, function () { return { ok: false, value: null }; });
+      }));
     }
-    function show(zoneItems) {
+    function fetchItems(url) {
+      var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+      var timer = null;
+      if (ctrl) timer = setTimeout(function () { ctrl.abort(); }, HERO_TIMEOUT_MS);
+      return fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) { return (d && d.items) || []; })
+        .then(function (v) { if (timer) clearTimeout(timer); return v; }, function (e) { if (timer) clearTimeout(timer); throw e; });
+    }
+    function render(zoneItems, spotItems, latest) {
       if (!zoneItems.length) { el.innerHTML = "<p>" + emptyText + "</p>"; return; }
       // Danh sach Tieu diem da sap (toi da 3); heroLinks() tru tin lon
       // dang hien roi lay toi da 3. Loi tai -> coi nhu rong (an khoi).
-      function renderWithSpot(spotItems) {
-        fetchItems("/api/v2/news?limit=12").then(function (latest) {
-          var seen = {};
-          zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
-          var side = latest.filter(function (it) { return it.url && !seen[it.url]; }).slice(0, 5);
-          renderHeroBlock(el, zoneItems, side, 0, spotItems);
-        }).catch(function () { renderHeroBlock(el, zoneItems, [], 0, spotItems); });
-      }
-      fetchItems("/api/v2/home-slots/tieu-diem").then(renderWithSpot, function () { renderWithSpot([]); });
+      var seen = {};
+      zoneItems.forEach(function (it) { if (it.url) seen[it.url] = true; });
+      var side = (latest || []).filter(function (it) { return it.url && !seen[it.url]; }).slice(0, 5);
+      renderHeroBlock(el, zoneItems, side, 0, spotItems || []);
     }
-    function loadFallback() {
-      // Duong cu: zone tieu-diem truoc (ghim + lap day), roi featured.
-      fetchItems("/api/v2/zones/" + zoneKey).then(function (items) {
-        if (items.length) show(items);
-        else fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
-      }).catch(function () {
-        fetchItems(fallbackUrl).then(show).catch(function () { el.innerHTML = "<p>" + emptyText + "</p>"; });
-      });
-    }
-    fetchItems("/api/v2/home-slots/noi-bat").then(show).catch(loadFallback);
+    settled([
+      fetchItems("/api/v2/home-slots/noi-bat"),
+      fetchItems("/api/v2/home-slots/tieu-diem"),
+      fetchItems("/api/v2/news?limit=12"),
+    ]).then(function (rs) {
+      var spot = rs[1].ok ? rs[1].value : [];
+      var latest = rs[2].ok ? rs[2].value : [];
+      if (rs[0].ok) { render(rs[0].value, spot, latest); return; }
+      // Noi-bat loi -> duong cu: zone tieu-diem truoc (ghim + lap day),
+      // roi featured; chay song song, chi dung featured khi zone rong/loi.
+      settled([fetchItems("/api/v2/zones/" + zoneKey), fetchItems(fallbackUrl)])
+        .then(function (fb) {
+          var zone = fb[0].ok ? fb[0].value : [];
+          var feat = fb[1].ok ? fb[1].value : [];
+          if (zone.length) render(zone, spot, latest);
+          else if (feat.length) render(feat, spot, latest);
+          else el.innerHTML = "<p>" + emptyText + "</p>";
+        });
+    });
   }
   loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (hot link, khoi

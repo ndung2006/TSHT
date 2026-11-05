@@ -1418,3 +1418,25 @@ const server = http.createServer(async (req, res) => {
 const PORT = Number(process.env.PORT || 3000);
 // Pha B (2026-10-28): app khong con DB, khoi dong thang, khong migration.
 server.listen(PORT, () => console.log(`TSHT (khong DB): http://localhost:${PORT}/bao-in`));
+// Lam nong sau deploy (2026-11-05): portal vua restart co cache RAM
+// trong (site-interface + categories) va backend co the chua san sang;
+// lan tai dau cua nguoi xem phai cho toi da 8s/timeout. Goi 1 lan cac
+// endpoint trang chu qua localhost ngay sau khi nghe de nap cache + mo
+// ket noi toi backend truoc khi nhan nguoi xem. Chi log, khong bao gio
+// lam crash server; neu backend chua len thi thu lai 1 lan sau 15s.
+const WARMUP_URLS = ["/", "/api/v2/home-slots/noi-bat", "/api/v2/home-slots/tieu-diem", "/api/v2/news?limit=12", "/api/v2/site-interface"];
+async function warmupOnce(tag) {
+  const base = `http://127.0.0.1:${PORT}`;
+  const results = await Promise.all(WARMUP_URLS.map(async (u) => {
+    const t0 = Date.now();
+    try {
+      const r = await fetch(base + u, { signal: AbortSignal.timeout(10000) });
+      await r.text();
+      return { u, ok: r.ok, ms: Date.now() - t0, status: r.status };
+    } catch { return { u, ok: false, ms: Date.now() - t0, status: 0 }; }
+  }));
+  const failed = results.filter((x) => !x.ok);
+  console.log(`[warmup:${tag}] ${results.length - failed.length}/${results.length} ok (${results.map((x) => `${x.u}=${x.status}/${x.ms}ms`).join(" ")})`);
+  return failed.length === 0;
+}
+warmupOnce("khoi-dong").then((ok) => { if (!ok) setTimeout(() => { warmupOnce("thu-lai").catch(() => {}); }, 15000); }).catch(() => {});

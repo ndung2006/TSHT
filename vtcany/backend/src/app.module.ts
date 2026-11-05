@@ -27,6 +27,7 @@ import { PrintArticleModule } from './modules/print-articles/print-article.modul
 import { SiteInterfaceModule } from './modules/site-interface/site-interface.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -59,6 +60,7 @@ import { HealthController } from './health.controller';
     SiteInterfaceModule,
     WorkflowsModule,
     DashboardModule,
+    PrismaModule,
   ],
   controllers: [HealthController],
 })
