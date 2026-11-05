@@ -16,6 +16,7 @@ import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import { HomeSlotService } from '../home-slots/home-slots.service';
 import { normalizeContentType, typeFlags } from './news-content';
 import { normalizeFormatData } from './news-format-data';
+import { buildSearchQuery, hasSearchInput, parseSearchQuery } from './news-search-rules';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -930,6 +931,57 @@ export class NewsService {
       }),
     ]);
     return { data: rows.map((r) => this.toPublicItem(r)), total, page, limit };
+  }
+
+  // ---------------- Tim kiem cong khai (trang /tim-kiem) ----------------
+  // Endpoint rieng GET /api/v1/news/search (khong nhoi vao listPublic):
+  // khop khong dau (unaccent + trigram), tach tung tu, tim chinh xac giu
+  // dau, loc ngay xuat ban theo gio VN, xep hang relevance. Xem
+  // news-search-rules.ts (logic thuan, test rieng). Chi bai da xuat ban +
+  // da toi gio (visibleWhere). Khong tu khoa + khong bo loc -> tra rong,
+  // khong truy van ( tranh URL go tay loi ra toan bo kho).
+  async searchPublic(raw: Record<string, unknown>) {
+    let p;
+    try {
+      p = parseSearchQuery(raw);
+    } catch (e: any) {
+      throw new BadRequestException(e?.message || 'tham so tim kiem khong hop le');
+    }
+    if (!hasSearchInput(p)) return { data: [], total: 0, page: p.page, limit: p.limit };
+    // Chuyen muc: giai slug -> cha + con 1 cap (giong listPublic). Slug
+    // khong ton tai -> tra rong, khong 400.
+    let categoryIds: string[] | null = null;
+    if (p.category) {
+      const cat = await this.prisma.newsCategory.findUnique({ where: { slug: p.category } });
+      if (!cat) return { data: [], total: 0, page: p.page, limit: p.limit };
+      const children = await this.prisma.newsCategory.findMany({
+        where: { parentId: cat.id },
+        select: { id: true },
+      });
+      categoryIds = [cat.id, ...children.map((c) => c.id)];
+    }
+    const { whereSql, orderSql, scoreSql, values } = buildSearchQuery(p, categoryIds);
+    // Dem tong truoc (cung WHERE) roi moi lay id theo thu tu diem lien quan.
+    const countRows = await this.prisma.$queryRawUnsafe<{ total: string }[]>(
+      `SELECT count(*)::text AS total FROM "news_articles" a WHERE ${whereSql}`,
+      ...values,
+    );
+    const total = Number(countRows[0]?.total || 0);
+    if (total === 0) return { data: [], total: 0, page: p.page, limit: p.limit };
+    const offset = (p.page - 1) * p.limit;
+    const idRows = await this.prisma.$queryRawUnsafe<{ id: string; score: number }[]>(
+      `SELECT a.id, ${scoreSql} AS score FROM "news_articles" a WHERE ${whereSql} ${orderSql} LIMIT ${p.limit} OFFSET ${offset}`,
+      ...values,
+    );
+    const ids = idRows.map((r) => r.id);
+    // Lay lai bang Prisma de giu dung hinh toPublicItem (kem category).
+    const rows = await this.prisma.newsArticle.findMany({
+      where: { id: { in: ids } },
+      include: { category: true },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const data = ids.map((id) => byId.get(id)).filter((r) => Boolean(r)).map((r) => this.toPublicItem(r));
+    return { data, total, page: p.page, limit: p.limit };
   }
 
   async getPublic(slug: string) {

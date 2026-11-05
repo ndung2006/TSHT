@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { CollectRateLimitGuard } from '../auth/rate-limit.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { RolesService } from '../auth/roles.service';
 import { NewsService } from './news.service';
@@ -272,6 +273,15 @@ export class NewsPublicController {
   @Get()
   async list(@Query() q: any) {
     return this.news.listPublic({ category: q?.category, q: q?.q, featured: q?.featured, spotlight: q?.spotlight, contentType: q?.contentType, page: q?.page, limit: q?.limit });
+  }
+
+  // Tim kiem cong khai (trang /tim-kiem): PHAI dat truoc @Get(':slug'),
+  // neu khong Nest hieu 'search' la slug. Rate limit 300/phut/IP dung
+  // chung CollectRateLimitGuard (Q3).
+  @UseGuards(CollectRateLimitGuard)
+  @Get('search')
+  async search(@Query() q: any) {
+    return this.news.searchPublic(q);
   }
 
   @Get(':slug')
