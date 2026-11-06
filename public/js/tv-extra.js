@@ -8,7 +8,13 @@
 // player or a fake playback.
 // Card rule (documented, no guessing): take today's schedule items whose
 // status is REPLAY or LIVE (computed by LiveEpg.computeStatus, Saigon
-// time), newest start time first, take 4. No category is inferred from
+// time), drop programs with a KNOWN duration under
+// LiveEpg.LATEST_MIN_DURATION_MIN (3 min: GT phim, nhac hieu, quang cao
+// ngan...; duration = end - start, missing end = next program's start;
+// unknown duration is kept), newest start time first, take 4 — older
+// programs backfill so the block still shows 4 cards. A short LIVE
+// program is dropped the same way, so the block shows the nearest long
+// program instead of a "DANG PHAT" card. No category is inferred from
 // titles — that is why the category sections below stay honest
 // placeholders instead of listing guessed programs.
 // Thumbnails (AIO, 2026-11-05 — KHONG con tu cat bang ffmpeg): a played
@@ -31,16 +37,24 @@
   function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
   function render(items, meta, replayingKey, channel) {
     rendered = true;
-    var list = (items || []).filter(function (p) {
-      var st = window.LiveEpg ? window.LiveEpg.computeStatus(p, meta && meta.date) : (p.status || "");
-      return st === "REPLAY" || st === "LIVE";
-    });
-    // Newest start time first. start_time is HH:MM on the schedule date;
-    // startTime (ISO) sorts the same way when present.
-    list.sort(function (a, b) {
-      var ka = a.startTime || a.start_time || "", kb = b.startTime || b.start_time || "";
-      return kb < ka ? -1 : (kb > ka ? 1 : 0);
-    });
+    // Loc thoi luong (chi khoi nay): bo chuong trinh ngan duoi nguong
+    // LiveEpg.LATEST_MIN_DURATION_MIN; chuong trinh cu hon tu bu vao cho
+    // du 4 the. Lich phat song (tv.js / renderSchedule) khong loc.
+    var list;
+    if (window.LiveEpg && window.LiveEpg.selectLatestPrograms) {
+      list = window.LiveEpg.selectLatestPrograms(items, meta && meta.date, window.LiveEpg.LATEST_MIN_DURATION_MIN);
+    } else {
+      list = (items || []).filter(function (p) {
+        var st = window.LiveEpg ? window.LiveEpg.computeStatus(p, meta && meta.date) : (p.status || "");
+        return st === "REPLAY" || st === "LIVE";
+      });
+      // Newest start time first. start_time is HH:MM on the schedule date;
+      // startTime (ISO) sorts the same way when present.
+      list.sort(function (a, b) {
+        var ka = a.startTime || a.start_time || "", kb = b.startTime || b.start_time || "";
+        return kb < ka ? -1 : (kb > ka ? 1 : 0);
+      });
+    }
     list = list.slice(0, 4);
     if (!list.length) {
       box.innerHTML = "<p class='tv-note'>Chưa có chương trình đã phát trong ngày để liệt kê.</p>";

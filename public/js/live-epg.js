@@ -39,6 +39,79 @@
     return p.status || "LIVE";
   }
   function replayKey(p) { return (p.startTime || p.start_time || "") + "|" + (p.title || ""); }
+  // "CHUONG TRINH MOI NHAT" (tv-extra.js) bo chuong trinh ngan: gioi
+  // thieu phim, nhac hieu, hinh hieu, quang cao ngan... Chi chuong trinh
+  // co thoi luong da biet DUOI so phut nay moi bi loai; thieu gio ket thuc
+  // nen chua biet thoi luong thi VAN HIEN. Mot hang so duy nhat cho ca
+  // khoi — doi so nay (vi du 5) thi khoi doi theo, khong can sua nhieu
+  // noi. Lich phat song (renderSchedule) KHONG dung hang nay: lich van
+  // hien day du moi chuong trinh, ke ca chuong trinh ngan.
+  var LATEST_MIN_DURATION_MIN = 3;
+  function isoMs(v) { if (!v) return null; var t = new Date(v).getTime(); return isFinite(t) ? t : null; }
+  function hhmmMs(dateStr, hhmm) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+    if (!m || !dateStr) return null;
+    var hh = m[1].length < 2 ? "0" + m[1] : m[1];
+    var t = new Date(dateStr + "T" + hh + ":" + m[2] + ":00+07:00").getTime();
+    return isFinite(t) ? t : null;
+  }
+  function startMsOf(p, dateStr) { var t = isoMs(p.startTime); return t != null ? t : hhmmMs(dateStr, p.start_time); }
+  function endMsOf(p, dateStr) { var t = isoMs(p.endTime); return t != null ? t : hhmmMs(dateStr, p.end_time); }
+  // Thoi luong (phut) cua mot chuong trinh. nextStartMs: moc bat dau cua
+  // chuong trinh ke tiep cung ngay — dung khi thieu gio ket thuc (quy tac:
+  // gio ket thuc = gio bat dau chuong trinh ke tiep). Tra null khi khong
+  // xac dinh duoc (giu lai, khong loai).
+  function programDurationMin(p, dateStr, nextStartMs) {
+    var s = startMsOf(p, dateStr);
+    if (s == null) return null;
+    var e = endMsOf(p, dateStr);
+    if (e == null) e = nextStartMs;
+    if (e == null) return null;
+    var d = (e - s) / 60000;
+    if (d <= 0) d += 1440; // keo qua nua dem (23:55 -> 00:10 = 15 phut)
+    return d;
+  }
+  // Chon chuong trinh cho khoi "CHUONG TRINH MOI NHAT": chi REPLAY/LIVE,
+  // bo chuong trinh co thoi luong da biet < minMinutes, moi nhat truoc.
+  // items: TOAN BO lich trong ngay (ke ca UPCOMING) de tinh gio ket thuc
+  // thieu qua gio bat dau chuong trinh ke tiep. Tra danh sach moi-nhat-
+  // truoc, CHUA cat so the — phia goi (tv-extra.js) cat theo so the cua
+  // khoi (dang la 4), nho vay chuong trinh cu hon tu bu vao cho du the.
+  // nowMs: moc "bay gio" de tinh trang thai; de trong thi dung gio thuc
+  // (test truyen moc co dinh).
+  function selectLatestPrograms(items, date, minMinutes, nowMs) {
+    var all = (items || []).slice();
+    all.sort(function (a, b) {
+      var sa = startMsOf(a, date), sb = startMsOf(b, date);
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return sa - sb;
+    });
+    var min = (typeof minMinutes === "number" && isFinite(minMinutes)) ? minMinutes : LATEST_MIN_DURATION_MIN;
+    var kept = [];
+    for (var i = 0; i < all.length; i++) {
+      var p = all[i];
+      var st = computeStatus(p, date, nowMs);
+      if (st !== "REPLAY" && st !== "LIVE") continue;
+      var cs = startMsOf(p, date), nextMs = null;
+      for (var j = i + 1; j < all.length; j++) {
+        var ns = startMsOf(all[j], date);
+        if (ns != null && (cs == null || ns > cs)) { nextMs = ns; break; }
+      }
+      var dur = programDurationMin(p, date, nextMs);
+      if (dur != null && dur < min) continue;
+      kept.push(p);
+    }
+    kept.sort(function (a, b) {
+      var sa = startMsOf(a, date), sb = startMsOf(b, date);
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return sb - sa;
+    });
+    return kept;
+  }
   // Cong/tru ngay tren lich YYYY-MM-DD (toan UTC, khong phu thuoc mui gio).
   function addDays(dateStr, n) {
     var parts = String(dateStr || "").split("-");
@@ -207,5 +280,5 @@
     } catch (e) { /* khong chan trang neu co loi */ }
   });
 
-  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule, addDays: addDays, scrollBoxToRow: scrollBoxToRow, bindDayNav: bindDayNav };
+  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule, addDays: addDays, scrollBoxToRow: scrollBoxToRow, bindDayNav: bindDayNav, LATEST_MIN_DURATION_MIN: LATEST_MIN_DURATION_MIN, programDurationMin: programDurationMin, selectLatestPrograms: selectLatestPrograms };
 })(window);
