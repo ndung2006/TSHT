@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { AuthService } from './dist/modules/auth/auth.service.js';
 import { UsersService } from './dist/modules/auth/users.service.js';
 import { MailerService } from './dist/modules/auth/mailer.service.js';
-import { hashToken, isValidEmail, newOpaqueToken, passwordResetLink, verificationLink } from './dist/modules/auth/reader-auth-helpers.js';
+import { hashToken, isDevLinkAllowedEmail, isValidEmail, newOpaqueToken, passwordResetLink, verificationLink } from './dist/modules/auth/reader-auth-helpers.js';
 import { verifyTurnstile } from './dist/modules/auth/turnstile.js';
 
 const bcrypt = bcryptModule.default ?? bcryptModule;
@@ -185,7 +185,7 @@ test('mailer that (khong SMTP): tra sent:false + devUrl, khong nem loi', async (
 
 // ---- Dang ky + xac nhan email ----
 test('dang ky: tao user + token bam + gui mail; trung email -> 409-style; yeu cau dau vao', async () => {
-  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', TURNSTILE_SECRET_KEY: undefined });
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'a@bao.vn', TURNSTILE_SECRET_KEY: undefined });
   try {
     const { prisma, mailer, auth } = setup();
     const res = await auth.registerReader({ displayName: 'Nguyen Van A', email: 'A@Bao.VN', password: 'MatKhau123', termsAccepted: true });
@@ -236,7 +236,7 @@ test('xac nhan email: token dung duoc 1 lan; token sai/het han bi tu choi', asyn
 
 // ---- Quen / dat lai mat khau ----
 test('quen mat khau: email ton tai thi gui link; email la thi tra giong het; link cu chet khi phat link moi', async () => {
-  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', TURNSTILE_SECRET_KEY: undefined });
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'd@bao.vn', TURNSTILE_SECRET_KEY: undefined });
   try {
     const { mailer, auth } = setup();
     await auth.registerReader({ displayName: 'D', email: 'd@bao.vn', password: 'MatKhau123', termsAccepted: true });
@@ -258,6 +258,51 @@ test('quen mat khau: email ton tai thi gui link; email la thi tra giong het; lin
     const login = await auth.userPasswordLogin('d@bao.vn', 'MatKhauMoi123');
     assert.ok(login.access_token);
     await assert.rejects(() => auth.userPasswordLogin('d@bao.vn', 'MatKhau123'), /sai thong tin dang nhap/);
+  } finally { restoreEnv(); }
+});
+
+// ---- Lien ket dev chi tra cho email trong DEV_AUTH_LINKS_ALLOW ----
+test('dev link: chi email trong allowlist moi nhan link + co log (email, IP, thoi diem)', async () => {
+  // Ham thuan: khop dung, khong phan biet hoa/thuong, cho dang local+tag.
+  assert.equal(isDevLinkAllowedEmail('ktcn.digital@vtc.vn', 'ktcn.digital@vtc.vn'), true);
+  assert.equal(isDevLinkAllowedEmail('KTCN.Digital@VTC.VN', 'ktcn.digital@vtc.vn'), true);
+  assert.equal(isDevLinkAllowedEmail('ktcn.digital+test1@vtc.vn', 'ktcn.digital@vtc.vn'), true);
+  assert.equal(isDevLinkAllowedEmail('ktcn.digital+tsht1@vtc.vn', 'ktcn.digital@vtc.vn, khac@vtc.vn'), true);
+  assert.equal(isDevLinkAllowedEmail('ndung2006@gmail.com', 'ktcn.digital@vtc.vn'), false);
+  assert.equal(isDevLinkAllowedEmail('ktcn.digital@khac.vn', 'ktcn.digital@vtc.vn'), false);
+  assert.equal(isDevLinkAllowedEmail('ktcn.digital@vtc.vn', ''), false);
+  assert.equal(isDevLinkAllowedEmail('khac@vtc.vn', 'ktcn.digital@vtc.vn'), false);
+
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'ktcn.digital@vtc.vn', TURNSTILE_SECRET_KEY: undefined });
+  try {
+    const { mailer, auth } = setup();
+    const logs = [];
+    auth.logger = { log: (m) => logs.push(String(m)), warn: () => {}, error: () => {} };
+    // Email trong danh sach: dang ky tra link + ghi log.
+    const r1 = await auth.registerReader({ displayName: 'KTCN', email: 'ktcn.digital@vtc.vn', password: 'MatKhau123', termsAccepted: true, clientIp: '203.0.113.7' });
+    assert.ok(r1.devVerificationUrl.includes('/xac-nhan-email?token='));
+    assert.ok(logs.some((m) => m.includes('DEV_AUTH_LINK') && m.includes('email_verification') && m.includes('ktcn.digital@vtc.vn') && m.includes('203.0.113.7')));
+    // Dang plus-addressing cung duoc.
+    const r1b = await auth.registerReader({ displayName: 'KTCN1', email: 'ktcn.digital+test1@vtc.vn', password: 'MatKhau123', termsAccepted: true, clientIp: '203.0.113.7' });
+    assert.ok(r1b.devVerificationUrl.includes('/xac-nhan-email?token='));
+    // Email ngoai danh sach (Gmail): thu that van gui, phan hoi KHONG co link.
+    const r2 = await auth.registerReader({ displayName: 'N', email: 'ndung2006@gmail.com', password: 'MatKhau123', termsAccepted: true, clientIp: '203.0.113.7' });
+    assert.deepEqual(Object.keys(r2).sort(), ['email', 'emailSent', 'ok']);
+    assert.equal(mailer.sent.filter((s) => s.to === 'ndung2006@gmail.com').length, 1);
+    assert.equal(logs.filter((m) => m.includes('ndung2006@gmail.com') && m.includes('DEV_AUTH_LINK')).length, 0);
+    // Quen mat khau: trong danh sach tra link reset + log; ngoai danh sach khong.
+    const f1 = await auth.forgotReaderPassword('ktcn.digital@vtc.vn', undefined, '203.0.113.7');
+    assert.ok(f1.devResetUrl.includes('/dat-lai-mat-khau?token='));
+    assert.ok(logs.some((m) => m.includes('DEV_AUTH_LINK') && m.includes('password_reset') && m.includes('ktcn.digital@vtc.vn')));
+    const f2 = await auth.forgotReaderPassword('ndung2006@gmail.com');
+    assert.deepEqual(f2, { ok: true });
+  } finally { restoreEnv(); }
+  // Tat DEV_AUTH_LINKS: ngay ca email trong danh sach cung khong co link.
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: undefined, DEV_AUTH_LINKS_ALLOW: 'ktcn.digital@vtc.vn', TURNSTILE_SECRET_KEY: undefined });
+  try {
+    const { auth } = setup();
+    const r = await auth.registerReader({ displayName: 'KTCN', email: 'ktcn.digital@vtc.vn', password: 'MatKhau123', termsAccepted: true });
+    assert.deepEqual(Object.keys(r).sort(), ['email', 'emailSent', 'ok']);
   } finally { restoreEnv(); }
 });
 

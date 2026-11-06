@@ -15,6 +15,7 @@ import {
   MIN_READER_PASSWORD_LEN,
   PASSWORD_RESET_TTL_MS,
   hashToken,
+  isDevLinkAllowedEmail,
   isValidEmail,
   newOpaqueToken,
   passwordResetLink,
@@ -390,12 +391,24 @@ export class AuthService implements OnModuleInit {
     return token;
   }
 
+  // Lien ket dev chi tra trong phan hoi API khi ca hai dieu kien dung:
+  // DEV_AUTH_LINKS bat VA email nam trong DEV_AUTH_LINKS_ALLOW. Moi lan
+  // tra deu ghi log (email, thoi diem, IP) de doi chieu sau; email ngoai
+  // danh sach nhan phan hoi y nhu binh thuong, khong co lien ket.
+  private devLinkFor(email: string, url: string, purpose: string, clientIp?: string): string | undefined {
+    if (!this.mailer?.devLinksEnabled()) return undefined;
+    if (!isDevLinkAllowedEmail(email, process.env.DEV_AUTH_LINKS_ALLOW || '')) return undefined;
+    this.logger.log(`DEV_AUTH_LINK purpose=${purpose} email=${email} ip=${clientIp || 'unknown'} at=${new Date().toISOString()}`);
+    return url;
+  }
+
   async registerReader(input: {
     displayName?: string;
     email: string;
     password: string;
     termsAccepted: boolean;
     captchaToken?: string;
+    clientIp?: string;
   }) {
     if (!this.users || !this.prisma) throw new Error('database unavailable');
     const email = (input.email || '').trim().toLowerCase();
@@ -421,11 +434,12 @@ export class AuthService implements OnModuleInit {
       ? await this.mailer.sendVerificationEmail(email, displayName || undefined, token)
       : { sent: false, devUrl: verificationLink(token) };
     this.logger.log(`Ban doc dang ky ${u.id} (${email}); email xac nhan ${mail.sent ? 'da gui' : 'CHUA gui (chua co SMTP)'}.`);
+    const devUrl = this.devLinkFor(email, mail.devUrl || verificationLink(token), 'email_verification', input.clientIp);
     return {
       ok: true,
       email,
       emailSent: mail.sent,
-      ...(this.mailer?.devLinksEnabled() && mail.devUrl ? { devVerificationUrl: mail.devUrl } : {}),
+      ...(devUrl ? { devVerificationUrl: devUrl } : {}),
     };
   }
 
@@ -459,7 +473,7 @@ export class AuthService implements OnModuleInit {
     return { ok: true };
   }
 
-  async forgotReaderPassword(email: string, captchaToken?: string) {
+  async forgotReaderPassword(email: string, captchaToken?: string, clientIp?: string) {
     if (!this.prisma) throw new Error('database unavailable');
     await this.assertCaptcha(captchaToken);
     const norm = (email || '').trim().toLowerCase();
@@ -473,9 +487,10 @@ export class AuthService implements OnModuleInit {
         ? await this.mailer.sendPasswordResetEmail(u.email, u.displayName, token)
         : { sent: false, devUrl: passwordResetLink(token) };
       this.logger.log(`Quen mat khau ${u.id}; email dat lai ${mail.sent ? 'da gui' : 'CHUA gui (chua co SMTP)'}.`);
+      const devUrl = this.devLinkFor(u.email, mail.devUrl || passwordResetLink(token), 'password_reset', clientIp);
       return {
         ok: true,
-        ...(this.mailer?.devLinksEnabled() && mail.devUrl ? { devResetUrl: mail.devUrl } : {}),
+        ...(devUrl ? { devResetUrl: devUrl } : {}),
       };
     }
     return { ok: true };

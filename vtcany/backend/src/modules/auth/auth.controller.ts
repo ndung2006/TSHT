@@ -166,12 +166,21 @@ export class AuthController {
     return !!secret && given === secret;
   }
 
+  // IP client de ghi log khi tra lien ket dev (DEV_AUTH_LINK): uu tien
+  // X-Forwarded-For do backend chay sau proxy Coolify.
+  private clientIpFromReq(req: any): string {
+    const fwd = req?.headers?.['x-forwarded-for'];
+    if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0].trim();
+    if (Array.isArray(fwd) && fwd.length) return String(fwd[0]).trim();
+    return req?.ip || req?.socket?.remoteAddress || 'unknown';
+  }
+
   // --- Dang ky / xac nhan email / quen mat khau cho ban doc (Giai doan 1) ---
   @UseGuards(RateLimitGuard)
   @Post('user/register')
-  async registerReader(@Body() dto: RegisterReaderDto) {
+  async registerReader(@Req() req: any, @Body() dto: RegisterReaderDto) {
     try {
-      return await this.auth.registerReader(dto);
+      return await this.auth.registerReader({ ...dto, clientIp: this.clientIpFromReq(req) });
     } catch (e: any) {
       const msg = e?.message || 'register failed';
       if (msg === 'email already registered') throw new HttpException('email da duoc dang ky', HttpStatus.CONFLICT);
@@ -201,9 +210,9 @@ export class AuthController {
 
   @UseGuards(RateLimitGuard)
   @Post('user/forgot-password')
-  async forgotReaderPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotReaderPassword(@Req() req: any, @Body() dto: ForgotPasswordDto) {
     try {
-      return await this.auth.forgotReaderPassword(dto.email, dto.captchaToken);
+      return await this.auth.forgotReaderPassword(dto.email, dto.captchaToken, this.clientIpFromReq(req));
     } catch (e: any) {
       throw new HttpException(e?.message || 'forgot password failed', HttpStatus.BAD_REQUEST);
     }

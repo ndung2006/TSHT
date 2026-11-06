@@ -22,6 +22,28 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '');
 }
 
+// Danh sach cho phep tra lien ket xac nhan / dat lai mat khau trong phan
+// hoi API (chi moi truong test, bat bang DEV_AUTH_LINKS kem
+// DEV_AUTH_LINKS_ALLOW, danh sach cach nhau bang dau phay). Khop email
+// dung, khong phan biet hoa/thuong; cho phep ca dang local+tag@domain
+// (vi du ktcn.digital+test1@vtc.vn khi danh sach co ktcn.digital@vtc.vn).
+// Email ngoai danh sach khong bao gio nhan duoc lien ket qua API.
+export function isDevLinkAllowedEmail(email: string, allowList: string): boolean {
+  const em = (email || '').trim().toLowerCase();
+  if (!em || !em.includes('@')) return false;
+  const [mLocal, mDomain] = em.split('@');
+  return (allowList || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .some((entry) => {
+      if (em === entry) return true;
+      const [eLocal, eDomain] = entry.split('@');
+      if (!eLocal || !eDomain || eDomain !== mDomain) return false;
+      return mLocal.startsWith(eLocal + '+');
+    });
+}
+
 export function portalOrigin(): string {
   return (process.env.PORTAL_PUBLIC_ORIGIN || 'https://tsht.vtctech.xyz').replace(/\/$/, '');
 }
