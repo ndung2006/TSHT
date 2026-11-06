@@ -116,12 +116,12 @@ function fakeMailer() {
   return {
     sent,
     devLinksEnabled: () => process.env.DEV_AUTH_LINKS === 'true',
-    sendVerificationEmail: async (to, displayName, token) => {
-      sent.push({ kind: 'verify', to, token });
+    sendVerificationEmail: async (to, displayName, token, mailKind) => {
+      sent.push({ kind: 'verify', to, token, mailKind });
       return { sent: true, devUrl: verificationLink(token) };
     },
-    sendPasswordResetEmail: async (to, displayName, token) => {
-      sent.push({ kind: 'reset', to, token });
+    sendPasswordResetEmail: async (to, displayName, token, mailKind) => {
+      sent.push({ kind: 'reset', to, token, mailKind });
       return { sent: true, devUrl: passwordResetLink(token) };
     },
   };
@@ -523,11 +523,12 @@ test('dang ky email ngoai danh sach DEV: mailer duoc goi dung dia chi tai khoan,
 // va bat envelope that nodemailer tinh ra (mail.message.getEnvelope()) —
 // day la thu may chu SMTP se nhan tren duong day. Neu code lay nham
 // SMTP_USER / MAIL_FROM lam nguoi nhan, envelope.to se lo ra ngay.
-function stubTransport(captured) {
+function stubTransport(captured, err) {
   return nodemailer.createTransport({
     name: 'stub-test',
     version: '1.0.0',
     send(mail, callback) {
+      if (err) return callback(err);
       const envelope = mail.message.getEnvelope();
       captured.push({ envelope, dataTo: mail.data.to, dataFrom: mail.data.from });
       callback(null, { envelope, messageId: '<stub@local>', response: '250 OK (stub)' });
@@ -636,5 +637,120 @@ test('mailer that (transport stub): gui lai xac nhan cho email ngoai DEV -> enve
     assert.deepEqual(res, { ok: true });
     assert.equal(captured.length, 1);
     assert.deepEqual(captured[0].envelope.to, ['gui-lai@gmail.com']);
+  } finally { restoreEnv(); }
+});
+
+// ---- Log gui thu: truong loai thu (2026-11-06) ----
+// Log chi ghi loai + nguoi nhan + messageId + phan hoi SMTP; khong ghi
+// tieu de day du, lien ket hay ma token — tra theo messageId biet ngay
+// thu gi. Mailer that + transport stub + logger bat duoc.
+function setupMailerWithCapturedLogs() {
+  const { mailer, captured } = setupRealMailer();
+  const logs = [];
+  mailer.logger = { log: (m) => logs.push(m), warn: (m) => logs.push(m), error: (m) => logs.push(m) };
+  return { mailer, captured, logs };
+}
+
+test('mailer log: gui xac nhan ghi loai=verify-email, co messageId + envelope, khong co lien ket/ma', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { mailer, logs } = setupMailerWithCapturedLogs();
+    const res = await mailer.sendVerificationEmail('kind-test@gmail.com', 'K', 'zzKindVerify1');
+    assert.equal(res.sent, true);
+    assert.equal(logs.length, 1);
+    const line = logs[0];
+    assert.ok(line.includes('(loai=verify-email)'), line);
+    assert.ok(line.includes('messageId=<stub@local>'), line);
+    assert.ok(line.includes('envelopeTo=["kind-test@gmail.com"]'), line);
+    assert.ok(line.includes('phan hoi=250 OK (stub)'), line);
+    assert.ok(!line.includes('zzKindVerify1'), line);
+    assert.ok(!line.includes('xac-nhan-email'), line);
+  } finally { restoreEnv(); }
+});
+
+test('mailer log: gui lai xac nhan ghi loai=resend-verify; dat lai mat khau ghi loai=reset-password', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { mailer, logs } = setupMailerWithCapturedLogs();
+    await mailer.sendVerificationEmail('kind-test@gmail.com', 'K', 'zzKindResend1', 'resend-verify');
+    assert.ok(logs[0].includes('(loai=resend-verify)'), logs[0]);
+    assert.ok(!logs[0].includes('zzKindResend1'), logs[0]);
+    logs.length = 0;
+    await mailer.sendPasswordResetEmail('kind-test@gmail.com', 'K', 'zzKindReset1');
+    assert.ok(logs[0].includes('(loai=reset-password)'), logs[0]);
+    assert.ok(!logs[0].includes('zzKindReset1'), logs[0]);
+    assert.ok(!logs[0].includes('dat-lai-mat-khau'), logs[0]);
+  } finally { restoreEnv(); }
+});
+
+test('mailer log: duong gui lai (AuthService) truyen loai resend-verify xuong mailer', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, mailer } = setup();
+    await auth.registerReader({ displayName: 'R', email: 'gui-lai2@gmail.com', password: 'MatKhau123', termsAccepted: true });
+    assert.equal(mailer.sent[0].kind, 'verify');
+    assert.equal(mailer.sent[0].mailKind, undefined);
+    const res = await auth.resendVerificationEmail('gui-lai2@gmail.com');
+    assert.deepEqual(res, { ok: true });
+    assert.equal(mailer.sent.length, 2);
+    assert.equal(mailer.sent[1].kind, 'verify');
+    assert.equal(mailer.sent[1].mailKind, 'resend-verify');
+  } finally { restoreEnv(); }
+});
+
+test('mailer log: chua cau hinh SMTP + DEV_AUTH_LINKS bat -> canh bao co link (moi truong test)', async () => {
+  setEnv({ ...realMailerEnv(), SMTP_HOST: undefined });
+  try {
+    // Khong dung setupRealMailer o day: no ghi de getTransporter bang
+    // transport stub nen khong bao gio roi vao nhanh canh bao no-SMTP.
+    const mailer = new MailerService();
+    const logs = [];
+    mailer.logger = { log: (m) => logs.push(['log', m]), warn: (m) => logs.push(['warn', m]), error: (m) => logs.push(['error', m]) };
+    const res = await mailer.sendVerificationEmail('kind-test@gmail.com', 'K', 'zzKindNoSmtp1');
+    assert.equal(res.sent, false);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'warn');
+    assert.ok(logs[0][1].includes('(loai=verify-email)'), logs[0][1]);
+    // DEV bat: link van ghi trong log (cach duy nhat lay link khi chua co SMTP).
+    assert.ok(logs[0][1].includes('xac-nhan-email'), logs[0][1]);
+    assert.ok(logs[0][1].includes('zzKindNoSmtp1'), logs[0][1]);
+  } finally { restoreEnv(); }
+});
+
+test('mailer log: chua cau hinh SMTP + DEV_AUTH_LINKS tat -> ghi loi, khong co lien ket/ma', async () => {
+  setEnv({ ...realMailerEnv(), SMTP_HOST: undefined, DEV_AUTH_LINKS: undefined, DEV_AUTH_LINKS_ALLOW: undefined });
+  try {
+    const mailer = new MailerService();
+    const logs = [];
+    mailer.logger = { log: (m) => logs.push(['log', m]), warn: (m) => logs.push(['warn', m]), error: (m) => logs.push(['error', m]) };
+    const res = await mailer.sendVerificationEmail('kind-test@gmail.com', 'K', 'zzKindNoSmtp2');
+    assert.equal(res.sent, false);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'error');
+    assert.ok(logs[0][1].includes('Chua cau hinh SMTP'), logs[0][1]);
+    assert.ok(logs[0][1].includes('(loai=verify-email)'), logs[0][1]);
+    assert.ok(logs[0][1].includes('kind-test@gmail.com'), logs[0][1]);
+    assert.ok(!logs[0][1].includes('xac-nhan-email'), logs[0][1]);
+    assert.ok(!logs[0][1].includes('zzKindNoSmtp2'), logs[0][1]);
+  } finally { restoreEnv(); }
+});
+
+test('mailer log: gui loi (transport loi) -> ghi loi, khong bao gio co lien ket/ma', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { mailer } = setupRealMailer();
+    mailer.getTransporter = () => stubTransport([], new Error('ket noi SMTP that bai'));
+    // Bat lai logger theo muc de khang dinh dong loi o muc error.
+    const leveled = [];
+    mailer.logger = { log: (m) => leveled.push(['log', m]), warn: (m) => leveled.push(['warn', m]), error: (m) => leveled.push(['error', m]) };
+    const res = await mailer.sendVerificationEmail('kind-test@gmail.com', 'K', 'zzKindFail1');
+    assert.equal(res.sent, false);
+    assert.equal(leveled.length, 1);
+    assert.equal(leveled[0][0], 'error');
+    assert.ok(leveled[0][1].includes('(loai=verify-email)'), leveled[0][1]);
+    assert.ok(leveled[0][1].includes('kind-test@gmail.com'), leveled[0][1]);
+    assert.ok(leveled[0][1].includes('that bai'), leveled[0][1]);
+    assert.ok(!leveled[0][1].includes('zzKindFail1'), leveled[0][1]);
+    assert.ok(!leveled[0][1].includes('xac-nhan-email'), leveled[0][1]);
   } finally { restoreEnv(); }
 });

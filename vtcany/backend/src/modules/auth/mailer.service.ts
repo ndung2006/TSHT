@@ -7,6 +7,13 @@ export interface MailResult {
   devUrl?: string;
 }
 
+// Loai thu de ghi vao log gui (tra theo messageId biet ngay thu gi):
+// verify-email = xac nhan sau dang ky, resend-verify = gui lai xac
+// nhan, reset-password = dat lai mat khau, test = thu nghiem. Log chi
+// ghi loai + nguoi nhan + messageId + phan hoi SMTP, KHONG ghi tieu de
+// day du, lien ket hay ma token.
+export type MailKind = 'verify-email' | 'reset-password' | 'resend-verify' | 'test';
+
 export interface BuiltMail {
   from: string | { name: string; address: string };
   to: string;
@@ -131,12 +138,17 @@ export class MailerService {
     };
   }
 
-  async sendVerificationEmail(to: string, displayName: string | undefined, token: string): Promise<MailResult> {
-    return this.sendMail({ ...this.buildVerificationMail(to, displayName, token), devUrl: verificationLink(token) });
+  async sendVerificationEmail(
+    to: string,
+    displayName: string | undefined,
+    token: string,
+    kind: MailKind = 'verify-email',
+  ): Promise<MailResult> {
+    return this.sendMail({ ...this.buildVerificationMail(to, displayName, token), devUrl: verificationLink(token), kind });
   }
 
   async sendPasswordResetEmail(to: string, displayName: string | undefined, token: string): Promise<MailResult> {
-    return this.sendMail({ ...this.buildPasswordResetMail(to, displayName, token), devUrl: passwordResetLink(token) });
+    return this.sendMail({ ...this.buildPasswordResetMail(to, displayName, token), devUrl: passwordResetLink(token), kind: 'reset-password' });
   }
 
   private async sendMail(opts: {
@@ -146,13 +158,22 @@ export class MailerService {
     html: string;
     text: string;
     devUrl: string;
+    kind: MailKind;
   }): Promise<MailResult> {
     const t = this.getTransporter();
     if (!t) {
-      // Chua cau hinh SMTP: ghi link ra log server (chi moi truong test).
-      this.logger.warn(
-        `[mailer] Chua cau hinh SMTP — khong gui duoc email toi ${opts.to}. Link (chi dung o moi truong test): ${opts.devUrl}`,
-      );
+      if (this.devLinksEnabled()) {
+        // Chua cau hinh SMTP, moi truong test co DEV_AUTH_LINKS: ghi
+        // link ra log server (cach duy nhat lay link khi chua co SMTP).
+        this.logger.warn(
+          `[mailer] Chua cau hinh SMTP — khong gui duoc email toi ${opts.to} (loai=${opts.kind}). Link (chi dung o moi truong test): ${opts.devUrl}`,
+        );
+      } else {
+        // Khong co SMTP va DEV_AUTH_LINKS tat: chi ghi loi (loai +
+        // nguoi nhan), KHONG ghi lien ket/ma. API van tra thong bao
+        // chung (devUrl chi lo ra khi devLinksEnabled + allowlist).
+        this.logger.error(`[mailer] Chua cau hinh SMTP — khong gui duoc email toi ${opts.to} (loai=${opts.kind}).`);
+      }
       return { sent: false, devUrl: opts.devUrl };
     }
     try {
@@ -163,14 +184,14 @@ export class MailerService {
         html: opts.html,
         text: opts.text,
       });
-      // Ghi lai de doi chieu khi thu that lac: nguoi nhan that (envelope),
-      // messageId va phan hoi nguyen van cua may chu SMTP.
+      // Ghi lai de doi chieu khi thu that lac: loai thu, nguoi nhan that
+      // (envelope), messageId va phan hoi nguyen van cua may chu SMTP.
       this.logger.log(
-        `[mailer] Da gui email toi ${opts.to}: messageId=${info.messageId} envelopeTo=${JSON.stringify(info.envelope?.to)} phan hoi=${info.response}`,
+        `[mailer] Da gui email toi ${opts.to} (loai=${opts.kind}): messageId=${info.messageId} envelopeTo=${JSON.stringify(info.envelope?.to)} phan hoi=${info.response}`,
       );
       return { sent: true };
     } catch (e: any) {
-      this.logger.error(`[mailer] Gui email toi ${opts.to} that bai: ${e?.message}`);
+      this.logger.error(`[mailer] Gui email toi ${opts.to} (loai=${opts.kind}) that bai: ${e?.message}`);
       return { sent: false, devUrl: opts.devUrl };
     }
   }

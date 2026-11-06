@@ -468,7 +468,7 @@ export class AuthService implements OnModuleInit {
       : null;
     if (u && u.status === 'active' && !u.emailVerifiedAt) {
       const token = await this.issueEmailToken(u.id, 'email_verification');
-      if (this.mailer) await this.mailer.sendVerificationEmail(u.email, u.displayName, token);
+      if (this.mailer) await this.mailer.sendVerificationEmail(u.email, u.displayName, token, 'resend-verify');
     }
     return { ok: true };
   }
