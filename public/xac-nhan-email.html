@@ -36,7 +36,15 @@
       <a class="verify-btn secondary" href="/">Về trang chủ</a>
     </p>
     <p id="verify-expired" hidden>
-      Liên kết xác nhận đã hết hạn hoặc đã được dùng. Hãy đăng nhập rồi gửi lại email xác nhận ở
+      Liên kết xác nhận đã hết hạn hoặc đã được dùng. Nhập email đã đăng ký để gửi lại liên kết mới:
+    </p>
+    <form id="verify-resend" hidden>
+      <p><input id="verify-resend-email" type="email" required placeholder="Email đã đăng ký" autocomplete="email" style="width:100%;box-sizing:border-box;padding:0.65rem 0.75rem;border:1px solid #ccc;border-radius:6px;font:inherit"></p>
+      <p><button type="submit" class="verify-btn">Gửi lại email xác nhận</button></p>
+      <p id="verify-resend-msg" hidden></p>
+    </form>
+    <p id="verify-expired-login" hidden>
+      Hoặc đăng nhập rồi gửi lại ở
       <a class="verify-link" href="/tai-khoan">Tài khoản của tôi</a>.
     </p>
   </div>
@@ -50,13 +58,42 @@
   var statusEl = document.getElementById("verify-status");
   var actionsEl = document.getElementById("verify-actions");
   var expiredEl = document.getElementById("verify-expired");
+  var resendForm = document.getElementById("verify-resend");
+  var resendMsg = document.getElementById("verify-resend-msg");
+  function showExpired() {
+    expiredEl.hidden = false;
+    resendForm.hidden = false;
+    document.getElementById("verify-expired-login").hidden = false;
+  }
+  resendForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var email = document.getElementById("verify-resend-email").value.trim();
+    var btn = resendForm.querySelector("button[type='submit']");
+    btn.disabled = true;
+    fetch("/api/v2/reader/resend-verification", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        resendMsg.hidden = false;
+        resendMsg.textContent = res.ok
+          ? "Nếu email này đã đăng ký và chưa xác nhận, liên kết xác nhận mới đã được gửi. Kiểm tra Hộp thư đến (và Spam)."
+          : "Không gửi lại được: " + ((res.data && (res.data.error || res.data.message)) || "vui lòng thử lại sau.");
+      })
+      .catch(function () {
+        btn.disabled = false;
+        resendMsg.hidden = false;
+        resendMsg.textContent = "Không kết nối được máy chủ, vui lòng thử lại sau.";
+      });
+  });
   document.getElementById("verify-login-btn").addEventListener("click", function () {
     if (window.ReaderAuth) window.ReaderAuth.open("login");
   });
   if (!token) {
-    statusEl.textContent = "Liên kết xác nhận không hợp lệ.";
+    statusEl.textContent = "Liên kết đã hết hạn hoặc đã được dùng.";
     statusEl.className = "err";
-    expiredEl.hidden = false;
+    showExpired();
     return;
   }
   fetch("/api/v2/reader/verify-email", {
@@ -70,9 +107,9 @@
         actionsEl.hidden = false;
         if (window.ReaderAuth) window.ReaderAuth.refreshHeader();
       } else {
-        statusEl.textContent = "Không xác nhận được email: " + ((res.data && (res.data.error || res.data.message)) || "liên kết không hợp lệ hoặc đã hết hạn.");
+        statusEl.textContent = "Liên kết đã hết hạn hoặc đã được dùng.";
         statusEl.className = "err";
-        expiredEl.hidden = false;
+        showExpired();
       }
     })
     .catch(function () {

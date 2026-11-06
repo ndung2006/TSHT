@@ -441,3 +441,60 @@ test('gop OAuth: khong gop vao tai khoan email chua xac nhan neu OAuth khong chu
     assert.equal(fbNew.emailVerifiedAt, null);
   } finally { restoreEnv(); }
 });
+
+// ---- Mailer: dia chi gui + dinh dang thu (2026-11-06) ----
+test('mailer build: MAIL_FROM_NAME + MAIL_FROM_ADDRESS -> {name, address}; fallback MAIL_FROM; tieu de + nut + chan thu', () => {
+  setEnv({ MAIL_FROM_NAME: 'Tòa soạn hội tụ VTC (thử nghiệm)', MAIL_FROM_ADDRESS: 'ktcn.digital@vtc.vn', MAIL_FROM: undefined, SMTP_FROM: undefined });
+  try {
+    const m = new MailerService();
+    const v = m.buildVerificationMail('a@b.co', 'An', 'tok-1');
+    assert.deepEqual(v.from, { name: 'Tòa soạn hội tụ VTC (thử nghiệm)', address: 'ktcn.digital@vtc.vn' });
+    assert.equal(v.subject, 'Xác nhận email — Tòa soạn hội tụ');
+    assert.ok(v.html.includes('>Xác nhận email</a>'));
+    assert.ok(v.html.includes('/xac-nhan-email?token=tok-1'));
+    assert.ok(v.html.includes('Thư gửi tự động, vui lòng không trả lời.'));
+    assert.ok(v.html.includes('https://tsht.vtctech.xyz'));
+    assert.ok(v.text.includes('Liên kết có hiệu lực 24 giờ'));
+    assert.ok(v.text.includes('Thư gửi tự động, vui lòng không trả lời.'));
+    const r = m.buildPasswordResetMail('a@b.co', 'An', 'tok-2');
+    assert.equal(r.subject, 'Đặt lại mật khẩu — Tòa soạn hội tụ');
+    assert.ok(r.html.includes('>Đặt lại mật khẩu</a>'));
+    assert.ok(r.html.includes('/dat-lai-mat-khau?token=tok-2'));
+    assert.ok(r.html.includes('Nếu bạn không yêu cầu, hãy bỏ qua thư này, mật khẩu không thay đổi.'));
+    assert.ok(r.text.includes('Liên kết có hiệu lực 30 phút'));
+    assert.ok(r.text.includes('Nếu bạn không yêu cầu, hãy bỏ qua thư này, mật khẩu không thay đổi.'));
+    // Ten hien thi co ky tu HTML phai duoc escape trong ban HTML.
+    const x = m.buildVerificationMail('a@b.co', '<b>An</b>', 'tok-3');
+    assert.ok(!x.html.includes('<b>An</b>'));
+    assert.ok(x.html.includes('&lt;b&gt;An&lt;/b&gt;'));
+  } finally { restoreEnv(); }
+});
+
+test('mailer build: khong co bien tach thi dung MAIL_FROM; khong co gi thi dung SMTP_USER', () => {
+  setEnv({ MAIL_FROM_NAME: undefined, MAIL_FROM_ADDRESS: undefined, MAIL_FROM: '"Tòa soạn hội tụ VTC (thử nghiệm)" <ktcn.digital@vtc.vn>', SMTP_FROM: undefined, SMTP_USER: 'ktcn.digital' });
+  try {
+    const m = new MailerService();
+    assert.equal(m.fromAddress(), '"Tòa soạn hội tụ VTC (thử nghiệm)" <ktcn.digital@vtc.vn>');
+  } finally { restoreEnv(); }
+  setEnv({ MAIL_FROM_NAME: undefined, MAIL_FROM_ADDRESS: undefined, MAIL_FROM: undefined, SMTP_FROM: undefined, SMTP_USER: 'ktcn.digital' });
+  try {
+    const m = new MailerService();
+    assert.equal(m.fromAddress(), 'ktcn.digital');
+  } finally { restoreEnv(); }
+});
+
+// ---- Vo hieu lien ket cu khi gui lai (2026-11-06) ----
+test('gui lai xac nhan: lien ket cu chet ngay khi co lien ket moi; lien ket moi dung duoc', async () => {
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'a@bao.vn', TURNSTILE_SECRET_KEY: undefined });
+  try {
+    const { prisma, mailer, auth } = setup();
+    await auth.registerReader({ displayName: 'D', email: 'd@bao.vn', password: 'MatKhau123', termsAccepted: true });
+    const tokA = mailer.sent[0].token;
+    await auth.resendVerificationEmail('d@bao.vn');
+    assert.equal(mailer.sent.length, 2);
+    const tokB = mailer.sent[1].token;
+    assert.notEqual(tokA, tokB);
+    await assert.rejects(() => auth.verifyReaderEmail(tokA), /invalid or expired token/);
+    assert.deepEqual(await auth.verifyReaderEmail(tokB), { ok: true });
+  } finally { restoreEnv(); }
+});

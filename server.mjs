@@ -538,7 +538,10 @@ const server = http.createServer(async (req, res) => {
         }
       };
       const readerError = (r) => {
-        const raw = r.data && (r.data.message || r.data.error);
+        // Backend tra loi dang {error:{code, message}} — lay message trong
+        // object, khong String(object) thanh "[object Object]".
+        let raw = r.data && (r.data.message || r.data.error);
+        if (raw && typeof raw === "object") raw = raw.message || raw.code || JSON.stringify(raw);
         const msg = Array.isArray(raw) ? raw.join("; ") : (raw || "co loi xay ra, vui long thu lai sau");
         return { error: String(msg) };
       };
@@ -615,7 +618,15 @@ const server = http.createServer(async (req, res) => {
       if (req.method === "POST" && u.pathname === "/api/v2/reader/login") {
         const body = await readJson(req).catch(() => null);
         if (!body) return err(res, 400, "du lieu khong hop le");
-        const r = await backendAuth("/auth/user/login", { method: "POST", body });
+        // Backend nhan identifier (email/SDT), con form web gui email —
+        // doi ten truoc khi chuyen tiep, neu khong moi lan dang nhap qua
+        // portal deu 401 "invalid credentials".
+        const loginBody = {
+          identifier: body.email || body.identifier || "",
+          password: body.password || "",
+          captchaToken: body.captchaToken,
+        };
+        const r = await backendAuth("/auth/user/login", { method: "POST", body: loginBody });
         if (!r.ok) return json(res, r.status, readerError(r));
         // Chi tra user ve trinh duyet; token nam trong cookie ma hoa.
         const cookie = readerSessionCookie(r.data.access_token, r.data.refresh_token);
