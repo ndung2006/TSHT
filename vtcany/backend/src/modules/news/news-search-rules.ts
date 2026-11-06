@@ -5,19 +5,31 @@
 // cho $queryRawUnsafe (moi gia tri nguoi dung deu qua placeholder $n,
 // khong noi chuoi truc tiep vao SQL).
 //
-// Quy tac khop:
+// Quy tac khop (cap nhat 2026-11-06 theo quyet dinh user: tu nguyen):
 // - Khong tick "Tim chinh xac": tach tu khoa thanh tung tu theo khoang
 //   trang; MOI tu phai xuat hien (AND) o it nhat mot truong trong pham vi,
 //   so khop tren dang chuan hoa immutable_unaccent(lower(truong)) — nho do
 //   "y te" khop "Y te" (ca hai ve "y te"), thu tu tu khong quan trong.
+//   MOI TU (tru tu cuoi) khop NGUYEN TU: regex ~* '\y<tu>\y' — "y te"
+//   KHONG khop "yeu cau" (khong co tu "y" dung mot minh) hay "Computer"
+//   (khong co tu bat dau bang "te" o day). TU CUOI khop TIEN TO: regex
+//   ~* '\m<tu>' (chi rang buoc dau tu) — de thanh tim nhanh van goi y
+//   khi dang go do ("y t" van ra "y te"); tu duy nhat cua cum tu cung
+//   la tu cuoi nen cung khop tien to.
 //   Tu khoa phia JS cung duoc chuan hoa bang stripAccents() truoc khi dua
-//   vao pattern, de hai ve khop nhau.
+//   vao pattern, de hai ve khop nhau. Ky tu dac biet cua regex trong tu
+//   khoa duoc escape (escapeRegExp) — gia tri nguoi dung van qua
+//   placeholder $n, khong noi chuoi truc tiep vao SQL.
 // - Tick "Tim chinh xac": khop dung cum tu tren dang GIU DAU
 //   lower(truong) LIKE '%cum tu%' (chi bo hoa/thuong) — "y te" tick chinh
 //   xac ra 0 ket qua truoc "Y te".
 // - Xep hang relevance: diem similarity trigram, trong so title > sapo >
-//   body (che do chinh xac: diem CASE WHEN theo truong khop); hoa diem thi
-//   publishAt DESC. Khong co tu khoa -> sort mac dinh newest (Q4).
+//   body (che do chinh xac: diem CASE WHEN theo truong khop); CONG THEM
+//   diem uu tien cum lien nhau: bai khop ca cum tu lien tiep (regex
+//   '\y<cum tu>\y', cac tu noi bang \s+) duoc +10 title / +5 sapo / +2
+//   body cho moi cum tu — nam tren moi bai chi chua roi rac cac tu.
+//   Hoa diem thi publishAt DESC. Khong co tu khoa -> sort mac dinh
+//   newest (Q4).
 // - Ngay xuat ban theo gio VN qua vnDayRange (KHONG dung new Date(...T00:00:00)
 //   gio server-local, KHONG dung cong thuc AT TIME ZONE — ca hai da chung
 //   minh sai truoc day).
@@ -62,6 +74,32 @@ export function splitWords(q: string): string[] {
 /** Escape 3 ky tu dac biet cua LIKE (\, %, _) — dung escape mac dinh \. */
 export function escapeLike(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/** Escape cac ky tu dac biet cua regex Postgres (. * + ? ^ $ { } ( ) | [ ] \) — dung cho pattern ~* (gia tri van qua placeholder). */
+export function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Pattern regex (Postgres ARE) khop mot tu da chuan hoa (khong dau, lower)
+ * tren dang chuan hoa cua truong.
+ * - Tu thuong: NGUYEN TU — '\y<tu>\y' (ranh gioi tu hai dau).
+ * - Tu cuoi cua cum tu: TIEN TO — '\m<tu>' (chi rang buoc dau tu, de goi y
+ *   khi dang go do; tu duy nhat cua cum tu cung la tu cuoi).
+ */
+export function wordRegexPattern(wordNorm: string, isLast: boolean): string {
+  const w = escapeRegExp(wordNorm);
+  return isLast ? `\\m${w}` : `\\y${w}\\y`;
+}
+
+/**
+ * Pattern regex khop ca cum tu lien nhau tren dang chuan hoa: '\y<tu1>\s+<tu2>...\y'
+ * (ranh gioi tu hai dau cum, cac tu noi bang \s+ de chiu khoang trang thua
+ * / xuong dong trong text). Dung cho diem uu tien cum lien nhau.
+ */
+export function phraseRegexPattern(wordsNorm: string[]): string {
+  return `\\y${wordsNorm.map(escapeRegExp).join('\\s+')}\\y`;
 }
 
 /** Ngay dang YYYY-MM-DD; sai dinh dang HOAC khong phai ngay lich that -> null. */
@@ -206,10 +244,11 @@ export function buildSearchQuery(p: SearchParams, categoryIds: string[] | null):
       const pattern = `%${escapeLike(phrase.toLowerCase())}%`;
       where.push(`(${exprs.map((e) => `${e} LIKE ${ph(pattern)}`).join(' OR ')})`);
     } else {
-      for (const word of splitWords(phrase)) {
-        const pattern = `%${escapeLike(stripAccents(word).toLowerCase())}%`;
-        where.push(`(${exprs.map((e) => `${e} LIKE ${ph(pattern)}`).join(' OR ')})`);
-      }
+      const words = splitWords(phrase).map((w) => stripAccents(w).toLowerCase());
+      words.forEach((word, i) => {
+        const pattern = wordRegexPattern(word, i === words.length - 1);
+        where.push(`(${exprs.map((e) => `${e} ~* ${ph(pattern)}`).join(' OR ')})`);
+      });
     }
   }
 
@@ -226,10 +265,25 @@ export function buildSearchQuery(p: SearchParams, categoryIds: string[] | null):
     } else {
       const qNorm = stripAccents(phrases.join(' ')).toLowerCase().trim();
       const [t, s, b] = fieldExprs('all', false);
+      // Uu tien cum lien nhau: moi cum tu khop lien tiep o mot truong cong
+      // diem lon hon tong similarity toi da (3+1.5+0.5=5) de bai khop cum
+      // luon dung tren bai chi chua roi rac cac tu.
+      const phraseBonus = phrases
+        .map((phrase) => {
+          const words = splitWords(phrase).map((w) => stripAccents(w).toLowerCase());
+          const pattern = phraseRegexPattern(words);
+          return (
+            `(CASE WHEN ${t} ~* ${ph(pattern)} THEN 10 ELSE 0 END` +
+            ` + CASE WHEN ${s} ~* ${ph(pattern)} THEN 5 ELSE 0 END` +
+            ` + CASE WHEN ${b} ~* ${ph(pattern)} THEN 2 ELSE 0 END)`
+          );
+        })
+        .join(' + ');
       scoreSql =
         `3 * similarity(${t}, ${ph(qNorm)})` +
         ` + 1.5 * similarity(${s}, ${ph(qNorm)})` +
-        ` + 0.5 * similarity(${b}, ${ph(qNorm)})`;
+        ` + 0.5 * similarity(${b}, ${ph(qNorm)})` +
+        ` + ${phraseBonus}`;
     }
   }
   const orderSql =

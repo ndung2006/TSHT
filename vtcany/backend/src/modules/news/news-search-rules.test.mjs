@@ -5,10 +5,13 @@ import {
   MAX_KEYWORD_LEN,
   buildSearchQuery,
   escapeLike,
+  escapeRegExp,
   hasSearchInput,
   parseSearchQuery,
+  phraseRegexPattern,
   splitWords,
   stripAccents,
+  wordRegexPattern,
 } from './news-search-rules.ts';
 
 test('stripAccents: bo dau tieng Viet, đ→d', () => {
@@ -27,6 +30,25 @@ test('splitWords: tach theo khoang trang, bo khoang thua', () => {
 test('escapeLike: escape \\, %, _', () => {
   assert.equal(escapeLike('100%_a\\b'), '100\\%\\_a\\\\b');
   assert.equal(escapeLike('y te'), 'y te');
+});
+
+test('escapeRegExp: escape ky tu dac biet cua regex Postgres', () => {
+  assert.equal(escapeRegExp('c++'), 'c\\+\\+');
+  assert.equal(escapeRegExp('a.b (x)'), 'a\\.b \\(x\\)');
+  assert.equal(escapeRegExp('y te'), 'y te');
+});
+
+test('wordRegexPattern: tu thuong nguyen tu, tu cuoi tien to', () => {
+  assert.equal(wordRegexPattern('y', false), '\\yy\\y');
+  assert.equal(wordRegexPattern('te', true), '\\mte');
+  assert.equal(wordRegexPattern('nghi', true), '\\mnghi');
+  assert.equal(wordRegexPattern('c++', true), '\\mc\\+\\+');
+});
+
+test('phraseRegexPattern: cum lien nhau, tu noi bang \\s+', () => {
+  assert.equal(phraseRegexPattern(['y', 'te']), '\\yy\\s+te\\y');
+  assert.equal(phraseRegexPattern(['nghi', 'quyet']), '\\ynghi\\s+quyet\\y');
+  assert.equal(phraseRegexPattern(['te']), '\\yte\\y');
 });
 
 test('parseSearchQuery: mac dinh khi khong co gi', () => {
@@ -79,21 +101,41 @@ test('parseSearchQuery: page/limit kep (limit toi da 20)', () => {
   assert.equal(parseSearchQuery({ page: '3', limit: '5' }).page, 3);
 });
 
-test('buildSearchQuery fuzzy: "y te" -> moi tu AND, khop khong dau', () => {
+test('buildSearchQuery fuzzy: "y te" -> tu nguyen + tu cuoi tien to, khop khong dau', () => {
   const p = parseSearchQuery({ q: 'y te' });
   const { whereSql, orderSql, scoreSql, values } = buildSearchQuery(p, null);
-  // 2 tu x 2 truong (title, sapo) = 4 LIKE; moi tu mot dieu kien AND.
-  assert.equal((whereSql.match(/LIKE/g) || []).length, 4);
+  // 2 tu x 2 truong (title, sapo) = 4 dieu kien ~* (khong con LIKE); moi tu mot dieu kien AND.
+  assert.equal((whereSql.match(/~\*/g) || []).length, 4);
+  assert.doesNotMatch(whereSql, /LIKE/);
   assert.match(whereSql, /immutable_unaccent\(lower\(a\."title"\)\)/);
   assert.match(whereSql, /status = 'published'/);
   assert.match(whereSql, /a\."publish_at" <= now\(\)/);
-  assert.deepEqual(values.slice(0, 4), ['%y%', '%y%', '%te%', '%te%']);
-  // Diem relevance: similarity co trong so title > sapo > body.
+  // Tu "y" khong phai tu cuoi -> nguyen tu '\yy\y'; tu "te" la tu cuoi -> tien to '\mte'.
+  assert.deepEqual(values.slice(0, 4), ['\\yy\\y', '\\yy\\y', '\\mte', '\\mte']);
+  // Diem relevance: similarity co trong so title > sapo > body + diem uu tien cum lien nhau.
   assert.match(scoreSql, /3 \* similarity/);
   assert.match(scoreSql, /1\.5 \* similarity/);
   assert.match(scoreSql, /0\.5 \* similarity/);
-  assert.deepEqual(values.slice(4), ['y te', 'y te', 'y te']);
+  assert.match(scoreSql, /CASE WHEN .* ~\* .* THEN 10 ELSE 0 END/);
+  assert.match(scoreSql, /CASE WHEN .* ~\* .* THEN 5 ELSE 0 END/);
+  assert.match(scoreSql, /CASE WHEN .* ~\* .* THEN 2 ELSE 0 END/);
+  // 3 gia tri pattern cum lien nhau (duoc sinh truoc) + 3 gia tri similarity (qNorm).
+  assert.deepEqual(values.slice(4, 7), ['\\yy\\s+te\\y', '\\yy\\s+te\\y', '\\yy\\s+te\\y']);
+  assert.deepEqual(values.slice(7), ['y te', 'y te', 'y te']);
   assert.match(orderSql, /ORDER BY score DESC, a\."publish_at" DESC/);
+});
+
+test('buildSearchQuery fuzzy: tu duy nhat cung la tu cuoi -> khop tien to', () => {
+  const p = parseSearchQuery({ q: 'nghi' });
+  const { whereSql, values } = buildSearchQuery(p, null);
+  assert.equal((whereSql.match(/~\*/g) || []).length, 2);
+  assert.deepEqual(values.slice(0, 2), ['\\mnghi', '\\mnghi']);
+});
+
+test('buildSearchQuery fuzzy: tu khoa co ky tu regex -> pattern duoc escape', () => {
+  const p = parseSearchQuery({ q: 'c++' });
+  const { values } = buildSearchQuery(p, null);
+  assert.deepEqual(values.slice(0, 2), ['\\mc\\+\\+', '\\mc\\+\\+']);
 });
 
 test('buildSearchQuery exact: "y te" giu dau, dung cum tu', () => {
@@ -108,9 +150,9 @@ test('buildSearchQuery: q2 AND voi q; scope all tim ca body', () => {
   const p = parseSearchQuery({ q: 'y te', q2: 'ha noi', scope: 'all' });
   const { whereSql, values } = buildSearchQuery(p, null);
   assert.match(whereSql, /regexp_replace\(a\."body"/);
-  // 4 tu x 3 truong = 12 LIKE.
-  assert.equal((whereSql.match(/LIKE/g) || []).length, 12);
-  assert.ok(values.includes('%ha%') && values.includes('%noi%'));
+  // 4 tu x 3 truong = 12 dieu kien ~*.
+  assert.equal((whereSql.match(/~\*/g) || []).length, 12);
+  assert.ok(values.includes('\\yha\\y') && values.includes('\\mnoi'));
 });
 
 test('buildSearchQuery: khong tu khoa + loc chuyen muc -> newest, diem 0', () => {

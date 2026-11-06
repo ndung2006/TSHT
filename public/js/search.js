@@ -3,6 +3,8 @@
 // tu khoa (<mark>) + phan trang 20/trang. Khong goi API khi khong co tu
 // khoa lan bo loc (hien goi y). Tham so URL theo buoc0 §4.4:
 // q, q2, cat, scope, type, from, to, exact, sort, page.
+// To dam khong chinh xac theo dung quy tac backend (2026-11-06): tu
+// thuong chi to dam khi dung mot minh, tu cuoi to dam ca tu no mo dau.
 (function () {
   "use strict";
   var MAX_Q = 200;
@@ -158,6 +160,12 @@
     if (s === "Đ") return "D";
     return s;
   }
+  // Ky tu thuoc ve mot tu sau khi chuan hoa (chu cai a-z khong dau, so, _).
+  // Dung de kiem tra ranh gioi tu khi to dam: tu thuong chi to dam khi
+  // dung mot minh, tu cuoi chi can bat dau mot tu (khop tien to).
+  function isWordCh(ch) {
+    return !!ch && /[a-z0-9_]/i.test(ch);
+  }
   function normMap(text) {
     var norm = "", map = [];
     for (var i = 0; i < text.length; i++) {
@@ -182,16 +190,31 @@
     } else {
       var nm = normMap(text);
       terms.forEach(function (t) {
-        (t || "").split(/\s+/).forEach(function (w) {
+        var words = (t || "").split(/\s+/).filter(Boolean);
+        words.forEach(function (w, wi) {
           if (!w) return;
           var nw = "";
           for (var i = 0; i < w.length; i++) nw += stripChar(w[i]).toLowerCase();
           if (!nw) return;
+          // Cung quy tac nhu backend: tu thuong khop nguyen tu, tu cuoi
+          // khop tien to (goi y khi dang go do).
+          var isLast = wi === words.length - 1;
           var at = 0, idx;
           while ((idx = nm.norm.indexOf(nw, at)) >= 0) {
-            var start = nm.map[idx], end = nm.map[idx + nw.length - 1] + 1;
+            var before = idx === 0 ? "" : nm.norm[idx - 1];
+            if (isWordCh(before)) { at = idx + 1; continue; }
+            var wordEnd = idx + nw.length;
+            if (isLast) {
+              // Tien to: to den het tu (vi du "t" -> to ca "tế").
+              while (wordEnd < nm.norm.length && isWordCh(nm.norm[wordEnd])) wordEnd++;
+            } else {
+              // Nguyen tu: ky tu sau tu phai la bien (khong phai ky tu tu).
+              var after = wordEnd >= nm.norm.length ? "" : nm.norm[wordEnd];
+              if (isWordCh(after)) { at = idx + 1; continue; }
+            }
+            var start = nm.map[idx], end = nm.map[wordEnd - 1] + 1;
             ranges.push([start, end]);
-            at = idx + nw.length;
+            at = wordEnd;
           }
         });
       });
