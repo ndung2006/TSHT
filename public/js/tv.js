@@ -226,13 +226,25 @@
         showMsg("Không phát được video này (lỗi mạng).");
       });
   }
+  // An han khoi cua mot chuyen muc video (ca muc trong subnav tren
+  // trang): chi dung khi chuyen muc chac chan khong co chuong trinh
+  // (khong co trong danh muc catalog, hoac API tra ve 0 video).
+  function hideCategorySection(entry) {
+    var section = document.getElementById(entry.section);
+    if (section) section.hidden = true;
+    var link = document.querySelector("a[href='#" + entry.section + "']");
+    if (link) link.hidden = true;
+  }
+  // Tra ve true neu ve duoc luoi video (co noi dung); false neu
+  // chuyen muc trong (da an khoi) — de dem so chuyen muc co noi dung.
   function renderCategorySection(entry, items) {
     var section = document.getElementById(entry.section);
-    if (!section) return;
+    if (!section) return false;
     var box = section.querySelector(".cat-placeholder");
-    if (!box) return;
-    // Chuyen muc chua co video da xuat ban: GIU NGUYEN khung cho tinh.
-    if (!items || !items.length) return;
+    if (!box) return false;
+    // Chuyen muc chua co video da xuat ban: AN HAN khoi, khong giu
+    // khung cho tinh nua.
+    if (!items || !items.length) { hideCategorySection(entry); return false; }
     box.classList.remove("cat-placeholder");
     box.classList.add("tv-cat-grid");
     box.innerHTML = items.map(function (it) {
@@ -260,8 +272,25 @@
         .then(function (d) { if (d && d.url) vodPrefetch[it.publicId] = { url: d.url, fetchedAt: Date.now() }; })
         .catch(function () {});
     });
+    return true;
   }
   function loadCategoryVideos() {
+    // Dem so chuyen muc da xong (co noi dung / trong / loi) de biet
+    // khi nao ca trang da on dinh: chi khi MOI chuyen muc deu trong
+    // (khong co muc nao loi) moi hien 1 dong "Kho video dang duoc
+    // xay dung" o cuoi trang; muc loi tai thi giu khung cho tinh.
+    var total = TV_CATEGORY_SECTIONS.length;
+    var done = 0;
+    var withContent = 0;
+    var errored = 0;
+    function settle() {
+      done++;
+      if (done < total) return;
+      if (withContent === 0 && errored === 0) {
+        var empty = document.getElementById("tv-cats-empty");
+        if (empty) empty.hidden = false;
+      }
+    }
     fetch("/api/v2/catalog-categories?type=video")
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -270,11 +299,14 @@
         for (var i = 0; i < cats.length; i++) { if (cats[i].slug && cats[i].id) bySlug[cats[i].slug] = cats[i].id; }
         TV_CATEGORY_SECTIONS.forEach(function (entry) {
           var id = bySlug[entry.slug];
-          if (!id) return; // khong co chuyen muc nay: giu khung cho
+          if (!id) { hideCategorySection(entry); settle(); return; } // khong co chuyen muc nay: an han
           fetch("/api/v2/catalog-videos?categoryId=" + encodeURIComponent(id) + "&limit=8")
             .then(function (r) { return r.json(); })
-            .then(function (vd) { renderCategorySection(entry, (vd && vd.items) || []); })
-            .catch(function () { /* loi tai: giu khung cho tinh */ });
+            .then(function (vd) {
+              if (renderCategorySection(entry, (vd && vd.items) || [])) withContent++;
+              settle();
+            })
+            .catch(function () { errored++; settle(); /* loi tai: giu khung cho tinh */ });
         });
       })
       .catch(function () { /* khong tai duoc danh muc: giu khung cho tinh */ });
@@ -440,8 +472,11 @@
     // nut lich mo duoc date picker goc).
     if (window.LiveEpg && window.LiveEpg.bindDayNav) window.LiveEpg.bindDayNav(dateInput, document.querySelector(".sched-daynav"));
   }
-  // Kho video theo chuyen muc: doc lap voi kenh live/lich (loi tai
-  // thi cac section giu khung cho tinh nhu cu).
+  // Kho video theo chuyen muc: doc lap voi kenh live/lich. Chuyen muc
+  // trong (khong co video da xuat ban) thi an han khoi; chi khi ca
+  // trang khong co chuyen muc nao co noi dung moi hien 1 dong
+  // "Kho video dang duoc xay dung" + link xem truc tiep. Muc loi tai
+  // thi giu khung cho tinh (chua biet co noi dung hay khong).
   loadCategoryVideos();
   fetch("/api/v1/channels").then(function (r) { return r.json(); }).then(function (d) {
     if (d.vtcaio_error) showMsg(d.vtcaio_error);

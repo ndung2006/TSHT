@@ -36,6 +36,10 @@
 .latest-norecord { color: #888; font-size: 0.9rem; }
 .latest-replaying { display: inline-block; background: #b45309; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
 .cat-placeholder { border: 1px solid #ddd; padding: 1rem; background: #fafafa; }
+/* Ca trang khong co chuyen muc nao co video: 1 dong duy nhat thay cho
+   8 khung cho trong (hien boi tv.js khi moi chuyen muc deu trong). */
+.tv-cats-empty { color: #555; text-align: center; padding: 1.5rem 1rem; }
+.tv-cats-empty a { color: #c00; font-weight: 700; }
 /* Luoi video theo chuyen muc (2026-11-05): the video nhu khoi Da phuong
    tien trang chu (.mm-video-card) nhung nen sang cho hop nen trang
    trang TV; the duoc chon vien do + tieu de dam (giong .is-selected

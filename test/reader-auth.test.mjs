@@ -26,6 +26,7 @@ class El {
     this.checked = false;
     this.value = "";
     this.textContent = "";
+    this.innerHTML = "";
     this.style = {};
     this._classes = new Set((attrs.class || "").split(/\s+/).filter(Boolean));
     this.classList = {
@@ -183,7 +184,7 @@ function buildFixture() {
   accounts.forEach((a) => doc.appendChild(a));
   return {
     doc, dialog, tabLogin, tabRegister, errEl, okEl, noteEl,
-    loginForm, registerForm, forgotForm, forgotLink, backLink,
+    loginForm, registerForm, forgotForm, forgotLink, backLink, pwToggle,
     openBtns, accounts, dispatched, headChildren, docListeners,
     fireKey: (key) => (docListeners.keydown || []).forEach((fn) => fn({ key })),
   };
@@ -367,4 +368,62 @@ test("dang xuat: goi logout, header ve nut Dang nhap", async () => {
   assert.equal(fetchCalls.filter((c) => c.url === "/api/v2/reader/logout").length, 1);
   assert.equal(f.openBtns[0].hidden, false);
   assert.equal(f.accounts[0].hidden, true);
+});
+
+test("dang nhap sai voi loi dang object: hien tieng Viet, khong co [object Object]", async () => {
+  const f = buildFixture();
+  const { sandbox } = loadReaderAuth(f, {
+    "/api/v2/reader/config": { configured: true, turnstileSiteKey: null },
+    "/api/v2/reader/me": err("chua dang nhap", 401),
+    "/api/v2/reader/login": { _status: 401, _body: { error: { code: "unauthorized", message: "invalid credentials" } } },
+  });
+  await tick();
+  sandbox.ReaderAuth.open("login");
+  f.loginForm.email.value = "a@vidu.vn";
+  f.loginForm.password.value = "sai-sai-sai";
+  f.loginForm.dispatch("submit");
+  await tick();
+  assert.equal(f.dialog.hidden, false);
+  assert.equal(f.errEl.hidden, false);
+  assert.equal(f.errEl.textContent, "Email hoặc mật khẩu không đúng.");
+  assert.equal(f.errEl.textContent.includes("[object Object]"), false);
+});
+
+test("dang nhap sai voi loi dang mang object: ve thong bao chung, khong co [object Object]", async () => {
+  const f = buildFixture();
+  const { sandbox } = loadReaderAuth(f, {
+    "/api/v2/reader/config": { configured: true, turnstileSiteKey: null },
+    "/api/v2/reader/me": err("chua dang nhap", 401),
+    "/api/v2/reader/login": { _status: 400, _body: { error: [{ property: "email", constraints: { isEmail: "email phai dung dinh dang" } }] } },
+  });
+  await tick();
+  sandbox.ReaderAuth.open("login");
+  f.loginForm.email.value = "a@vidu.vn";
+  f.loginForm.password.value = "sai-sai-sai";
+  f.loginForm.dispatch("submit");
+  await tick();
+  assert.equal(f.errEl.hidden, false);
+  assert.equal(f.errEl.textContent, "Có lỗi xảy ra, vui lòng thử lại sau.");
+  assert.equal(f.errEl.textContent.includes("[object Object]"), false);
+});
+
+test("nut hien/an mat khau: doi kieu input va icon SVG, khong dung bieu tuong cam xuc", async () => {
+  const f = buildFixture();
+  const { sandbox } = loadReaderAuth(f, {
+    "/api/v2/reader/config": { configured: true, turnstileSiteKey: null },
+    "/api/v2/reader/me": err("chua dang nhap", 401),
+  });
+  await tick();
+  sandbox.ReaderAuth.open("login");
+  assert.equal(f.loginForm.password.type, "password");
+  f.pwToggle.dispatch("click");
+  assert.equal(f.loginForm.password.type, "text");
+  assert.ok(f.pwToggle.innerHTML.includes("<svg"));
+  assert.equal(f.pwToggle.innerHTML.includes("🙈"), false);
+  assert.equal(f.pwToggle.innerHTML.includes("👁"), false);
+  assert.equal(f.pwToggle.getAttribute("aria-label"), "Ẩn mật khẩu");
+  f.pwToggle.dispatch("click");
+  assert.equal(f.loginForm.password.type, "password");
+  assert.ok(f.pwToggle.innerHTML.includes("<svg"));
+  assert.equal(f.pwToggle.getAttribute("aria-label"), "Hiện mật khẩu");
 });

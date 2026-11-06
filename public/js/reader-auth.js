@@ -12,6 +12,22 @@
   var turnstileWidgets = {}; // form -> widget id
   var turnstileRendered = false;
 
+  // Icon mat SVG (thay bieu tuong cam xuc): mat mo = mat khau dang an,
+  // mat gach cheo = mat khau dang hien.
+  var EYE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-6.5 0-10-8-10-8a18.45 18.45 0 0 1 5.06-6.06M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+  // Boc text loi tu bat ky dang nao backend/proxy tra ve (chuoi, object
+  // {message/code}, mang) — khong bao gio String(object) thanh
+  // "[object Object]".
+  function errText(data) {
+    if (data == null) return "";
+    if (typeof data === "string") return data;
+    if (Array.isArray(data)) return data.map(errText).filter(Boolean).join("; ");
+    if (typeof data === "object") return errText(data.error) || errText(data.message) || errText(data.code) || "";
+    return "";
+  }
+
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
@@ -56,9 +72,7 @@
   // Loi backend (tieng Viet khong dau) -> thong bao tieng Viet co dau cho
   // ban doc. O buoc dang nhap khong lo email nao da co tai khoan.
   function mapError(data, status) {
-    var raw = (data && (data.error || data.message)) || "";
-    if (Array.isArray(raw)) raw = raw.join("; ");
-    raw = String(raw);
+    var raw = errText(data);
     if (status === 429) return raw || "Tài khoản tạm khóa, vui lòng thử lại sau 15 phút.";
     if (/sai thong tin dang nhap|invalid credentials/i.test(raw)) return "Email hoặc mật khẩu không đúng.";
     if (/captcha/i.test(raw)) return "Xác minh chống robot thất bại, vui lòng thử lại.";
@@ -283,7 +297,7 @@
         var show = input.type === "password";
         input.type = show ? "text" : "password";
         b.setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu");
-        b.textContent = show ? "🙈" : "👁";
+        b.innerHTML = show ? EYE_OFF_SVG : EYE_SVG;
       });
     });
     // Gui form.

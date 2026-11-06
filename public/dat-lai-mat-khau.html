@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex">
 <title>Đặt lại mật khẩu — Tòa soạn hội tụ</title>
 <link rel="stylesheet" href="/css/home.css?v=20261105-2">
-<link rel="stylesheet" href="/css/header.css?v=20261106-3">
+<link rel="stylesheet" href="/css/header.css?v=20261106-4">
 <link rel="stylesheet" href="/css/footer.css?v=20261106-3">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -60,6 +60,15 @@
   var token = new URLSearchParams(window.location.search).get("token") || "";
   var msgEl = document.getElementById("reset-msg");
   var form = document.getElementById("reset-form");
+  // Boc text loi tu bat ky dang nao backend/proxy tra ve — khong bao
+  // gio String(object) thanh "[object Object]".
+  function errText(data) {
+    if (data == null) return "";
+    if (typeof data === "string") return data;
+    if (Array.isArray(data)) return data.map(errText).filter(Boolean).join("; ");
+    if (typeof data === "object") return errText(data.error) || errText(data.message) || errText(data.code) || "";
+    return "";
+  }
   function showMsg(text, ok) {
     msgEl.textContent = text;
     msgEl.className = "reset-msg " + (ok ? "ok" : "err");
@@ -91,7 +100,9 @@
       .then(function (res) {
         btn.disabled = false;
         if (!res.ok) {
-          showMsg("Không đặt lại được mật khẩu: " + ((res.data && (res.data.error || res.data.message)) || "liên kết không hợp lệ hoặc đã hết hạn."), false);
+          var why = errText(res.data);
+          if (/invalid or expired/i.test(why)) why = "liên kết không hợp lệ hoặc đã hết hạn.";
+          showMsg("Không đặt lại được mật khẩu: " + (why || "liên kết không hợp lệ hoặc đã hết hạn."), false);
           document.getElementById("reset-expired").hidden = false;
           return;
         }

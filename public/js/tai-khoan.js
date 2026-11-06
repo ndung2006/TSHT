@@ -7,6 +7,16 @@
   var currentUser = null;
 
   function $(id) { return document.getElementById(id); }
+  // Boc text loi tu bat ky dang nao backend/proxy tra ve (chuoi, object
+  // {message/code}, mang) — khong bao gio String(object) thanh
+  // "[object Object]".
+  function errText(data) {
+    if (data == null) return "";
+    if (typeof data === "string") return data;
+    if (Array.isArray(data)) return data.map(errText).filter(Boolean).join("; ");
+    if (typeof data === "object") return errText(data.error) || errText(data.message) || errText(data.code) || "";
+    return "";
+  }
   function showMsg(text, ok) {
     msgEl.textContent = text;
     msgEl.className = "account-msg " + (ok ? "ok" : "err");
@@ -15,9 +25,7 @@
   }
   function hideMsg() { msgEl.hidden = true; msgEl.textContent = ""; }
   function mapError(data, status) {
-    var raw = (data && (data.error || data.message)) || "";
-    if (Array.isArray(raw)) raw = raw.join("; ");
-    raw = String(raw);
+    var raw = errText(data);
     if (/captcha/i.test(raw)) return "Xác minh chống robot thất bại, vui lòng thử lại.";
     if (/mat khau hien tai khong dung|current password/i.test(raw)) return "Mật khẩu hiện tại không đúng.";
     if (/mat khau moi.*giong|new password.*same|giong mat khau cu/i.test(raw)) return "Mật khẩu mới phải khác mật khẩu hiện tại.";
