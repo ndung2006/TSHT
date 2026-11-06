@@ -24,6 +24,11 @@
 .latest-fallback-logo { max-height: 44px; max-width: 80%; object-fit: contain; }
 .latest-fallback-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .latest-fallback-time { font-size: 12px; font-weight: 600; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.latest-fallback-brand { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+/* Anh chet (404) thi onerror an <img>, hien fallback — can luat [hidden]
+   vi display:block/flex cua class se thang kieu mac dinh cua [hidden]
+   (cung mau .footer-logo[hidden] o footer.css). */
+.latest-poster-img[hidden], .latest-poster-fallback[hidden] { display: none; }
 /* The dang phat: bam vao de xem truc tiep. */
 .latest-card.is-live { cursor: pointer; }
 .latest-live-badge { display: inline-block; background: #d61f2f; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
@@ -49,7 +54,13 @@
 .tv-cat-thumb { display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #071a33; }
 .tv-cat-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
 .tv-cat-card:hover .tv-cat-thumb img { transform: scale(1.05); }
-.tv-cat-thumb-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 1.6rem; color: #cfe0ff; }
+/* Anh thay the (cung mau the "Moi nhat"): tieu de + thoi luong + dong
+   thuong hieu tren nen gradient — thay cho ky tu ▶ don doc truoc day. */
+.tv-cat-thumb img[hidden], .tv-cat-thumb-fallback[hidden] { display: none; }
+.tv-cat-thumb-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; height: 100%; padding: 6px; box-sizing: border-box; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); }
+.tv-cat-fallback-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tv-cat-fallback-time { font-size: 12px; font-weight: 600; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.tv-cat-fallback-brand { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
 .tv-cat-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.5rem; font-size: 0.95rem; line-height: 1.35; font-weight: 600; }
 .tv-cat-duration { display: block; color: #666; font-size: 0.85rem; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
 .tv-cat-card.is-selected .tv-cat-thumb { outline: 2px solid #d61f2f; outline-offset: 2px; }
@@ -105,6 +116,12 @@
   .live-section .sched-title { font-size: 15px; }
   .live-section .sched-title-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .live-section .sched-row.is-expanded .sched-title-text { -webkit-line-clamp: unset; display: block; }
+  /* Lich thu gon (mobile, trang Truyen hinh): khung thu gon ~5 dong
+     (~190px, nho hon 225px cua trang Lich vi khong co thead). Luat
+     1 dong cho tieu de nam o style.css (#schedule.is-compact).
+     .sched-list co min-height: 240px o live.css nen phai set
+     min-height: 0 thi max-height moi thu thuc su. */
+  .live-section #schedule.is-compact.is-collapsed { max-height: 190px; min-height: 0; }
   .live-section .sched-badge { font-size: 11px; }
   .live-section .sched-replay-btn { font-size: 12px; padding: 3px 8px; }
   /* Tieu de nho lai cho can noi dung: nut LICH PHAT SONG. */
@@ -133,4 +150,5 @@
   .latest-fallback-logo { max-height: 30px; }
   .latest-fallback-title { font-size: 11px; -webkit-line-clamp: 2; }
   .latest-fallback-time { font-size: 11px; }
+  .latest-fallback-brand { font-size: 10px; }
 }

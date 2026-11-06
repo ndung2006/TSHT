@@ -21,8 +21,12 @@
 // program shows its AIO thumbnailSmall (640x360) in the card; clicking
 // PHÁT LẠI plays the replay with the 1280x720 thumbnail as the player
 // poster (set by tv.js onReplay). No thumbnail yet (empty string) ->
-// branded client-side placeholder: channel logo + title + time on the
-// existing blue gradient. A LIVE card reads "ĐANG PHÁT" and clicking it
+// branded client-side placeholder: channel logo + title + time + brand
+// line "Điện Biên Phủ Online" on the existing blue gradient. A
+// thumbnail URL whose file AIO already deleted (404 — after ~30 days)
+// shows the SAME placeholder: the fallback is rendered hidden next to
+// the <img> and the img's onerror hides the img and unhides it, instead
+// of a broken image. A LIVE card reads "ĐANG PHÁT" and clicking it
 // goes back to live (window.backToLive). A REPLAY card with no replay_url
 // yet reads "Đang chuẩn bị" and has NO play button (the old "Chưa có
 // bản ghi" label is gone here; the schedule column keeps its own label).
@@ -68,19 +72,24 @@
       var time = esc(p.start_time || (p.startTime ? p.startTime.slice(11, 16) : ""));
       var title = esc(p.title);
       // Card image: AIO thumbnailSmall (640x360). Empty -> branded
-      // placeholder (channel logo + title + time on the blue gradient);
-      // NEVER a bare frame with only a play mark.
+      // placeholder (channel logo + title + time + brand line on the
+      // blue gradient); NEVER a bare frame with only a play mark.
+      // The fallback is ALWAYS rendered next to the <img> (hidden when
+      // there is a URL) so a dead URL (404 — AIO deleted the file)
+      // swaps to it via the img's onerror instead of a broken image.
       var small = (typeof p.thumbnailSmall === "string" && p.thumbnailSmall) ? p.thumbnailSmall : "";
+      var logo = (channel && channel.logo)
+        ? "<img class='latest-fallback-logo' src='" + esc(channel.logo) + "' alt=''>"
+        : "";
+      var fallback = "<span class='latest-poster-fallback'" + (small ? " hidden" : "") + ">" + logo
+        + "<span class='latest-fallback-title'>" + title + "</span>"
+        + "<span class='latest-fallback-time'>" + time + "</span>"
+        + "<span class='latest-fallback-brand'>Điện Biên Phủ Online</span></span>";
       var poster = "";
       if (small) {
-        poster = "<img class='latest-poster-img' src='" + esc(small) + "' alt='' loading='lazy'>";
+        poster = "<img class='latest-poster-img' src='" + esc(small) + "' alt='' loading='lazy' onerror='this.hidden=true;this.nextElementSibling.hidden=false'>" + fallback;
       } else {
-        var logo = (channel && channel.logo)
-          ? "<img class='latest-fallback-logo' src='" + esc(channel.logo) + "' alt=''>"
-          : "";
-        poster = "<span class='latest-poster-fallback'>" + logo
-          + "<span class='latest-fallback-title'>" + title + "</span>"
-          + "<span class='latest-fallback-time'>" + time + "</span></span>";
+        poster = fallback;
       }
       var action = "";
       var cardCls = "latest-card";
@@ -107,11 +116,23 @@
     var btns = box.querySelectorAll("[data-replay]");
     for (var i = 0; i < btns.length; i++) {
       (function (btn) {
-        btn.addEventListener("click", function () {
+        var findHit = function () {
           var key = btn.getAttribute("data-replay");
-          var hit = list.filter(function (p) { return (window.LiveEpg ? window.LiveEpg.replayKey(p) : ((p.start_time || "") + "|" + (p.title || ""))) === key; })[0];
+          return list.filter(function (p) { return (window.LiveEpg ? window.LiveEpg.replayKey(p) : ((p.start_time || "") + "|" + (p.title || ""))) === key; })[0];
+        };
+        btn.addEventListener("click", function () {
+          var hit = findHit();
           if (hit && window.playScheduleReplay) window.playScheduleReplay(hit);
         });
+        // B1: hover/focus nut PHAT LAI thi lam am truoc playlist
+        // timeshift o server (helper chung cua tv.js) de luc bam chi
+        // con lan fetch thu hai tu cache.
+        var warm = function () {
+          var hit = findHit();
+          if (hit && hit.replay_url && window.__tshtPrefetchReplayUrl) window.__tshtPrefetchReplayUrl(hit.replay_url);
+        };
+        btn.addEventListener("mouseenter", warm);
+        btn.addEventListener("focus", warm);
       })(btns[i]);
     }
     var liveCards = box.querySelectorAll("[data-live]");

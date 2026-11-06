@@ -125,6 +125,53 @@ test('buildSearchQuery fuzzy: "y te" -> tu nguyen + tu cuoi tien to, khop khong 
   assert.match(orderSql, /ORDER BY score DESC, a\."publish_at" DESC/);
 });
 
+test('buildSearchQuery fuzzy: q="Đảng" -> accent bonus +10/+5/+2 tren dang giu dau', () => {
+  const p = parseSearchQuery({ q: 'Đảng' });
+  const { scoreSql, values } = buildSearchQuery(p, null);
+  // Tu co dau sinh 1 nhom accent CASE cho moi truong, pattern giu dau.
+  assert.equal(values.filter((v) => v === '\\yđảng\\y').length, 3);
+  const m = scoreSql.match(/CASE WHEN lower\(a\."title"\) ~\* \$(\d+) THEN 10 ELSE 0 END/);
+  assert.ok(m, 'co accent CASE tren lower(title)');
+  assert.equal(values[Number(m[1]) - 1], '\\yđảng\\y');
+  assert.match(scoreSql, /CASE WHEN lower\(a\."sapo"\) ~\* \$\d+ THEN 5 ELSE 0 END/);
+  assert.match(scoreSql, /lower\(regexp_replace\(a\."body".{0,50}~\* \$\d+ THEN 2 ELSE 0 END/);
+  // Thu tu values: where 2 + phrase 3 + accent 3 + qNorm 3 = 11.
+  assert.equal(values.length, 11);
+  assert.deepEqual(values.slice(5, 8), ['\\yđảng\\y', '\\yđảng\\y', '\\yđảng\\y']);
+});
+
+test('buildSearchQuery fuzzy: q="dang" khong dau -> KHONG co accent bonus, hanh vi giu nguyen', () => {
+  const p = parseSearchQuery({ q: 'dang' });
+  const { scoreSql, values } = buildSearchQuery(p, null);
+  assert.doesNotMatch(scoreSql, /lower\(a\."title"\) ~\*/);
+  assert.doesNotMatch(scoreSql, /lower\(a\."sapo"\) ~\*/);
+  // Khong them placeholder nao so voi truoc B4: where 2 + phrase 3 + qNorm 3.
+  assert.deepEqual(values, ['\\mdang', '\\mdang', '\\ydang\\y', '\\ydang\\y', '\\ydang\\y', 'dang', 'dang', 'dang']);
+});
+
+test('buildSearchQuery fuzzy: q="Đảng Cộng sản" -> 1 nhom accent CASE cho MOI tu co dau', () => {
+  const p = parseSearchQuery({ q: 'Đảng Cộng sản' });
+  const { scoreSql, values } = buildSearchQuery(p, null);
+  // Ca 3 tu deu co dau (Đảng, Cộng, sản) nen moi tu 1 nhom x 3 truong.
+  for (const pat of ['\\yđảng\\y', '\\ycộng\\y', '\\ysản\\y']) {
+    assert.equal(values.filter((v) => v === pat).length, 3, `pattern ${pat} x3`);
+  }
+  // 3 nhom accent tren lower(title) + 1 nhom phrase (khong dau) = 4 lan THEN 10.
+  assert.equal((scoreSql.match(/CASE WHEN lower\(a\."title"\) ~\* \$\d+ THEN 10 ELSE 0 END/g) || []).length, 3);
+  assert.equal((scoreSql.match(/THEN 10 ELSE 0 END/g) || []).length, 4);
+});
+
+test('buildSearchQuery fuzzy: accent bonus KHONG doi whereSql (recall khong doi)', () => {
+  const a = buildSearchQuery(parseSearchQuery({ q: 'Đảng' }), null);
+  const b = buildSearchQuery(parseSearchQuery({ q: 'dang' }), null);
+  // Ca hai deu khop dang khong dau: whereSql giong nhau tuyet doi, cung so placeholder.
+  assert.equal(a.whereSql, b.whereSql);
+  assert.equal((a.whereSql.match(/\$\d+/g) || []).length, (b.whereSql.match(/\$\d+/g) || []).length);
+  assert.match(a.whereSql, /immutable_unaccent\(lower\(a\."title"\)\)/);
+  assert.deepEqual(a.values.slice(0, 2), ['\\mdang', '\\mdang']);
+  assert.deepEqual(b.values.slice(0, 2), ['\\mdang', '\\mdang']);
+});
+
 test('buildSearchQuery fuzzy: tu duy nhat cung la tu cuoi -> khop tien to', () => {
   const p = parseSearchQuery({ q: 'nghi' });
   const { whereSql, values } = buildSearchQuery(p, null);

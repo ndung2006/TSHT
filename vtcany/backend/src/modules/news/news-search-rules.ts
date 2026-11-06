@@ -28,6 +28,10 @@
 //   diem uu tien cum lien nhau: bai khop ca cum tu lien tiep (regex
 //   '\y<cum tu>\y', cac tu noi bang \s+) duoc +10 title / +5 sapo / +2
 //   body cho moi cum tu — nam tren moi bai chi chua roi rac cac tu.
+//   CONG THEM diem uu tien CO DAU (goi B4, 2026-11-07): moi tu khoa thuc
+//   su co dau cong +10 title / +5 sapo / +2 body khi dang GIU DAU cua
+//   truong khop dung tu do — bai co "Đảng" dung tren bai chi co "đang".
+//   Tu khong dau khong sinh bonus; chi doi scoreSql, recall khong doi.
 //   Hoa diem thi publishAt DESC. Khong co tu khoa -> sort mac dinh
 //   newest (Q4).
 // - Ngay xuat ban theo gio VN qua vnDayRange (KHONG dung new Date(...T00:00:00)
@@ -279,11 +283,31 @@ export function buildSearchQuery(p: SearchParams, categoryIds: string[] | null):
           );
         })
         .join(' + ');
+      // Uu tien khop CO DAU (goi B4): moi tu khoa thuc su co dau cong them
+      // diem khi dang GIU DAU cua truong (lower(), khong bo dau) khop dung
+      // tu do — bai co "Đảng" o tieu de luon dung tren bai chi co "đang"
+      // (ca hai deu khop dang khong dau o phraseBonus). Tu khong dau
+      // khong sinh bonus, hanh vi giu nguyen. Chi them vao scoreSql,
+      // khong dung whereSql nen recall khong doi.
+      const [tAcc, sAcc, bAcc] = fieldExprs('all', true);
+      const accentBonus = phrases
+        .flatMap((phrase) => splitWords(phrase).map((w) => w.toLowerCase()))
+        .filter((w) => stripAccents(w) !== w)
+        .map((word) => {
+          const pattern = phraseRegexPattern([word]);
+          return (
+            `(CASE WHEN ${tAcc} ~* ${ph(pattern)} THEN 10 ELSE 0 END` +
+            ` + CASE WHEN ${sAcc} ~* ${ph(pattern)} THEN 5 ELSE 0 END` +
+            ` + CASE WHEN ${bAcc} ~* ${ph(pattern)} THEN 2 ELSE 0 END)`
+          );
+        })
+        .join(' + ');
       scoreSql =
         `3 * similarity(${t}, ${ph(qNorm)})` +
         ` + 1.5 * similarity(${s}, ${ph(qNorm)})` +
         ` + 0.5 * similarity(${b}, ${ph(qNorm)})` +
-        ` + ${phraseBonus}`;
+        ` + ${phraseBonus}` +
+        (accentBonus ? ` + ${accentBonus}` : '');
     }
   }
   const orderSql =

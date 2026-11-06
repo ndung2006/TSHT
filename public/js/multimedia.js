@@ -464,12 +464,23 @@
           return;
         }
         videosBox.innerHTML = items.map(function (it) {
+          var title = esc(it.title);
+          var dur = it.duration ? esc(String(it.duration)) : "";
+          // Anh thay the (cung mau the "Moi nhat"): tieu de + thoi luong
+          // + dong thuong hieu tren nen gradient — thay cho ky tu ▶ don
+          // doc truoc day. Luon render kem anh (an san) de khi anh chet
+          // (404 — AIO xoa file) thi onerror an <img> va hien fallback
+          // thay vi anh vo.
+          var fallback = "<span class=\"mm-thumb-fallback\"" + (it.thumbnail ? " hidden" : "") + ">" +
+            "<span class=\"mm-fallback-title\">" + title + "</span>" +
+            (dur ? "<span class=\"mm-fallback-time\">" + dur + "</span>" : "") +
+            "<span class=\"mm-fallback-brand\">Điện Biên Phủ Online</span></span>";
           var thumb = it.thumbnail
-            ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\">"
-            : "<span class=\"mm-thumb-fallback\">▶</span>";
-          return "<button type=\"button\" class=\"mm-video-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\" title=\"" + esc(it.title) + "\">" +
+            ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false\">" + fallback
+            : fallback;
+          return "<button type=\"button\" class=\"mm-video-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + title + "\" title=\"" + title + "\">" +
             "<span class=\"mm-thumb\">" + thumb + "</span>" +
-            "<span class=\"mm-video-title\">" + esc(it.title) + "</span></button>";
+            "<span class=\"mm-video-title\">" + title + "</span></button>";
         }).join("");
         var cards = videosBox.querySelectorAll(".mm-video-card");
         for (var i = 0; i < cards.length; i++) {

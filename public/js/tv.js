@@ -44,6 +44,32 @@
   var vodAborter = null;
   var vodPrefetch = {}; // publicId -> { url, fetchedAt }
   var VOD_PREFETCH_MAX_AGE_MS = 10 * 60 * 1000;
+  // Prefetch replay (B1): hover/focus nut PHAT LAI thi fetch truoc
+  // replay_url de lam am cache timeshift o server (TTL 60s) — luc
+  // bam, lan fetch thu hai cua hls.js lay tu cache thay vi dung lai
+  // playlist. Fire-and-forget, bo qua moi loi; chi fetch lai khi lan
+  // truoc da qua 45s. Khong prefetch tat ca the luc tai trang (moi
+  // cai la 1 lan dung playlist o server).
+  var replayPrefetch = {}; // replay_url -> fetchedAt ms
+  var REPLAY_PREFETCH_MAX_AGE_MS = 45 * 1000;
+  function prefetchReplayUrl(url) {
+    if (!url || typeof url !== "string") return;
+    var now = Date.now();
+    if (replayPrefetch[url] && now - replayPrefetch[url] < REPLAY_PREFETCH_MAX_AGE_MS) return;
+    replayPrefetch[url] = now;
+    var ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var to = null;
+    if (ac) to = setTimeout(function () { ac.abort(); }, 15000);
+    fetch(url, ac ? { signal: ac.signal } : {})
+      .then(function (r) { if (to) clearTimeout(to); if (r && r.text) return r.text().catch(function () {}); })
+      .catch(function () { if (to) clearTimeout(to); });
+  }
+  // tv-extra.js ("CHUONG TRINH MOI NHAT") dung chung ham nay thay vi
+  // viet lai — tv.js luon nap truoc tv-extra.js tren trang /truyen-hinh.
+  window.__tshtPrefetchReplayUrl = prefetchReplayUrl;
+  function prefetchReplayForItem(item) {
+    if (item && item.replay_url) prefetchReplayUrl(item.replay_url);
+  }
   var videoHandle = null, currentVideoId = null;
   var lastItems = null, lastMeta = null;
   // Can khung lich dung bang khung video (mau tuyenquangtv.vn/truyen-hinh):
@@ -248,13 +274,23 @@
     box.classList.remove("cat-placeholder");
     box.classList.add("tv-cat-grid");
     box.innerHTML = items.map(function (it) {
+      var title = esc(it.title);
+      var dur = it.duration ? esc(String(it.duration)) : "";
+      // Anh thay the (cung mau the "Moi nhat"): tieu de + thoi luong +
+      // dong thuong hieu tren nen gradient. Luon render kem anh (an
+      // san) de khi anh chet (404 — AIO xoa file) thi onerror an <img>
+      // va hien fallback thay vi anh vo.
+      var fallback = "<span class=\"tv-cat-thumb-fallback\"" + (it.thumbnail ? " hidden" : "") + ">" +
+        "<span class=\"tv-cat-fallback-title\">" + title + "</span>" +
+        (dur ? "<span class=\"tv-cat-fallback-time\">" + dur + "</span>" : "") +
+        "<span class=\"tv-cat-fallback-brand\">Điện Biên Phủ Online</span></span>";
       var thumb = it.thumbnail
-        ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\">"
-        : "<span class=\"tv-cat-thumb-fallback\">▶</span>";
-      var dur = it.duration ? "<span class=\"tv-cat-duration\">" + esc(String(it.duration)) + "</span>" : "";
-      return "<button type=\"button\" class=\"tv-cat-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\" title=\"" + esc(it.title) + "\">" +
+        ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false\">" + fallback
+        : fallback;
+      var durBadge = dur ? "<span class=\"tv-cat-duration\">" + dur + "</span>" : "";
+      return "<button type=\"button\" class=\"tv-cat-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + title + "\" title=\"" + title + "\">" +
         "<span class=\"tv-cat-thumb\">" + thumb + "</span>" +
-        "<span class=\"tv-cat-title\">" + esc(it.title) + "</span>" + dur + "</button>";
+        "<span class=\"tv-cat-title\">" + title + "</span>" + durBadge + "</button>";
     }).join("");
     var cards = box.querySelectorAll(".tv-cat-card");
     for (var i = 0; i < cards.length; i++) {
@@ -350,7 +386,9 @@
     // TV page only: schedule replay buttons read "PHÁT LẠI" on desktop
     // (same onReplay behaviour as before); on mobile the button is the
     // small "Xem lại" label (radio keeps the default "Xem lại" label).
-    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: (window.innerWidth <= 800 ? "Xem lại" : "PHÁT LẠI"), timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true });
+    // compact: true — mobile (<=800px) thi lich mac dinh thu gon
+    // (dang phat + 4 ke tiep, nut "Xem ca ngay"); desktop giu day du.
+    var live = window.LiveEpg.renderSchedule({ box: schedBox, items: lastItems, date: lastMeta.date, nowEl: nowEl, onReplay: onReplay, replayingKey: replayingKey, replayLabel: (window.innerWidth <= 800 ? "Xem lại" : "PHÁT LẠI"), timeshift_available: lastMeta.timeshift_available, timeshift_unknown: lastMeta.timeshift_unknown, emptyText: "Chưa có lịch phát sóng cho ngày đã chọn.", pageScroll: true, compact: true });
     syncSchedHeight();
     if (live) setNow("Đang phát: " + live.title + (live.start_time && live.end_time ? " (" + live.start_time + "–" + live.end_time + ")" : ""));
     armNowTimer(live);
@@ -397,8 +435,47 @@
     if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "live", media: video });
   }
   function backToLive() { stopVideoOnly(); stopReplayOnly(); renderLastSchedule(); startLive(); }
+  // Luot bam xem lai gan nhat (de loi cua luot cu khong xoa trang thai
+  // cua luot moi khi nguoi xem bam nhanh 2 chuong trinh lien nhau).
+  var replaySeq = 0;
   function onReplay(item) {
     if (!item.replay_url) return;
+    var mySeq = ++replaySeq;
+    // B1 — phan hoi NGAY khi bam (truoc fetch kiem tra): cuon trinh
+    // phat vao tam nhin + hien "Dang tai ban xem lai…" + danh dau the
+    // vua bam dang tai, de nguoi bam thay co phan hoi thay vi ~10s
+    // khong thay gi thay doi trong khung hinh.
+    var liveSection = document.getElementById("live-section");
+    if (liveSection && liveSection.scrollIntoView) liveSection.scrollIntoView();
+    var prevBarDisplay = replayBar ? replayBar.style.display : "";
+    var prevTitle = replayTitleEl ? replayTitleEl.textContent : "";
+    if (replayTitleEl) replayTitleEl.textContent = "Đang tải bản xem lại…";
+    if (replayBar) replayBar.style.display = "block";
+    hideMsg();
+    // Nut PHAT LAI / Xem lai cua dung chuong trinh nay (co the co 2
+    // nut: 1 o the "Moi nhat", 1 o hang lich) -> "Dang tai…" + vo
+    // hieu hoa trong luc fetch. So sanh bang getAttribute thay vi
+    // selector vi tieu de trong khoa co the chua dau nhay.
+    var loadingBtns = [];
+    if (window.LiveEpg && document.querySelectorAll) {
+      var loadKey = window.LiveEpg.replayKey(item);
+      var allBtns = document.querySelectorAll("[data-replay]");
+      for (var bi = 0; bi < allBtns.length; bi++) {
+        if (allBtns[bi].getAttribute("data-replay") === loadKey) {
+          loadingBtns.push({ btn: allBtns[bi], label: allBtns[bi].textContent });
+          allBtns[bi].textContent = "Đang tải…";
+          allBtns[bi].disabled = true;
+        }
+      }
+    }
+    function restoreLoadingState() {
+      if (replayBar) replayBar.style.display = prevBarDisplay;
+      if (replayTitleEl) replayTitleEl.textContent = prevTitle;
+      for (var j = 0; j < loadingBtns.length; j++) {
+        loadingBtns[j].btn.textContent = loadingBtns[j].label;
+        loadingBtns[j].btn.disabled = false;
+      }
+    }
     // Kiem tra truoc khi dung live: neu timeshift loi thi giu nguyen live
     // dang phat va bao ro ly do, khong de player dung hinh o trang thai loi.
     // LUU Y: bien aborter (AbortController cho fetch kiem tra) KHONG duoc
@@ -427,17 +504,50 @@
         if (ctrl) { ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(video, item.replay_url, showMsg);
         if (ctrl) ctrl.setQualityHandle(replayHandle);
-        // GĐ3 nen: heartbeat xem lai.
-        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: video });
+        // GĐ3 nen: heartbeat xem lai — chi bat dau khi video thuc su
+        // dang phat. Goi ngay o day se mat beat dau vi beat() bo qua
+        // khi media con paused (xem telemetry.js). Cho su kien
+        // 'playing' 1 lan; neu video da chay thi bat dau ngay. Kiem
+        // tra replayHandle de beat khong bat len neu nguoi xem da ve
+        // live truoc khi video kip phat.
+        if (window.TshtTelemetry) {
+          var startTsHeartbeat = function () {
+            if (replayHandle) window.TshtTelemetry.startHeartbeat({ channel: currentChannel, type: "timeshift", media: video });
+          };
+          if (video && !video.paused) startTsHeartbeat();
+          else if (video) video.addEventListener("playing", function onTsPlaying() {
+            video.removeEventListener("playing", onTsPlaying);
+            startTsHeartbeat();
+          });
+        }
         renderLastSchedule();
       })
       .catch(function (e) {
         if (timer) clearTimeout(timer);
+        // Luot bam moi hon da thay the luot nay: khong khoi phuc gi
+        // (trang thai hien tai thuoc ve luot moi).
+        if (mySeq !== replaySeq) return;
+        restoreLoadingState();
         var why = (e && e.name === "AbortError") ? "quá thời gian chờ" : (e && e.message ? e.message : "lỗi mạng");
         showMsg("Không xem lại được (" + why + "). Đang tiếp tục phát trực tiếp.");
       });
   }
   if (backLiveBtn) backLiveBtn.addEventListener("click", backToLive);
+  // B1: hover/focus nut phat lai tren lich -> prefetch replay_url
+  // (xem prefetchReplayUrl). Uy quyen (delegation) tren schedBox de
+  // song qua moi lan render lai lich (innerHTML thay nut moi).
+  function warmReplayFromEvent(e) {
+    var t = e && e.target && e.target.closest ? e.target.closest("[data-replay]") : null;
+    if (!t || !lastItems || !window.LiveEpg) return;
+    var key = t.getAttribute("data-replay");
+    for (var i = 0; i < lastItems.length; i++) {
+      if (window.LiveEpg.replayKey(lastItems[i]) === key) { prefetchReplayForItem(lastItems[i]); return; }
+    }
+  }
+  if (schedBox) {
+    schedBox.addEventListener("mouseover", warmReplayFromEvent);
+    schedBox.addEventListener("focusin", warmReplayFromEvent);
+  }
   function loadSchedule() {
     if (!schedBox) return;
     if (!currentChannel) { schedBox.innerHTML = "<p class='sched-empty'>Chưa có lịch phát sóng cho ngày đã chọn.</p>"; return; }

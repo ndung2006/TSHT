@@ -192,7 +192,15 @@ button.mm-row.is-now:hover { background: #c21717; }
 .mm-thumb { display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #071a33; }
 .mm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
 .mm-video-card:hover .mm-thumb img { transform: scale(1.05); }
-.mm-thumb-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 1.6rem; color: #cfe0ff; }
+/* Anh thay the (cung mau the "Moi nhat"): tieu de + thoi luong + dong
+   thuong hieu tren nen gradient — thay cho ky tu ▶ don doc truoc day.
+   Can luat [hidden] vi display:flex cua class se thang kieu mac dinh
+   cua [hidden] (cung mau .footer-logo[hidden] o footer.css). */
+.mm-thumb img[hidden], .mm-thumb-fallback[hidden] { display: none; }
+.mm-thumb-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; height: 100%; padding: 6px; box-sizing: border-box; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); }
+.mm-fallback-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mm-fallback-time { font-size: 12px; font-weight: 600; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.mm-fallback-brand { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
 .mm-video-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.5rem; font-size: 0.95rem; line-height: 1.35; }
 .mm-videos-empty { color: #cfe0ff; font-size: 0.95rem; margin: 0; }
 @media (max-width: 900px) {

@@ -20,6 +20,7 @@ import { fetchVtcanyEpg, fetchVtcanyTimeshift, fetchVtcanyGroups, mapVtcanyTimel
 import { createThumbMemoryStore, mergeThumbMemory } from "./lib/epg-thumb-memory.mjs";
 import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
+import { createTimeshiftCache, timeshiftCacheKey } from "./lib/timeshift-cache.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 import { clearReaderSessionCookie, jwtExpiryMs, readReaderSession, readerAuthConfigured, readerSessionCookie } from "./lib/reader-session.mjs";
 import { renderFooter, renderFooterFromCms } from "./lib/footer-content.mjs";
@@ -36,6 +37,10 @@ import { renderFooter, renderFooterFromCms } from "./lib/footer-content.mjs";
 // binh thuong; het han thi lam moi, loi thi roi ve URL truc tiep.
 const LIVE_LINK_TTL_MS = 10 * 60 * 1000;
 const liveLinkCache = new Map(); // channel -> { masterText, hlsUrl, exp, publicId, fetchedAt }
+// Cache ngan playlist timeshift (60s, chi RAM): xem lai fetch cung URL
+// 2 lan/cu bam (kiem tra + hls.js), lan thu hai lay tu day (xem
+// lib/timeshift-cache.mjs). Chi playlist 200 duoc cache, loi khong.
+const timeshiftCache = createTimeshiftCache();
 // Bo nho anh dai dien EPG (chi RAM, mat khi restart — xem lib/epg-thumb-memory.mjs):
 // AIO gan anh sau khi chuong trinh ket thuc ~1-2 phut, anh co the tra rong
 // tam thoi o lan fetch sau; bo nho giu anh da thay de the khong mat anh.
@@ -795,9 +800,14 @@ const server = http.createServer(async (req, res) => {
       if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return err(res, 400, "khoang thoi gian khong hop le");
       const now = Date.now(), endClamped = Math.min(end, now);
       if (start >= endClamped) return err(res, 400, "khoang gio nay chua co ban ghi (thoi diem trong tuong lai)");
+      // B1: playlist vua dung cho cung khoang gio thi tra ngay tu cache
+      // (lan fetch thu hai cua hls.js sau fetch kiem tra cua onReplay).
+      const tsKey = timeshiftCacheKey(channel, new Date(start).toISOString(), new Date(endClamped).toISOString());
+      const tsHit = timeshiftCache.get(tsKey);
+      if (tsHit) return send(res, 200, tsHit, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
       if (vtcanyConfigured()) {
         const v = await fetchVtcanyTimeshift(channel, new Date(start).toISOString(), new Date(endClamped).toISOString());
-        if (v.ok) return send(res, 200, v.playlist, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
+        if (v.ok) { timeshiftCache.set(tsKey, v.playlist); return send(res, 200, v.playlist, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" }); }
       }
       if (!vtcaioConfigured()) return err(res, 404, NO_RECORDING_MSG);
       const cov = await getAioTimeshiftCoverage();
@@ -819,6 +829,7 @@ const server = http.createServer(async (req, res) => {
           chunks.push({ playlist: pl.playlist, baseUrl: process.env.VTCAIO_API_BASE || "https://luuchieu1.vtcplay.vn" });
         }
         const stitched = stitchTimeshiftPlaylists(chunks);
+        timeshiftCache.set(tsKey, stitched);
         return send(res, 200, stitched, "application/vnd.apple.mpegurl", { "Cache-Control": "no-store" });
       } catch (e) {
         if (e && e.status === 404) return err(res, 404, NO_RECORDING_MSG);
@@ -1645,7 +1656,7 @@ server.listen(PORT, () => console.log(`TSHT (khong DB): http://localhost:${PORT}
 // endpoint trang chu qua localhost ngay sau khi nghe de nap cache + mo
 // ket noi toi backend truoc khi nhan nguoi xem. Chi log, khong bao gio
 // lam crash server; neu backend chua len thi thu lai 1 lan sau 15s.
-const WARMUP_URLS = ["/", "/api/v2/home-slots/noi-bat", "/api/v2/home-slots/tieu-diem", "/api/v2/news?limit=12", "/api/v2/site-interface"];
+const WARMUP_URLS = ["/", "/api/v2/home-slots/noi-bat", "/api/v2/home-slots/tieu-diem", "/api/v2/news?limit=12", "/api/v2/site-interface", "/api/v1/live?channel=TUYENQUANG", "/api/v1/live-master?channel=TUYENQUANG", "/api/v1/live?channel=TUYENQUANGRadio", "/api/v1/live-master?channel=TUYENQUANGRadio"];
 async function warmupOnce(tag) {
   const base = `http://127.0.0.1:${PORT}`;
   const results = await Promise.all(WARMUP_URLS.map(async (u) => {

@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nền tảng số</title>
-<link rel="stylesheet" href="/css/home.css?v=20261105-2">
+<link rel="stylesheet" href="/css/home.css?v=20261107-1">
 <link rel="stylesheet" href="/css/header.css?v=20261106-4">
 <link rel="stylesheet" href="/css/footer.css?v=20261106-4">
 <style>
@@ -31,6 +31,14 @@
      span title) khong gap loi nay. */
   .sv-thumb { display: block; position: relative; aspect-ratio: 2/3; overflow: hidden; border-radius: 8px; background: #111; }
   .sv-thumb img, .sv-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Anh thay the (cung mau the "Moi nhat"): tieu de + ngay dang + dong
+     thuong hieu tren nen gradient. Can luat [hidden] vi display:flex
+     cua class se thang kieu mac dinh cua [hidden]. */
+  .sv-thumb img[hidden], .sv-thumb-fallback[hidden] { display: none; }
+  .sv-thumb-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; height: 100%; padding: 8px; box-sizing: border-box; text-align: center; color: #fff; background: linear-gradient(135deg, #0a2a6b 0%, #123a8a 45%, #0b1235 100%); }
+  .sv-fallback-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .sv-fallback-time { font-size: 12px; font-weight: 600; opacity: 0.85; }
+  .sv-fallback-brand { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
   .sv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
   .sv-badge { position: absolute; left: 8px; bottom: 8px; background: #c00; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
   .sv-card .sv-title { font-size: 15px; margin: 8px 0 0; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -167,16 +175,30 @@
     grid.innerHTML = items.map(function (it) {
       var ext = postedExternal(it);
       var playId = shortPlayId(it);
+      var titleText = esc(it.title);
+      // Ngay dang (chi de hien trong fallback khi anh chet/trong).
+      var pd = (it.publishedAt || '').slice(0, 10).split('-');
+      var dateText = pd.length === 3 ? pd[2] + '/' + pd[1] + '/' + pd[0] : '';
+      // Anh thay the (cung mau the "Moi nhat"): tieu de + ngay dang +
+      // dong thuong hieu tren nen gradient. Luon render kem anh (an
+      // san) de khi anh chet (404 — AIO xoa file) thi onerror an <img>
+      // va hien fallback thay vi anh vo; khong co media thi hien
+      // fallback ngay thay vi o thumb den.
+      var fallback = '<span class="sv-thumb-fallback"' + (it.media ? ' hidden' : '') + '>' +
+        '<span class="sv-fallback-title">' + titleText + '</span>' +
+        (dateText ? '<span class="sv-fallback-time">' + dateText + '</span>' : '') +
+        '<span class="sv-fallback-brand">Điện Biên Phủ Online</span></span>';
       var thumb = '';
       if (it.media) {
         // Thumbnail luon hien dang anh lam poster; chi khi bai la video
         // ma KHONG gan catalog thi the <video> cu moi dung media lam nguon.
         thumb = (it.mediaType === 'video' && !playId)
           ? '<video src="' + esc(it.media) + '" muted playsinline preload="metadata"></video><span class="sv-play">▶</span>'
-          : '<img src="' + esc(it.media) + '" alt="">';
+          : '<img src="' + esc(it.media) + '" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback;
+      } else {
+        thumb = fallback;
       }
       if (playId) thumb += '<span class="sv-play">▶</span>';
-      var titleText = esc(it.title);
       var inner = '<span class="sv-thumb">' + thumb +
         '<span class="sv-badge">' + esc(ext ? (labels[ext.platform] || ext.platform) : 'Web') + '</span></span>';
       // Tieu de: <a> giu <h3>; <button> phai dung <span> (button chi duoc

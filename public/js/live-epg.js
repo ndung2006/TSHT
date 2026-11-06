@@ -47,6 +47,13 @@
   // noi. Lich phat song (renderSchedule) KHONG dung hang nay: lich van
   // hien day du moi chuong trinh, ke ca chuong trinh ngan.
   var LATEST_MIN_DURATION_MIN = 3;
+  // So dong toi da o che do lich thu gon (mobile): chuong trinh dang
+  // phat + 4 chuong trinh ke tiep. Chi ap dung khi caller truyen
+  // compact: true (trang Truyen hinh, tv.js) va man hinh mobile
+  // (<=800px); desktop va radio (khong truyen compact) giu danh sach
+  // day du nhu cu. Trang Lich phat song (schedule.js) dung chung hang
+  // nay qua LiveEpg.COMPACT_ROWS de khoi lech so dong.
+  var COMPACT_ROWS = 5;
   function isoMs(v) { if (!v) return null; var t = new Date(v).getTime(); return isFinite(t) ? t : null; }
   function hhmmMs(dateStr, hhmm) {
     var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
@@ -133,6 +140,29 @@
     var delta = rows[idx - 2].getBoundingClientRect().top - box.getBoundingClientRect().top;
     box.scrollTop = Math.max(0, Math.min(box.scrollTop + delta, maxScroll));
   }
+  // Nut mo rong/thu gon lich (che do thu gon mobile): nam NGOAI khung
+  // cuon, ngay sau box, de luon thay duoc ke ca khi danh sach dai.
+  // Moi lan renderSchedule chay lai thi nut cu bi go truoc roi tao
+  // lai neu can (khong bao gio co 2 nut). Luu tham chieu tren box de
+  // go dung nut cua box do (TV va radio co box rieng).
+  function removeCompactToggle(box) {
+    var t = box._schedCompactToggle;
+    if (t && t.parentNode && t.parentNode.removeChild) t.parentNode.removeChild(t);
+    else if (t && t.remove) t.remove();
+    box._schedCompactToggle = null;
+  }
+  function ensureCompactToggle(box, expanded, onToggle) {
+    removeCompactToggle(box);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sched-compact-toggle";
+    btn.textContent = expanded ? "Thu gọn" : "Xem cả ngày";
+    btn.addEventListener("click", onToggle);
+    if (box.parentNode && box.parentNode.insertBefore) box.parentNode.insertBefore(btn, box.nextSibling || null);
+    else if (box.appendChild) box.appendChild(btn);
+    box._schedCompactToggle = btn;
+    return btn;
+  }
   // Gan hang nut chon ngay "Hom qua / Hom nay / Ngay mai" + nut lich
   // (mo date picker goc) cho mot input date co san. Nut bam thi doi
   // gia tri input roi phat su kien change de handler san co (loadSchedule)
@@ -178,7 +208,13 @@
 
   // opts: { box, items, date, nowEl, onReplay(item), replayingKey,
   //         timeshift_available, timeshift_unknown, emptyText,
-  //         pageScroll }
+  //         pageScroll, compact, expanded }
+  // compact (TV page only): mobile (<=800px) thi mac dinh chi hien
+  // dang phat + 4 ke tiep (COMPACT_ROWS) kem nut "Xem ca ngay" mo
+  // rong ra ca ngay ("Thu gon" de thu lai). expanded: trang thai do
+  // nut doi (khong truyen thi mac dinh thu gon, tru khi dang xem lai
+  // — replayingKey — thi mac dinh mo rong de dong "Dang xem" khong
+  // bi an). Desktop va radio (khong truyen compact) khong doi.
   // pageScroll (TV page only): khi danh sach vua het trong khung (ngay
   // it chuong trinh, khung khong cuon duoc) thi desktop cuon ca trang toi
   // dong dang phat; mobile bo qua de trang mo len dung o khoi phat truc
@@ -190,12 +226,36 @@
   function renderSchedule(opts) {
     var box = opts.box, items = opts.items || [], date = opts.date || saigonToday();
     if (!box) return null;
+    // Goi lai (doi ngay/kenh, bam nut mo rong) thi go nut cu + class
+    // thu gon truoc de khong bao gio co 2 nut hay khung sai trang thai.
+    removeCompactToggle(box);
+    if (box.classList) { box.classList.remove("is-compact"); box.classList.remove("is-collapsed"); }
     if (!items.length) {
       box.innerHTML = "<p class='sched-empty'>" + esc(opts.emptyText || "Chưa có lịch phát sóng cho ngày đã chọn.") + "</p>";
       return null;
     }
     var today = saigonToday(), liveItem = null;
-    var rows = items.map(function (p) {
+    // Cua so thu gon: bat dau tu chuong trinh dang phat (chi ngay hom
+    // nay moi co), neu khong co thi tu dau ngay. So dong an trong cua
+    // so nay (truoc + sau) quyet dinh co can nut "Xem ca ngay" khong.
+    var isMobile = typeof global.matchMedia === "function" && global.matchMedia("(max-width: 800px)").matches;
+    var compact = !!opts.compact && isMobile;
+    var liveIdx = -1;
+    if (compact) {
+      for (var ci = 0; ci < items.length; ci++) {
+        if (computeStatus(items[ci], date) === "LIVE" && date === today) { liveIdx = ci; break; }
+      }
+    }
+    var startIdx = liveIdx >= 0 ? liveIdx : 0;
+    var expanded = (typeof opts.expanded === "boolean") ? opts.expanded : !!opts.replayingKey;
+    var visible = (compact && !expanded) ? items.slice(startIdx, startIdx + COMPACT_ROWS) : items;
+    var collapsedCount = Math.min(items.length - startIdx, COMPACT_ROWS);
+    var needsToggle = compact && collapsedCount < items.length;
+    if (compact && box.classList) {
+      box.classList.add("is-compact");
+      if (!expanded) box.classList.add("is-collapsed");
+    }
+    var rows = visible.map(function (p) {
       var status = computeStatus(p, date);
       // Server status is already recomputed; client recomputation above
       // only corrects rows whose bounds moved across now since fetch.
@@ -236,6 +296,17 @@
           row.classList.toggle("is-expanded");
         });
       })(rowEls[ri]);
+    }
+    // Nut "Xem ca ngay" / "Thu gon": chi khi cua so thu gon dang an
+    // bot dong. Nut nam NGOAI khung cuon (ngay sau box) de luon thay
+    // duoc; bam thi render lai cung opts voi expanded dao nguoc.
+    if (needsToggle) {
+      ensureCompactToggle(box, expanded, function () {
+        var next = {};
+        for (var k in opts) next[k] = opts[k];
+        next.expanded = !expanded;
+        renderSchedule(next);
+      });
     }
     if (date === today) {
       var currentRow = box.querySelector(".sched-row.is-now");
@@ -280,5 +351,5 @@
     } catch (e) { /* khong chan trang neu co loi */ }
   });
 
-  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule, addDays: addDays, scrollBoxToRow: scrollBoxToRow, bindDayNav: bindDayNav, LATEST_MIN_DURATION_MIN: LATEST_MIN_DURATION_MIN, programDurationMin: programDurationMin, selectLatestPrograms: selectLatestPrograms };
+  global.LiveEpg = { esc: esc, saigonToday: saigonToday, saigonNowHHMM: saigonNowHHMM, computeStatus: computeStatus, replayKey: replayKey, renderSchedule: renderSchedule, addDays: addDays, scrollBoxToRow: scrollBoxToRow, bindDayNav: bindDayNav, LATEST_MIN_DURATION_MIN: LATEST_MIN_DURATION_MIN, COMPACT_ROWS: COMPACT_ROWS, programDurationMin: programDurationMin, selectLatestPrograms: selectLatestPrograms };
 })(window);
