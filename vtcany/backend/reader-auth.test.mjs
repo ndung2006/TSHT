@@ -498,3 +498,20 @@ test('gui lai xac nhan: lien ket cu chet ngay khi co lien ket moi; lien ket moi 
     assert.deepEqual(await auth.verifyReaderEmail(tokB), { ok: true });
   } finally { restoreEnv(); }
 });
+
+// ---- Dang ky email ngoai danh sach DEV: van gui thu that, khong tra dev link (2026-11-06) ----
+test('dang ky email ngoai danh sach DEV: mailer duoc goi dung dia chi tai khoan, khong tra dev link', async () => {
+  setEnv({ DATABASE_URL: 'postgres://test', DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'a@bao.vn', TURNSTILE_SECRET_KEY: undefined });
+  setEnv({ DEV_AUTH_LINKS: 'true', DEV_AUTH_LINKS_ALLOW: 'ktcn.digital@vtc.vn' });
+  try {
+    const { mailer, auth } = setup();
+    const res = await auth.registerReader({ displayName: 'G', email: 'ngoai@bao.vn', password: 'MatKhau123', termsAccepted: true });
+    assert.equal(res.ok, true);
+    assert.equal(res.email, 'ngoai@bao.vn');
+    assert.equal(res.emailSent, true);
+    assert.equal(res.devVerificationUrl, undefined);
+    assert.equal(mailer.sent.length, 1);
+    assert.equal(mailer.sent[0].kind, 'verify');
+    assert.equal(mailer.sent[0].to, 'ngoai@bao.vn');
+  } finally { restoreEnv(); }
+});

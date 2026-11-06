@@ -156,13 +156,18 @@ export class MailerService {
       return { sent: false, devUrl: opts.devUrl };
     }
     try {
-      await t.sendMail({
+      const info = await t.sendMail({
         from: opts.from,
         to: opts.to,
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
       });
+      // Ghi lai de doi chieu khi thu that lac: nguoi nhan that (envelope),
+      // messageId va phan hoi nguyen van cua may chu SMTP.
+      this.logger.log(
+        `[mailer] Da gui email toi ${opts.to}: messageId=${info.messageId} envelopeTo=${JSON.stringify(info.envelope?.to)} phan hoi=${info.response}`,
+      );
       return { sent: true };
     } catch (e: any) {
       this.logger.error(`[mailer] Gui email toi ${opts.to} that bai: ${e?.message}`);
