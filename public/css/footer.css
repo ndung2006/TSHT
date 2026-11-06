@@ -14,6 +14,9 @@
 .footer-logo[hidden] { display: none; }
 .footer-logo img { display: block; max-height: 72px; width: auto; }
 .footer-logo img[hidden] { display: none; }
+/* Chu du phong khi anh logo loi hoac CMS chua dat logo: chu do dam tren nen trang. */
+.footer-logo #footer-logo-text { display: block; color: #b91c1c; font-weight: 700; font-size: 1.05rem; line-height: 1.4; }
+.footer-logo #footer-logo-text[hidden] { display: none; }
 .footer-cols { display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; margin-top: 1.5rem; }
 .footer-license { text-align: left; }
 .footer-contact { text-align: right; }

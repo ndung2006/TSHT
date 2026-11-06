@@ -60,21 +60,31 @@
     try { sessionStorage.setItem(SI_KEY, JSON.stringify({ t: Date.now(), v: v })); } catch (e) { /* bo qua khi khong co storage */ }
   }
   var cachedSi = siCacheGet();
+  function fetchSiteInterfaceOnce() {
+    return fetch("/api/v2/site-interface")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (si) { siCacheSet(si); return si; });
+  }
+  function fetchSiteInterface() {
+    return fetchSiteInterfaceOnce().catch(function () {
+      // Thu lai 1 lan sau ~500ms truoc khi chiu thua: tai lai trang
+      // hay gap fetch hut lan dau, logo chan trang khong duoc mat vi the.
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          fetchSiteInterfaceOnce().then(resolve, function () { resolve(null); });
+        }, 500);
+      });
+    });
+  }
   var siteInterfacePromise = cachedSi
     ? Promise.resolve(cachedSi)
-    : fetch("/api/v2/site-interface")
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (si) { siCacheSet(si); return si; })
-      .catch(function () { return null; });
+    : fetchSiteInterface();
   window.__tshtSiteInterface = siteInterfacePromise;
 
   // ---- Logo + mang xa hoi (nhu cu) ----
   var logoEl = document.getElementById("brand-logo");
   var nameEl = document.querySelector(".brand .brand-name");
-  var logoCacheKey = "tsht_header_image";
-  function cacheGet() { try { return window.localStorage.getItem(logoCacheKey) || ""; } catch (e) { return ""; } }
-  function cacheSet(v) { try { if (v) window.localStorage.setItem(logoCacheKey, v); else window.localStorage.removeItem(logoCacheKey); } catch (e) { /* bo qua khi khong co storage */ } }
-  function showName() { if (logoEl) logoEl.hidden = true; if (nameEl) nameEl.hidden = false; cacheSet(""); }
+  function showName() { if (logoEl) logoEl.hidden = true; if (nameEl) nameEl.hidden = false; }
   function showLogo(url) {
     if (!logoEl || !url) return false;
     logoEl.alt = "Tòa soạn hội tụ";
@@ -84,8 +94,38 @@
     if (nameEl) nameEl.hidden = true;
     return true;
   }
-  var cachedLogo = cacheGet();
-  var showingCached = cachedLogo ? showLogo(cachedLogo) : false;
+
+  // ---- Logo chan trang: anh CMS + chu du phong ----
+  // Phien ban anh logo (doi khi CMS doi anh logo de CDN khong giu anh cu).
+  var FOOTER_LOGO_V = "20261106-1";
+  function footerLogoUrl(url) {
+    if (!url) return "";
+    return url + (url.indexOf("?") >= 0 ? "&v=" : "?v=") + FOOTER_LOGO_V;
+  }
+  // Chu du phong khi anh logo loi hoac CMS chua dat logo: hien chu thay
+  // vi de o trang trong (khong dung localStorage de luu anh logo).
+  function showFooterLogoText() {
+    var fc = document.getElementById("footer-logo-box");
+    if (!fc) return;
+    var fl = document.getElementById("footer-logo");
+    var ft = document.getElementById("footer-logo-text");
+    if (fl) fl.hidden = true;
+    if (ft) ft.hidden = false;
+    fc.hidden = false;
+  }
+  function showFooterLogo(url) {
+    var fc = document.getElementById("footer-logo-box");
+    if (!fc) return;
+    var fl = document.getElementById("footer-logo");
+    var ft = document.getElementById("footer-logo-text");
+    if (!url || !fl) { showFooterLogoText(); return; }
+    fl.onerror = function () { showFooterLogoText(); };
+    var withV = footerLogoUrl(url);
+    if (fl.getAttribute("src") !== withV) fl.src = withV;
+    fl.hidden = false;
+    if (ft) ft.hidden = true;
+    fc.hidden = false;
+  }
   siteInterfacePromise.then(function (si) {
     var hd = (si && si.header) || {};
     var socialEl = document.getElementById("utility-social");
@@ -97,42 +137,34 @@
       if (socials.length) { socialEl.innerHTML = "KẾT NỐI " + socials.join(" "); socialEl.hidden = false; }
     }
     // Co logo that thi chi hien logo, an chu ten (kieu khoi logo cua
-    // DBP); API xac nhan/cap nhat lai sau lan hien tu cache.
+    // DBP); khong dem logo vao localStorage nua — API loi thi hien chu ten.
     if (logoEl && hd.image) {
       showLogo(hd.image);
-      cacheSet(hd.image);
     } else if (logoEl) {
-      // CMS khong dat logo: hien chu ten, xoa cache cu.
+      // CMS khong dat logo: hien chu ten.
       showName();
     }
     // Day hot link duoi nav (CMS Quan ly giao dien dat): hien tren moi
     // trang co header chung; an khi CMS chua dat.
     var strip = document.getElementById("hotlink-strip");
-    if (strip && si.hotLinks && si.hotLinks.length) {
+    if (strip && si && si.hotLinks && si.hotLinks.length) {
       strip.innerHTML = si.hotLinks.map(function (h) {
         return "<a href=\"/tin/" + esc(h.slug) + "\">" + esc(h.title) + "</a>";
       }).join("");
       strip.hidden = false;
     }
     // Logo chan trang (CMS Quan ly giao dien dat, footer.logo): dien
-    // vao o nen trang #footer-logo-box; CMS chua dat logo thi giu an ca
-    // o. (CMS footer.description/copyright khong render o chan trang
-    // portal tu 2026-11-06 nua — noi dung giay phep/ban bien tap/lien he
-    // lay tu lib/footer-content.mjs; 2 field CMS van tra qua API de sau
-    // dua noi dung chan trang vao CMS phan Cau hinh.)
-    var ft = (si && si.footer) || {};
-    if (ft.logo) {
-      var fc = document.getElementById("footer-logo-box");
-      if (fc) {
-        var fl = document.getElementById("footer-logo");
-        if (fl) { fl.src = ft.logo; fl.hidden = false; }
-        fc.hidden = false;
-      }
-    }
+    // vao o nen trang #footer-logo-box, them ?v= de doi version anh
+    // khi CMS doi logo. Anh loi hoac CMS chua dat logo thi hien chu
+    // du phong "Điện Biên Phủ Online" thay vi de o trong. Noi dung
+    // 2 cot chan trang do server render tu CMS (footer.description /
+    // copyright) — xem lib/footer-content.mjs.
+    showFooterLogo((si && si.footer && si.footer.logo) || "");
   }).catch(function () {
-    // Tai loi: neu khong co logo cache dang hien thi hien chu ten de
-    // khoi trong hang ten; co cache thi giu logo cu cho lan sau sua.
-    if (!showingCached) showName();
+    // Phong khi khoi .then tren van loi: hien chu ten o dau trang +
+    // chu du phong o chan trang de khong de trong.
+    showName();
+    showFooterLogoText();
   });
 
   // ---- Tim kiem dung chung (o duoi nav + o trong ngan keo) ----
