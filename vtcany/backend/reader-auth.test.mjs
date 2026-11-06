@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import bcryptModule from 'bcryptjs';
+import nodemailer from 'nodemailer';
 import { createHash } from 'node:crypto';
 import { AuthService } from './dist/modules/auth/auth.service.js';
 import { UsersService } from './dist/modules/auth/users.service.js';
@@ -513,5 +514,127 @@ test('dang ky email ngoai danh sach DEV: mailer duoc goi dung dia chi tai khoan,
     assert.equal(mailer.sent.length, 1);
     assert.equal(mailer.sent[0].kind, 'verify');
     assert.equal(mailer.sent[0].to, 'ngoai@bao.vn');
+  } finally { restoreEnv(); }
+});
+
+// ---- Mailer THAT: envelope nguoi nhan luon la email tai khoan (2026-11-06) ----
+// Khac voi test mailer gia o tren (chi ghi lai tham so service truyen
+// xuong): o day dung MailerService THAT voi transport stub cua nodemailer
+// va bat envelope that nodemailer tinh ra (mail.message.getEnvelope()) —
+// day la thu may chu SMTP se nhan tren duong day. Neu code lay nham
+// SMTP_USER / MAIL_FROM lam nguoi nhan, envelope.to se lo ra ngay.
+function stubTransport(captured) {
+  return nodemailer.createTransport({
+    name: 'stub-test',
+    version: '1.0.0',
+    send(mail, callback) {
+      const envelope = mail.message.getEnvelope();
+      captured.push({ envelope, dataTo: mail.data.to, dataFrom: mail.data.from });
+      callback(null, { envelope, messageId: '<stub@local>', response: '250 OK (stub)' });
+    },
+  });
+}
+
+function setupRealMailer() {
+  const prisma = fakePrisma();
+  const users = new UsersService(prisma);
+  const mailer = new MailerService();
+  const captured = [];
+  // Ghi de getTransporter (private o TS, thuoc tinh thuong o runtime) de
+  // mailer that noi vao transport stub thay vi SMTP that.
+  mailer.getTransporter = () => stubTransport(captured);
+  const auth = new AuthService(fakeJwt, prisma, users, undefined, mailer);
+  return { prisma, users, mailer, auth, captured };
+}
+
+function realMailerEnv() {
+  return {
+    DATABASE_URL: 'postgres://test',
+    DEV_AUTH_LINKS: 'true',
+    DEV_AUTH_LINKS_ALLOW: 'ktcn.digital@vtc.vn',
+    TURNSTILE_SECRET_KEY: undefined,
+    SMTP_HOST: 'smtp.mail.vtc.vn',
+    SMTP_PORT: '465',
+    SMTP_SECURE: 'true',
+    SMTP_USER: 'ktcn.digital',
+    MAIL_FROM_NAME: 'Tòa soạn hội tụ VTC (thử nghiệm)',
+    MAIL_FROM_ADDRESS: 'ktcn.digital@vtc.vn',
+    MAIL_FROM: undefined,
+    SMTP_FROM: undefined,
+  };
+}
+
+test('mailer that (transport stub): dang ky email ngoai DEV -> envelope to dung email tai khoan, khong tra dev link', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, captured } = setupRealMailer();
+    const res = await auth.registerReader({ displayName: 'Ngoai', email: 'ngoai@gmail.com', password: 'MatKhau123', termsAccepted: true });
+    assert.equal(res.ok, true);
+    assert.equal(res.emailSent, true);
+    assert.equal(res.devVerificationUrl, undefined);
+    assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0].envelope.to, ['ngoai@gmail.com']);
+    assert.equal(captured[0].envelope.from, 'ktcn.digital@vtc.vn');
+    assert.ok(!captured[0].envelope.to.includes('ktcn.digital@vtc.vn'));
+  } finally { restoreEnv(); }
+});
+
+test('mailer that (transport stub): dang ky email trong DEV -> envelope to dung email + tra dev link', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, captured } = setupRealMailer();
+    const res = await auth.registerReader({ displayName: 'K', email: 'ktcn.digital@vtc.vn', password: 'MatKhau123', termsAccepted: true });
+    assert.equal(res.ok, true);
+    assert.equal(res.emailSent, true);
+    assert.ok(typeof res.devVerificationUrl === 'string' && res.devVerificationUrl.includes('/xac-nhan-email?token='));
+    assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0].envelope.to, ['ktcn.digital@vtc.vn']);
+  } finally { restoreEnv(); }
+});
+
+test('mailer that (transport stub): quen mat khau ngoai DEV -> envelope to dung email tai khoan, khong tra dev link; email la thi khong gui', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, captured } = setupRealMailer();
+    await auth.registerReader({ displayName: 'Q', email: 'quen@gmail.com', password: 'MatKhau123', termsAccepted: true });
+    assert.equal(captured.length, 1);
+    captured.length = 0;
+    const res = await auth.forgotReaderPassword('quen@gmail.com');
+    assert.deepEqual(res, { ok: true });
+    assert.equal(res.devResetUrl, undefined);
+    assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0].envelope.to, ['quen@gmail.com']);
+    assert.ok(!captured[0].envelope.to.includes('ktcn.digital@vtc.vn'));
+    const before = captured.length;
+    const resLa = await auth.forgotReaderPassword('khong-co@bao.vn');
+    assert.deepEqual(resLa, { ok: true });
+    assert.equal(captured.length, before);
+  } finally { restoreEnv(); }
+});
+
+test('mailer that (transport stub): quen mat khau trong DEV -> envelope to dung email + tra dev link', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, captured } = setupRealMailer();
+    await auth.registerReader({ displayName: 'K', email: 'ktcn.digital@vtc.vn', password: 'MatKhau123', termsAccepted: true });
+    captured.length = 0;
+    const res = await auth.forgotReaderPassword('ktcn.digital@vtc.vn');
+    assert.deepEqual(Object.keys(res).sort(), ['devResetUrl', 'ok']);
+    assert.ok(typeof res.devResetUrl === 'string' && res.devResetUrl.includes('/dat-lai-mat-khau?token='));
+    assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0].envelope.to, ['ktcn.digital@vtc.vn']);
+  } finally { restoreEnv(); }
+});
+
+test('mailer that (transport stub): gui lai xac nhan cho email ngoai DEV -> envelope to dung email tai khoan', async () => {
+  setEnv(realMailerEnv());
+  try {
+    const { auth, captured } = setupRealMailer();
+    await auth.registerReader({ displayName: 'R', email: 'gui-lai@gmail.com', password: 'MatKhau123', termsAccepted: true });
+    captured.length = 0;
+    const res = await auth.resendVerificationEmail('gui-lai@gmail.com');
+    assert.deepEqual(res, { ok: true });
+    assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0].envelope.to, ['gui-lai@gmail.com']);
   } finally { restoreEnv(); }
 });
