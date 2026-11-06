@@ -16,6 +16,10 @@ export interface EndUserPublic {
   providerId?: string | null;
   status: string;
   createdAt: string;
+  emailVerifiedAt?: string | null;
+  termsAcceptedAt?: string | null;
+  deletionRequestedAt?: string | null;
+  deletionRequestReason?: string | null;
 }
 
 const MIN_PASSWORD_LEN = 8;
@@ -27,6 +31,7 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   toPublic(u: any): EndUserPublic {
+    const iso = (v: any) => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
     return {
       id: u.id,
       email: u.email ?? null,
@@ -37,6 +42,10 @@ export class UsersService {
       providerId: u.providerId ?? null,
       status: u.status || 'active',
       createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt || ''),
+      emailVerifiedAt: iso(u.emailVerifiedAt),
+      termsAcceptedAt: iso(u.termsAcceptedAt),
+      deletionRequestedAt: iso(u.deletionRequestedAt),
+      deletionRequestReason: u.deletionRequestReason ?? null,
     };
   }
 
@@ -168,11 +177,26 @@ export class UsersService {
   }
 
   // OAuth login: tim theo provider+providerId, roi email, roi tao moi (ke ca profile mac dinh).
-  async upsertOAuth(input: { provider: string; providerId: string; email?: string; avatar?: string; displayName?: string }) {
+  // LUAT GOP THEO EMAIL (2026-11-06): KHONG tu gop vao tai khoan email
+  // chua xac nhan (emailVerifiedAt rong) — tranh truong hop nguoi khac
+  // dang ky truoc bang email cua chu that. Chi gop khi tai khoan dich da
+  // xac nhan email, hoac OAuth tu chung minh email da xac nhan
+  // (Google email_verified=true). Tai khoan OAuth tao moi duoc danh dau
+  // da xac nhan khi Google chung minh email_verified=true; Facebook
+  // khong co tin hieu tuong duong nen de trong (xac nhan sau bang email).
+  async upsertOAuth(input: {
+    provider: string;
+    providerId: string;
+    email?: string;
+    avatar?: string;
+    displayName?: string;
+    emailVerified?: boolean;
+  }) {
     const email = this.normEmail(input.email);
     let u: any = await this.prisma.user.findFirst({
       where: { provider: input.provider, providerId: input.providerId } as any,
     });
+    const matchedByProvider = !!u;
     if (!u && email) u = await this.prisma.user.findUnique({ where: { email } }).catch(() => null) as any;
     if (!u) {
       u = await this.prisma.user.create({
@@ -184,6 +208,7 @@ export class UsersService {
           provider: input.provider,
           providerId: input.providerId,
           status: 'active',
+          emailVerifiedAt: input.emailVerified ? new Date() : null,
         } as any,
       });
       await this.prisma.userProfile
@@ -193,11 +218,18 @@ export class UsersService {
     } else if (u.status !== 'active') {
       throw Object.assign(new Error('tai khoan bi khoa'), { code: 'forbidden' });
     } else {
+      if (!matchedByProvider && !u.emailVerifiedAt && !input.emailVerified) {
+        throw Object.assign(
+          new Error('email chua duoc xac nhan — hay xac nhan email truoc khi dang nhap bang Google/Facebook'),
+          { code: 'email_not_verified' },
+        );
+      }
       // Bo sung thong tin con thieu tu OAuth profile.
       const patch: any = {};
       if (!u.avatar && input.avatar) patch.avatar = input.avatar;
       if (!u.displayName && input.displayName) patch.displayName = input.displayName;
       if (!u.providerId) { patch.provider = input.provider; patch.providerId = input.providerId; }
+      if (input.emailVerified && !u.emailVerifiedAt) patch.emailVerifiedAt = new Date();
       if (Object.keys(patch).length > 0) u = await this.prisma.user.update({ where: { id: u.id }, data: patch as any });
     }
     return this.toPublic(u);

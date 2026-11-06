@@ -21,6 +21,7 @@ import { createThumbMemoryStore, mergeThumbMemory } from "./lib/epg-thumb-memory
 import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
+import { clearReaderSessionCookie, jwtExpiryMs, readReaderSession, readerAuthConfigured, readerSessionCookie } from "./lib/reader-session.mjs";
 
 // ---- Cache link live + master manifest (rut ngan khoi dong player) ----
 // Do truoc (2026-11-05, curl tu VM): /api/v1/live fetch EPG tu VTCANY
@@ -249,7 +250,8 @@ function buildDrawerContent(cats, pathname, englishUrl) {
   const top = DRAWER_TOP_LINKS.map((l) =>
     `<a href="${l.href}"${l.href === section ? " aria-current=\"page\"" : ""}>${l.label}</a>`).join("") +
     `<a class="lang-note" href="${escapeXml(englishUrl)}" target="_blank" rel="noopener" title="Bản tiếng Anh">🌐 ENGLISH</a>` +
-    `<a href="/login">👤 ĐĂNG NHẬP</a>`;
+    `<button type="button" class="reader-auth-open" data-reader-auth-open>👤 ĐĂNG NHẬP</button>` +
+    `<span class="reader-account" data-reader-account hidden><button type="button" class="reader-account-btn" data-reader-account-btn><span class="reader-account-name" data-reader-account-name></span> ▾</button><span class="reader-account-menu" data-reader-account-menu hidden><a href="/tai-khoan">Tài khoản của tôi</a><button type="button" data-reader-logout>Đăng xuất</button></span></span>`;
   const catRows = (cats || []).filter((c) => c && c.slug).map((c) => {
     const kids = (c.children || []).filter((k) => k && k.slug);
     let h = `<div class="drawer-cat"><a class="drawer-cat-link" href="/chuyen-muc/${encodeURIComponent(c.slug)}">${escapeXml(c.name)}</a>`;
@@ -491,7 +493,158 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/v1/auth/me") return json(res, 200, { user });
     if (req.method === "POST" && u.pathname === "/api/v1/auth/logout") {
       destroySession(req);
-      return json(res, 200, { ok: true }, { "Set-Cookie": "epaper_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" });
+      return json(res, 200, { ok: true }, { "Set-Cookie": "epaper_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0" });
+    }
+    // ---- Dang nhap / dang ky ban doc (Giai doan 1, 2026-11-06) ----
+    // Portal lam proxy sang backend VTCANY (/api/v1/auth/user/*): trinh
+    // duyet khong bao gio goi thang backend moi. Phien ban doc la cookie
+    // tsht_reader ma hoa (lib/reader-session.mjs) — song qua restart
+    // portal; refresh token luu DB ben backend nen song qua deploy.
+    // Header x-webhook-secret (secret noi bo MEDIA_WEBHOOK_SECRET) danh
+    // dau request di qua portal de backend bat captcha Turnstile khi da
+    // cau hinh; chi lam tang yeu cau, khong bo qua kiem tra nao.
+    if (u.pathname.startsWith("/api/v2/reader/")) {
+      const portalHeaders = { "Content-Type": "application/json" };
+      const webhookSecret = (process.env.MEDIA_WEBHOOK_SECRET || "").trim();
+      if (webhookSecret) portalHeaders["x-webhook-secret"] = webhookSecret;
+      const backendAuth = async (path, { method = "GET", body, token } = {}) => {
+        const base = vtcanyApiBase();
+        if (!base) return { ok: false, status: 503, data: { message: "backend chua cau hinh" } };
+        try {
+          const headers = { ...portalHeaders, Accept: "application/json" };
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const r = await fetch(base + path, {
+            method,
+            headers,
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(10000),
+          });
+          const text = await r.text();
+          let data = null;
+          try { data = JSON.parse(text); } catch { data = null; }
+          return { ok: r.ok, status: r.status, data };
+        } catch {
+          return { ok: false, status: 503, data: { message: "backend khong truy cap duoc, vui long thu lai sau" } };
+        }
+      };
+      const readerError = (r) => {
+        const raw = r.data && (r.data.message || r.data.error);
+        const msg = Array.isArray(raw) ? raw.join("; ") : (raw || "co loi xay ra, vui long thu lai sau");
+        return { error: String(msg) };
+      };
+      // Lay cap token ban doc tu cookie; access sap het (<60s) thi doi
+      // refresh truoc (xoay vong — refresh cu chet ngay) va tra kem
+      // cookie moi de endpoint ghi vao response.
+      const getReaderSession = async () => {
+        const sess = readReaderSession(req);
+        if (!sess) return { session: null, cookie: null };
+        if (jwtExpiryMs(sess.accessToken) > Date.now() + 60_000) return { session: sess, cookie: null };
+        const r = await backendAuth("/auth/refresh", { method: "POST", body: { refresh_token: sess.refreshToken } });
+        if (!r.ok || !r.data?.access_token || !r.data?.refresh_token) return { session: null, cookie: null };
+        const session = { accessToken: r.data.access_token, refreshToken: r.data.refresh_token };
+        return { session, cookie: readerSessionCookie(session.accessToken, session.refreshToken) };
+      };
+      // Goi backend voi access token; 401 thi doi refresh 1 lan roi goi
+      // lai bang cap moi (doi mat khau o noi khac/bi khoa thi refresh cung
+      // chet -> tra 401). Tra kem cookie moi neu co.
+      const callWithReader = async (fn) => {
+        let { session, cookie } = await getReaderSession();
+        if (!session) return { result: { ok: false, status: 401, data: { message: "chua dang nhap" } }, cookie: null };
+        let r = await fn(session.accessToken);
+        if (r.status !== 401) return { result: r, cookie };
+        const rr = await backendAuth("/auth/refresh", { method: "POST", body: { refresh_token: session.refreshToken } });
+        if (!rr.ok || !rr.data?.access_token || !rr.data?.refresh_token) {
+          return { result: { ok: false, status: 401, data: { message: "chua dang nhap" } }, cookie: null };
+        }
+        const fresh = { accessToken: rr.data.access_token, refreshToken: rr.data.refresh_token };
+        return { result: await fn(fresh.accessToken), cookie: readerSessionCookie(fresh.accessToken, fresh.refreshToken) };
+      };
+      const withCookie = (cookie) => (cookie ? { "Set-Cookie": cookie } : undefined);
+      if (req.method === "GET" && u.pathname === "/api/v2/reader/config") {
+        return json(res, 200, {
+          configured: readerAuthConfigured(),
+          turnstileSiteKey: (process.env.TURNSTILE_SITE_KEY || "").trim() || null,
+        });
+      }
+      if (!readerAuthConfigured()) return err(res, 503, "dang nhap ban doc chua cau hinh");
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/register") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/register", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        return json(res, 200, r.data);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/verify-email") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/verify-email", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        return json(res, 200, r.data);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/resend-verification") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/resend-verification", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        return json(res, 200, r.data);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/forgot-password") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/forgot-password", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        return json(res, 200, r.data);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/reset-password") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/reset-password", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        return json(res, 200, r.data);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/login") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const r = await backendAuth("/auth/user/login", { method: "POST", body });
+        if (!r.ok) return json(res, r.status, readerError(r));
+        // Chi tra user ve trinh duyet; token nam trong cookie ma hoa.
+        const cookie = readerSessionCookie(r.data.access_token, r.data.refresh_token);
+        return json(res, 200, { user: r.data.user }, cookie ? { "Set-Cookie": cookie } : undefined);
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/logout") {
+        const sess = readReaderSession(req);
+        if (sess) await backendAuth("/auth/user/logout", { method: "POST", body: { refresh_token: sess.refreshToken } }).catch(() => null);
+        return json(res, 200, { ok: true }, { "Set-Cookie": clearReaderSessionCookie() });
+      }
+      if (req.method === "GET" && u.pathname === "/api/v2/reader/me") {
+        const { result, cookie } = await callWithReader((token) => backendAuth("/auth/me", { token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, result.data, withCookie(cookie));
+      }
+      if (req.method === "PATCH" && u.pathname === "/api/v2/reader/me") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const { result, cookie } = await callWithReader((token) => backendAuth("/auth/user/me", { method: "PATCH", body, token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, result.data, withCookie(cookie));
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/change-password") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const { result, cookie } = await callWithReader((token) => backendAuth("/auth/user/change-password", { method: "POST", body, token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        // Doi mat khau thu hoi toan bo refresh token -> phien hien tai
+        // chet, buoc dang nhap lai bang mat khau moi.
+        return json(res, 200, { ok: true, relogin: true }, { "Set-Cookie": clearReaderSessionCookie() });
+      }
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/request-deletion") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const { result, cookie } = await callWithReader((token) => backendAuth("/auth/user/request-deletion", { method: "POST", body, token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, { ok: true }, { "Set-Cookie": clearReaderSessionCookie() });
+      }
+      return err(res, 404, "not found");
     }
     // ---- Xoa dem header (CMS luu Giao dien) ----
     // POST /api/v1/internal/invalidate-site-interface — chi xoa dem
@@ -1277,6 +1430,13 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/su-kien") return serveFile(res, path.join(PUBLIC, "su-kien.html"), undefined, u.pathname);
     if (u.pathname === "/tuong-thuat") return serveFile(res, path.join(PUBLIC, "tuong-thuat.html"), undefined, u.pathname);
     if (u.pathname === "/tim-kiem") return serveFile(res, path.join(PUBLIC, "tim-kiem.html"), undefined, u.pathname);
+    // Trang ban doc (Giai doan 1, 2026-11-06): tai khoan, xac nhan email,
+    // dat lai mat khau, dieu khoan + chinh sach (du thao).
+    if (u.pathname === "/tai-khoan") return serveFile(res, path.join(PUBLIC, "tai-khoan.html"), undefined, u.pathname);
+    if (u.pathname === "/xac-nhan-email") return serveFile(res, path.join(PUBLIC, "xac-nhan-email.html"), undefined, u.pathname);
+    if (u.pathname === "/dat-lai-mat-khau") return serveFile(res, path.join(PUBLIC, "dat-lai-mat-khau.html"), undefined, u.pathname);
+    if (u.pathname === "/dieu-khoan-su-dung") return serveFile(res, path.join(PUBLIC, "dieu-khoan-su-dung.html"), undefined, u.pathname);
+    if (u.pathname === "/chinh-sach-bao-mat") return serveFile(res, path.join(PUBLIC, "chinh-sach-bao-mat.html"), undefined, u.pathname);
     if (u.pathname === "/login.html" || u.pathname === "/admin.html") return serveFile(res, path.join(PUBLIC, u.pathname.slice(1)));
     // Dang nhap CMS: /login phuc vu trang login.html cu (trang dang nhap
     // noi bo cu, form username/password -> POST /api/v1/auth/login; khong

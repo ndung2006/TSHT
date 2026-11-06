@@ -15,7 +15,14 @@
   <div class="utilitybar-right">
     <a class="lang-note" href="<!-- @ENGLISH_URL -->" target="_blank" rel="noopener" title="Bản tiếng Anh">🌐 ENGLISH</a>
     <span id="utility-social" class="utility-social" hidden></span>
-    <a href="/login">👤 ĐĂNG NHẬP</a>
+    <button type="button" class="reader-auth-open" data-reader-auth-open>👤 ĐĂNG NHẬP</button>
+    <span class="reader-account" data-reader-account hidden>
+      <button type="button" class="reader-account-btn" data-reader-account-btn><span class="reader-account-name" data-reader-account-name></span> ▾</button>
+      <span class="reader-account-menu" data-reader-account-menu hidden>
+        <a href="/tai-khoan">Tài khoản của tôi</a>
+        <button type="button" data-reader-logout>Đăng xuất</button>
+      </span>
+    </span>
   </div>
 </div>
 
@@ -71,3 +78,41 @@
     <!-- @DRAWER_CONTENT -->
   </div>
 </div>
+<!-- Hop thoai dang nhap / dang ky ban doc (Giai doan 1, 2026-11-06):
+     mo ngay tren trang dang xem, khong chuyen trang. -->
+<div id="reader-auth-dialog" class="reader-auth-dialog" data-reader-auth-dialog hidden>
+  <div class="reader-auth-backdrop" data-reader-auth-close></div>
+  <div class="reader-auth-panel" role="dialog" aria-modal="true" aria-label="Đăng nhập / Đăng ký">
+    <button type="button" class="reader-auth-x" data-reader-auth-close aria-label="Đóng">✕</button>
+    <div class="reader-auth-tabs" role="tablist">
+      <button type="button" class="reader-auth-tab is-active" data-reader-auth-tab="login" role="tab" aria-selected="true">Đăng nhập</button>
+      <button type="button" class="reader-auth-tab" data-reader-auth-tab="register" role="tab" aria-selected="false">Đăng ký</button>
+    </div>
+    <p class="reader-auth-error" data-reader-auth-error hidden></p>
+    <p class="reader-auth-ok" data-reader-auth-ok hidden></p>
+    <form class="reader-auth-form" data-reader-auth-form="login">
+      <label>Email <input type="email" name="email" required autocomplete="email" placeholder="email@vidu.vn"></label>
+      <label>Mật khẩu <span class="reader-auth-pw"><input type="password" name="password" required autocomplete="current-password" placeholder="Mật khẩu"><button type="button" class="reader-auth-pw-toggle" data-reader-pw-toggle aria-label="Hiện mật khẩu">👁</button></span></label>
+      <div class="reader-auth-captcha" data-reader-captcha="login"></div>
+      <button type="submit" class="reader-auth-submit">Đăng nhập</button>
+      <button type="button" class="reader-auth-link" data-reader-auth-show="forgot">Quên mật khẩu?</button>
+    </form>
+    <form class="reader-auth-form" data-reader-auth-form="register" hidden>
+      <label>Họ tên <input type="text" name="displayName" required autocomplete="name" placeholder="Nguyễn Văn A"></label>
+      <label>Email <input type="email" name="email" required autocomplete="email" placeholder="email@vidu.vn"></label>
+      <label>Mật khẩu <span class="reader-auth-pw"><input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Tối thiểu 8 ký tự"><button type="button" class="reader-auth-pw-toggle" data-reader-pw-toggle aria-label="Hiện mật khẩu">👁</button></span></label>
+      <div class="reader-auth-captcha" data-reader-captcha="register"></div>
+      <label class="reader-auth-terms"><input type="checkbox" name="termsAccepted" required> Tôi đồng ý với <a href="/dieu-khoan-su-dung" target="_blank" rel="noopener">Điều khoản sử dụng</a> và <a href="/chinh-sach-bao-mat" target="_blank" rel="noopener">Chính sách bảo vệ dữ liệu cá nhân</a></label>
+      <button type="submit" class="reader-auth-submit">Đăng ký</button>
+    </form>
+    <form class="reader-auth-form" data-reader-auth-form="forgot" hidden>
+      <p class="reader-auth-hint">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (có hiệu lực 30 phút).</p>
+      <label>Email <input type="email" name="email" required autocomplete="email" placeholder="email@vidu.vn"></label>
+      <div class="reader-auth-captcha" data-reader-captcha="forgot"></div>
+      <button type="submit" class="reader-auth-submit">Gửi liên kết đặt lại mật khẩu</button>
+      <button type="button" class="reader-auth-link" data-reader-auth-show="login">← Quay lại đăng nhập</button>
+    </form>
+    <p class="reader-auth-note">Tài khoản dùng chung cho web và app TSHTgo. Đăng nhập bằng Google/Facebook sẽ mở ở giai đoạn sau.</p>
+  </div>
+</div>
+<script src="/js/reader-auth.js?v=20261106-1"></script>

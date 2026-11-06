@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Xác nhận email — Tòa soạn hội tụ</title>
+<link rel="stylesheet" href="/css/home.css?v=20261105-2">
+<link rel="stylesheet" href="/css/header.css?v=20261106-1">
+<link rel="stylesheet" href="/css/footer.css?v=20261105-1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<style>
+.verify-page { max-width: 560px; margin: 0 auto; padding: 2rem 1rem 3rem; text-align: center; }
+.verify-page h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+.verify-box { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1.5rem; background: #fff; }
+.verify-box p { margin: 0 0 1rem; line-height: 1.6; }
+.verify-box p.ok { color: #1e6b2e; font-weight: 600; }
+.verify-box p.err { color: #b3261e; font-weight: 600; }
+.verify-btn { background: #d61f2f; color: #fff; border: 0; border-radius: 6px; padding: 0.7rem 1.2rem; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+.verify-btn:hover { background: #b81a28; }
+.verify-btn.secondary { background: #fff; color: #d61f2f; border: 1px solid #d61f2f; }
+.verify-link { color: #d61f2f; }
+</style>
+</head>
+<body id="top">
+<!-- @HEADER -->
+
+<main class="wrap verify-page">
+  <h1>Xác nhận email</h1>
+  <div class="verify-box">
+    <p id="verify-status">Đang xác nhận email…</p>
+    <p id="verify-actions" hidden>
+      <button type="button" class="verify-btn" id="verify-login-btn">Đăng nhập</button>
+      <a class="verify-btn secondary" href="/">Về trang chủ</a>
+    </p>
+    <p id="verify-expired" hidden>
+      Liên kết xác nhận đã hết hạn hoặc đã được dùng. Hãy đăng nhập rồi gửi lại email xác nhận ở
+      <a class="verify-link" href="/tai-khoan">Tài khoản của tôi</a>.
+    </p>
+  </div>
+</main>
+
+<!-- @FOOTER -->
+<script src="/js/header.js?v=20261105-2"></script>
+<script>
+(function () {
+  var token = new URLSearchParams(window.location.search).get("token") || "";
+  var statusEl = document.getElementById("verify-status");
+  var actionsEl = document.getElementById("verify-actions");
+  var expiredEl = document.getElementById("verify-expired");
+  document.getElementById("verify-login-btn").addEventListener("click", function () {
+    if (window.ReaderAuth) window.ReaderAuth.open("login");
+  });
+  if (!token) {
+    statusEl.textContent = "Liên kết xác nhận không hợp lệ.";
+    statusEl.className = "err";
+    expiredEl.hidden = false;
+    return;
+  }
+  fetch("/api/v2/reader/verify-email", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: token }),
+  }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (res.ok) {
+        statusEl.textContent = "✓ Email đã được xác nhận. Tài khoản của bạn đã mở đầy đủ tính năng.";
+        statusEl.className = "ok";
+        actionsEl.hidden = false;
+        if (window.ReaderAuth) window.ReaderAuth.refreshHeader();
+      } else {
+        statusEl.textContent = "Không xác nhận được email: " + ((res.data && (res.data.error || res.data.message)) || "liên kết không hợp lệ hoặc đã hết hạn.");
+        statusEl.className = "err";
+        expiredEl.hidden = false;
+      }
+    })
+    .catch(function () {
+      statusEl.textContent = "Không kết nối được máy chủ, vui lòng thử lại sau.";
+      statusEl.className = "err";
+    });
+})();
+</script>
+</body></html>

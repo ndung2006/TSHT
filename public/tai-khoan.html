@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tài khoản của tôi — Tòa soạn hội tụ</title>
+<link rel="stylesheet" href="/css/home.css?v=20261105-2">
+<link rel="stylesheet" href="/css/header.css?v=20261106-1">
+<link rel="stylesheet" href="/css/footer.css?v=20261105-1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<style>
+.account-page { max-width: 640px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.account-page h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+.account-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; background: #fff; }
+.account-card h2 { font-size: 1.1rem; margin: 0 0 0.9rem; }
+.account-row { margin-bottom: 0.85rem; }
+.account-row label { display: block; font-weight: 600; font-size: 0.92rem; margin-bottom: 0.3rem; }
+.account-row input, .account-row textarea { width: 100%; box-sizing: border-box; padding: 0.6rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font: inherit; }
+.account-row input:focus, .account-row textarea:focus { outline: 2px solid rgba(214,31,47,.2); border-color: #d61f2f; }
+.account-row input[readonly] { background: #f7f7f7; color: #555; }
+.account-btn { background: #d61f2f; color: #fff; border: 0; border-radius: 6px; padding: 0.65rem 1.1rem; font: inherit; font-weight: 700; cursor: pointer; }
+.account-btn:hover { background: #b81a28; }
+.account-btn:disabled { opacity: .6; cursor: wait; }
+.account-btn.secondary { background: #fff; color: #d61f2f; border: 1px solid #d61f2f; }
+.account-btn.secondary:hover { background: #fff3f3; }
+.account-btn.danger { background: #fff; color: #b3261e; border: 1px solid #b3261e; }
+.account-btn.danger:hover { background: #fff3f3; }
+.account-msg { border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0 0 1rem; font-size: 0.93rem; }
+.account-msg.ok { background: #f0f9f0; border: 1px solid #bfe3bf; color: #1e6b2e; }
+.account-msg.err { background: #fff3f3; border: 1px solid #f3c2c2; color: #b3261e; }
+.account-msg[hidden] { display: none !important; }
+.account-verify { font-size: 0.95rem; margin: 0 0 0.6rem; }
+.account-verify.ok { color: #1e6b2e; }
+.account-verify.warn { color: #b26a00; }
+.account-note { font-size: 0.88rem; color: #666; margin: 0.5rem 0 0; }
+.account-danger-zone { border-color: #f3c2c2; }
+.account-danger-zone p { font-size: 0.93rem; color: #555; margin: 0 0 0.8rem; }
+</style>
+</head>
+<body id="top">
+<!-- @HEADER -->
+
+<main class="wrap account-page">
+  <h1>Tài khoản của tôi</h1>
+  <p class="account-msg" id="account-msg" hidden></p>
+
+  <div id="account-loading">Đang tải thông tin tài khoản…</div>
+
+  <div id="account-login-prompt" hidden>
+    <div class="account-card">
+      <p>Bạn chưa đăng nhập.</p>
+      <button type="button" class="account-btn" id="account-login-btn">Đăng nhập</button>
+    </div>
+  </div>
+
+  <div id="account-main" hidden>
+    <section class="account-card">
+      <h2>Thông tin tài khoản</h2>
+      <div class="account-row">
+        <label for="account-email">Email</label>
+        <input id="account-email" type="email" readonly>
+      </div>
+      <div class="account-row">
+        <label for="account-name">Họ tên</label>
+        <input id="account-name" type="text" autocomplete="name">
+      </div>
+      <p class="account-verify" id="account-verify"></p>
+      <div id="account-resend-box" hidden>
+        <div id="account-resend-captcha"></div>
+        <button type="button" class="account-btn secondary" id="account-resend-btn">Gửi lại email xác nhận</button>
+      </div>
+      <div style="margin-top:0.9rem"><button type="button" class="account-btn" id="account-save-btn">Lưu họ tên</button></div>
+      <p class="account-note">Tài khoản này dùng chung cho web và app TSHTgo.</p>
+    </section>
+
+    <section class="account-card">
+      <h2>Đổi mật khẩu</h2>
+      <form id="account-pw-form">
+        <div class="account-row">
+          <label for="account-pw-current">Mật khẩu hiện tại</label>
+          <input id="account-pw-current" type="password" required autocomplete="current-password">
+        </div>
+        <div class="account-row">
+          <label for="account-pw-new">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+          <input id="account-pw-new" type="password" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="account-row">
+          <label for="account-pw-confirm">Nhập lại mật khẩu mới</label>
+          <input id="account-pw-confirm" type="password" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="account-btn">Đổi mật khẩu</button>
+      </form>
+      <p class="account-note">Đổi mật khẩu sẽ đăng xuất khỏi mọi thiết bị, kể cả app TSHTgo.</p>
+    </section>
+
+    <section class="account-card account-danger-zone">
+      <h2>Yêu cầu xóa tài khoản</h2>
+      <p>Gửi yêu cầu để quản trị viên xử lý. Tài khoản sẽ bị khóa ngay sau khi gửi; dữ liệu không bị xóa ngay mà do quản trị viên xử lý theo quy định.</p>
+      <div id="account-delete-form" hidden>
+        <div class="account-row">
+          <label for="account-delete-reason">Lý do (không bắt buộc)</label>
+          <textarea id="account-delete-reason" rows="2" placeholder="Ví dụ: tôi không dùng tài khoản này nữa"></textarea>
+        </div>
+        <button type="button" class="account-btn danger" id="account-delete-confirm-btn">Xác nhận gửi yêu cầu xóa</button>
+        <button type="button" class="account-btn secondary" id="account-delete-cancel-btn">Hủy</button>
+      </div>
+      <button type="button" class="account-btn danger" id="account-delete-btn">Yêu cầu xóa tài khoản</button>
+    </section>
+
+    <button type="button" class="account-btn secondary" id="account-logout-btn">Đăng xuất</button>
+  </div>
+</main>
+
+<!-- @FOOTER -->
+<script src="/js/header.js?v=20261105-2"></script>
+<script src="/js/reader-captcha.js?v=20261106-1"></script>
+<script src="/js/tai-khoan.js?v=20261106-1"></script>
+</body></html>

@@ -224,10 +224,18 @@ model User {
   providerId   String?        @map("provider_id")
   status       String         @default("active") // active|banned
   createdAt    DateTime       @default(now()) @map("created_at")
+  // Dang nhap ban doc Giai doan 1 (2026-11-06): xac nhan email, dong y
+  // dieu khoan, vo hieu phien cu khi doi mat khau, yeu cau xoa tai khoan.
+  emailVerifiedAt     DateTime? @map("email_verified_at")
+  termsAcceptedAt     DateTime? @map("terms_accepted_at")
+  passwordChangedAt   DateTime? @map("password_changed_at")
+  deletionRequestedAt DateTime? @map("deletion_requested_at")
+  deletionRequestReason String? @map("deletion_request_reason")
   profiles     UserProfile[]
   sessions     UserSession[]
   watchHistory WatchHistory[]
   transactions Transaction[]
+  emailTokens  UserEmailToken[]
 
   @@map("users")
 }
@@ -255,6 +263,38 @@ model UserSession {
   isActive      Boolean   @default(true) @map("is_active")
 
   @@map("user_sessions")
+}
+
+// Refresh token ban doc + CMS: luu DB (ben qua restart/deploy) thay cho
+// Map bo nho cu o AuthService; chi luu SHA-256 cua token, khong luu gia
+// tri that. Thu hoi khi dang xuat / doi mat khau / dat lai mat khau.
+model UserRefreshToken {
+  id        String    @id @default(uuid())
+  kind      String // cms|enduser
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("user_refresh_tokens")
+  @@index([userId])
+}
+
+// Token dung mot lan: xac nhan email (24h) + dat lai mat khau (30 phut).
+// Chi luu SHA-256; het han hoac da dung thi vo hieu.
+model UserEmailToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String // email_verification|password_reset
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("user_email_tokens")
+  @@index([userId])
 }
 
 model AdminUser {

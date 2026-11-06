@@ -25,6 +25,10 @@ export interface EndUser {
   providerId?: string;
   status: 'active' | 'banned';
   createdAt: string;
+  // Dang nhap ban doc Giai doan 1 (2026-11-06): moc xac nhan email
+  // (ISO) + moc doi mat khau gan nhat (dung chan access token cu).
+  emailVerifiedAt?: string;
+  passwordChangedAt?: string;
 }
 
 export interface UserProfile {

@@ -38,6 +38,19 @@
               :severity="data.status === 'active' ? 'success' : 'danger'" />
           </template>
         </Column>
+        <Column header="Email đã xác nhận" style="width:9rem">
+          <template #body="{ data }">
+            <Tag v-if="data.emailVerifiedAt" value="Đã xác nhận" severity="success" />
+            <span v-else class="text-neutral-500">Chưa</span>
+          </template>
+        </Column>
+        <Column header="Yêu cầu xóa" style="width:11rem">
+          <template #body="{ data }">
+            <span v-if="data.deletionRequestedAt" :title="data.deletionRequestReason || ''"
+              class="font-medium text-red-600">{{ fmtDate(data.deletionRequestedAt) }}</span>
+            <span v-else class="text-neutral-500">—</span>
+          </template>
+        </Column>
         <Column header="Ngày tạo" style="width:11rem">
           <template #body="{ data }">{{ fmtDate(data.createdAt) }}</template>
         </Column>

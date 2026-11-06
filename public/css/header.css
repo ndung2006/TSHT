@@ -155,3 +155,58 @@ body.drawer-open { overflow: hidden; }
   .catnav .catnav-item, .catnav a[data-cat] { display: none; }
   .brand-logo { max-height: 72px; }
 }
+
+/* ---- Dang nhap / dang ky ban doc (Giai doan 1, 2026-11-06) ---- */
+.reader-auth-open { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: #333; cursor: pointer; white-space: nowrap; }
+.reader-auth-open:hover { color: #c00; }
+.reader-account { position: relative; display: inline-flex; align-items: center; }
+.reader-account[hidden], .reader-auth-open[hidden] { display: none !important; }
+.reader-account-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: #333; cursor: pointer; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.reader-account-btn:hover { color: #c00; }
+.reader-account-menu { position: absolute; top: 100%; right: 0; margin-top: 0.35rem; min-width: 180px; background: #fff; border: 1px solid #e5e5e5; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.14); z-index: 1200; padding: 0.25rem 0; display: flex; flex-direction: column; }
+.reader-account-menu[hidden] { display: none !important; }
+.reader-account-menu a, .reader-account-menu button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0.55rem 0.9rem; font: inherit; color: #222; text-decoration: none; cursor: pointer; box-sizing: border-box; }
+.reader-account-menu a:hover, .reader-account-menu button:hover { background: #f7f7f7; color: #c00; }
+/* Ngan keo mobile: nut dang nhap / tai khoan cung kieu link trong ngan keo. */
+.site-drawer-top .reader-auth-open { color: #222; font-weight: 700; padding: 0.5rem 0; text-transform: uppercase; font-size: 0.95rem; }
+.site-drawer-top .reader-account:not([hidden]) { display: flex; flex-direction: column; align-items: stretch; }
+.site-drawer-top .reader-account-btn { text-align: left; padding: 0.5rem 0; font-weight: 700; text-transform: uppercase; font-size: 0.95rem; max-width: none; }
+.site-drawer-top .reader-account-menu { position: static; box-shadow: none; border: 0; margin: 0; padding-left: 0.5rem; }
+/* Hop thoai dang nhap / dang ky. */
+.reader-auth-dialog { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; }
+.reader-auth-dialog[hidden] { display: none !important; }
+.reader-auth-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+.reader-auth-panel { position: relative; width: 100%; max-width: 420px; max-height: calc(100vh - 2rem); overflow-y: auto; background: #fff; border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,.25); padding: 1.5rem 1.5rem 1.25rem; box-sizing: border-box; }
+.reader-auth-x { position: absolute; top: 0.6rem; right: 0.8rem; background: none; border: 0; font-size: 1.1rem; line-height: 1; cursor: pointer; color: #666; padding: 0.3rem; }
+.reader-auth-x:hover { color: #c00; }
+.reader-auth-tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 1rem; }
+.reader-auth-tab { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -2px; padding: 0.6rem 0.5rem; font: inherit; font-weight: 700; font-size: 1.05rem; color: #666; cursor: pointer; }
+.reader-auth-tab.is-active { color: #d61f2f; border-bottom-color: #d61f2f; }
+.reader-auth-form { display: flex; flex-direction: column; gap: 0.85rem; }
+.reader-auth-form[hidden] { display: none !important; }
+.reader-auth-form label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 600; font-size: 0.92rem; color: #333; }
+.reader-auth-form input[type="email"], .reader-auth-form input[type="password"], .reader-auth-form input[type="text"] { width: 100%; box-sizing: border-box; padding: 0.65rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font: inherit; font-weight: 400; }
+.reader-auth-form input:focus { outline: 2px solid rgba(214,31,47,.2); border-color: #d61f2f; }
+.reader-auth-pw { position: relative; display: block; }
+.reader-auth-pw input { padding-right: 2.6rem !important; }
+.reader-auth-pw-toggle { position: absolute; right: 0.35rem; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; font-size: 1rem; padding: 0.3rem; }
+.reader-auth-submit { background: #d61f2f; color: #fff; border: 0; border-radius: 6px; padding: 0.75rem; font: inherit; font-weight: 700; cursor: pointer; }
+.reader-auth-submit:hover { background: #b81a28; }
+.reader-auth-submit:disabled { opacity: .6; cursor: wait; }
+.reader-auth-link { background: none; border: 0; padding: 0; font: inherit; color: #d61f2f; cursor: pointer; align-self: flex-start; }
+.reader-auth-link:hover { text-decoration: underline; }
+.reader-auth-terms { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 0.5rem; font-weight: 400 !important; font-size: 0.9rem; }
+.reader-auth-terms input { margin-top: 0.15rem; flex: none; }
+.reader-auth-terms a { color: #d61f2f; }
+.reader-auth-error { background: #fff3f3; border: 1px solid #f3c2c2; color: #b3261e; border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0 0 1rem; font-size: 0.93rem; }
+.reader-auth-ok { background: #f0f9f0; border: 1px solid #bfe3bf; color: #1e6b2e; border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0 0 1rem; font-size: 0.93rem; }
+.reader-auth-error[hidden], .reader-auth-ok[hidden] { display: none !important; }
+.reader-auth-hint { margin: 0; font-size: 0.93rem; color: #555; font-weight: 400; }
+.reader-auth-note { margin: 1rem 0 0; font-size: 0.85rem; color: #777; text-align: center; }
+.reader-auth-note[hidden] { display: none !important; }
+.reader-auth-testlink { margin: 0.75rem 0 0; font-size: 0.88rem; background: #fff8e1; border: 1px dashed #e0a800; border-radius: 6px; padding: 0.6rem 0.75rem; word-break: break-all; }
+.reader-auth-captcha:empty { display: none; }
+@media (max-width: 600px) {
+  .reader-auth-dialog { padding: 0; }
+  .reader-auth-panel { max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0; }
+}

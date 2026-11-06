@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Đặt lại mật khẩu — Tòa soạn hội tụ</title>
+<link rel="stylesheet" href="/css/home.css?v=20261105-2">
+<link rel="stylesheet" href="/css/header.css?v=20261106-1">
+<link rel="stylesheet" href="/css/footer.css?v=20261105-1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<style>
+.reset-page { max-width: 480px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+.reset-page h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+.reset-box { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1.5rem; background: #fff; }
+.reset-box label { display: block; font-weight: 600; font-size: 0.92rem; margin-bottom: 0.3rem; }
+.reset-box input { width: 100%; box-sizing: border-box; padding: 0.65rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font: inherit; margin-bottom: 0.85rem; }
+.reset-box input:focus { outline: 2px solid rgba(214,31,47,.2); border-color: #d61f2f; }
+.reset-btn { background: #d61f2f; color: #fff; border: 0; border-radius: 6px; padding: 0.75rem 1.2rem; font: inherit; font-weight: 700; cursor: pointer; }
+.reset-btn:hover { background: #b81a28; }
+.reset-btn:disabled { opacity: .6; cursor: wait; }
+.reset-msg { border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0 0 1rem; font-size: 0.93rem; }
+.reset-msg.ok { background: #f0f9f0; border: 1px solid #bfe3bf; color: #1e6b2e; }
+.reset-msg.err { background: #fff3f3; border: 1px solid #f3c2c2; color: #b3261e; }
+.reset-msg[hidden] { display: none !important; }
+.reset-link { color: #d61f2f; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.reset-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body id="top">
+<!-- @HEADER -->
+
+<main class="wrap reset-page">
+  <h1>Đặt lại mật khẩu</h1>
+  <div class="reset-box">
+    <p class="reset-msg" id="reset-msg" hidden></p>
+    <form id="reset-form">
+      <label for="reset-new">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+      <input id="reset-new" type="password" required minlength="8" autocomplete="new-password">
+      <label for="reset-confirm">Nhập lại mật khẩu mới</label>
+      <input id="reset-confirm" type="password" required minlength="8" autocomplete="new-password">
+      <button type="submit" class="reset-btn">Đặt lại mật khẩu</button>
+    </form>
+    <p id="reset-done" hidden>
+      <button type="button" class="reset-btn" id="reset-login-btn">Đăng nhập ngay</button>
+    </p>
+    <p id="reset-expired" hidden>
+      Liên kết đặt lại mật khẩu đã hết hạn hoặc đã được dùng.
+      <button type="button" class="reset-link" id="reset-forgot-btn">Gửi lại liên kết mới</button>
+    </p>
+  </div>
+</main>
+
+<!-- @FOOTER -->
+<script src="/js/header.js?v=20261105-2"></script>
+<script>
+(function () {
+  var token = new URLSearchParams(window.location.search).get("token") || "";
+  var msgEl = document.getElementById("reset-msg");
+  var form = document.getElementById("reset-form");
+  function showMsg(text, ok) {
+    msgEl.textContent = text;
+    msgEl.className = "reset-msg " + (ok ? "ok" : "err");
+    msgEl.hidden = false;
+  }
+  document.getElementById("reset-login-btn").addEventListener("click", function () {
+    if (window.ReaderAuth) window.ReaderAuth.open("login");
+  });
+  document.getElementById("reset-forgot-btn").addEventListener("click", function () {
+    if (window.ReaderAuth) window.ReaderAuth.open("forgot");
+  });
+  if (!token) {
+    form.hidden = true;
+    showMsg("Liên kết đặt lại mật khẩu không hợp lệ.", false);
+    document.getElementById("reset-expired").hidden = false;
+    return;
+  }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var nw = document.getElementById("reset-new").value;
+    var cf = document.getElementById("reset-confirm").value;
+    if (nw !== cf) { showMsg("Mật khẩu mới nhập lại chưa khớp.", false); return; }
+    var btn = form.querySelector("button[type='submit']");
+    btn.disabled = true;
+    fetch("/api/v2/reader/reset-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: token, newPassword: nw }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) {
+          showMsg("Không đặt lại được mật khẩu: " + ((res.data && (res.data.error || res.data.message)) || "liên kết không hợp lệ hoặc đã hết hạn."), false);
+          document.getElementById("reset-expired").hidden = false;
+          return;
+        }
+        form.hidden = true;
+        showMsg("Đã đặt lại mật khẩu. Các phiên đăng nhập cũ đã bị đăng xuất.", true);
+        document.getElementById("reset-done").hidden = false;
+      })
+      .catch(function () {
+        btn.disabled = false;
+        showMsg("Không kết nối được máy chủ, vui lòng thử lại sau.", false);
+      });
+  });
+})();
+</script>
+</body></html>
