@@ -26,7 +26,7 @@ async function load() {
     const range = fmtRange(it.startsAt, it.endsAt);
     if (range) meta.push(range);
     if (it.publishAt) meta.push("Đăng " + fmtDate(it.publishAt));
-    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
+    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<h3>" + esc(it.title) + "</h3></a>" +
       (it.description ? "<p class=\"news-sapo\">" + esc(it.description) + "</p>" : "") +

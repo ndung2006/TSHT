@@ -22,7 +22,7 @@ async function load() {
       ? "<p class=\"news-meta\"><a href=\"/su-kien/" + esc(it.event.slug) + "\">Sự kiện: " + esc(it.event.title) + "</a>" +
         (it.publishAt ? " · Đăng " + esc(fmtDate(it.publishAt)) : "") + "</p>"
       : (it.publishAt ? "<p class=\"news-meta\">Đăng " + esc(fmtDate(it.publishAt)) + "</p>" : "");
-    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
+    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<h3>" + esc(it.title) + "</h3></a>" +
       (it.description ? "<p class=\"news-sapo\">" + esc(it.description) + "</p>" : "") +

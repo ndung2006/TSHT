@@ -3,13 +3,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nền tảng số</title>
 <link rel="stylesheet" href="/css/home.css?v=20261105-2">
-<link rel="stylesheet" href="/css/header.css?v=20261106-1">
-<link rel="stylesheet" href="/css/footer.css?v=20261105-1">
+<link rel="stylesheet" href="/css/header.css?v=20261106-3">
+<link rel="stylesheet" href="/css/footer.css?v=20261106-3">
 <style>
   .platforms { max-width: 1180px; margin: 0 auto; padding: 1rem; }
   .platforms h1 { font-size: 1.4rem; margin: 0.5rem 0; }
   .platforms .lead { color: #444; }
-  .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; align-items: start; }
   .sv-card { display: block; text-decoration: none; color: inherit; }
   .sv-card.sv-playable { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; }
   .sv-player { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
@@ -20,11 +20,20 @@
   .sv-player-close { position: absolute; top: -12px; right: -12px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: #fff; color: #111; font-size: 16px; cursor: pointer; }
   .sv-player-title { color: #fff; font-size: 14px; margin: 8px 2px 0; line-height: 1.4; }
   .sv-player-err { color: #ffb4b4; font-size: 14px; margin: 8px 2px 0; }
-  .sv-thumb { position: relative; aspect-ratio: 2/3; overflow: hidden; border-radius: 8px; background: #111; }
+  /* Sua chong chu cuoi luoi (2026-11-06): .sv-thumb BAT BUOC display:
+     block — span mac dinh inline nen aspect-ratio: 2/3 bi bo qua (anh
+     tu co chieu cao theo ti le goc, the khong co chieu cao xac dinh);
+     tieu de the phat duoc phai la <span> (button chi duoc chua phrasing
+     content — <h3> block trong <button> lam trinh duyet khong tinh dung
+     chieu cao the, hang grid ngan hon the that ~2 dong tieu de, dong ghi
+     chu sau luoi de len tieu de the cuoi o 1 minh hang 2). The <a> giu
+     <h3> binh thuong. Mau dung cua the TV (button + span thumb block +
+     span title) khong gap loi nay. */
+  .sv-thumb { display: block; position: relative; aspect-ratio: 2/3; overflow: hidden; border-radius: 8px; background: #111; }
   .sv-thumb img, .sv-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
   .sv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
   .sv-badge { position: absolute; left: 8px; bottom: 8px; background: #c00; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-  .sv-card h3 { font-size: 15px; margin: 8px 0 0; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .sv-card .sv-title { font-size: 15px; margin: 8px 0 0; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .sv-empty { color: #555; margin-top: 1rem; }
   .platforms .note { margin-top: 1.5rem; color: #555; }
 </style><link rel="icon" href="/favicon.ico" sizes="any">
@@ -55,7 +64,7 @@
 </main>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/telemetry.js?v=20261105-1"></script>
-<script src="/js/header.js?v=20261105-2"></script>
+<script src="/js/header.js?v=20261106-3"></script>
 <!-- @FOOTER -->
 <script>
 (function () {
@@ -167,15 +176,21 @@
           : '<img src="' + esc(it.media) + '" alt="">';
       }
       if (playId) thumb += '<span class="sv-play">▶</span>';
+      var titleText = esc(it.title);
       var inner = '<span class="sv-thumb">' + thumb +
-        '<span class="sv-badge">' + esc(ext ? (labels[ext.platform] || ext.platform) : 'Web') + '</span></span><h3>' + esc(it.title) + '</h3>';
+        '<span class="sv-badge">' + esc(ext ? (labels[ext.platform] || ext.platform) : 'Web') + '</span></span>';
+      // Tieu de: <a> giu <h3>; <button> phai dung <span> (button chi duoc
+      // chua phrasing content — <h3> trong <button> lam sai chieu cao
+      // the, xem ghi chu o CSS). title="..." de re chuot thay du tieu de.
+      var titleHtml = '<h3 class="sv-title" title="' + titleText + '">' + titleText + '</h3>';
+      if (playId) titleHtml = '<span class="sv-title" title="' + titleText + '">' + titleText + '</span>';
       if (ext) {
-        return '<a class="sv-card" href="' + esc(ext.url) + '" target="_blank" rel="noopener">' + inner + '</a>';
+        return '<a class="sv-card" href="' + esc(ext.url) + '" target="_blank" rel="noopener">' + inner + titleHtml + '</a>';
       }
       if (playId) {
-        return '<button type="button" class="sv-card sv-playable" data-short-id="' + esc(playId) + '" data-title="' + esc(it.title) + '">' + inner + '</button>';
+        return '<button type="button" class="sv-card sv-playable" data-short-id="' + esc(playId) + '" data-title="' + esc(it.title) + '">' + inner + titleHtml + '</button>';
       }
-      return '<a class="sv-card" href="' + esc(it.media || '#') + '">' + inner + '</a>';
+      return '<a class="sv-card" href="' + esc(it.media || '#') + '">' + inner + titleHtml + '</a>';
     }).join('');
     grid.addEventListener('click', function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest('.sv-playable') : null;

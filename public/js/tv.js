@@ -240,7 +240,7 @@
         ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\">"
         : "<span class=\"tv-cat-thumb-fallback\">▶</span>";
       var dur = it.duration ? "<span class=\"tv-cat-duration\">" + esc(String(it.duration)) + "</span>" : "";
-      return "<button type=\"button\" class=\"tv-cat-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\">" +
+      return "<button type=\"button\" class=\"tv-cat-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\" title=\"" + esc(it.title) + "\">" +
         "<span class=\"tv-cat-thumb\">" + thumb + "</span>" +
         "<span class=\"tv-cat-title\">" + esc(it.title) + "</span>" + dur + "</button>";
     }).join("");

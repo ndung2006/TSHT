@@ -42,9 +42,6 @@
       "<p class=\"issue-meta\">Báo in</p></div></div>";
   }
 
-  var topBtn = document.getElementById("to-top");
-  if (topBtn) topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
-
   // --- E-paper: chi khoi "Bao in moi nhat" o cuoi trang (nguon moi,
   // cung proxy nhu trang /bao-in). Khoi Noi bat giua trang (feat-hero /
   // feat-left / feat-side) da go theo yeu cau don khoi lap: noi dung
@@ -77,12 +74,12 @@
   // cuc, noi dung la tin cua minh; chua co API xep hang luot doc that
   // nen cot phai khong phai "doc nhieu nhat" dung nghia.
   function heroSideRow(it) {
-    return "<a class=\"hero-side-row\" href=\"" + esc(it.url) + "\">" +
+    return "<a class=\"hero-side-row\" href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></a>";
   }
   function heroLeftRow(it, idx, active) {
-    return "<button type=\"button\" class=\"hero-left-row" + (active ? " active" : "") + "\" data-idx=\"" + idx + "\">" +
+    return "<button type=\"button\" class=\"hero-left-row" + (active ? " active" : "") + "\" data-idx=\"" + idx + "\" title=\"" + esc(it.title || "") + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<span>" + esc(it.title) + "</span></button>";
   }
@@ -274,12 +271,12 @@
   function catBlockHtml(title, slug, items) {
     var feat = items[0];
     var rest = items.slice(1, 5);
-    var featHtml = "<a class=\"cat-feat\" href=\"" + esc(feat.url || "#") + "\">" +
+    var featHtml = "<a class=\"cat-feat\" href=\"" + esc(feat.url || "#") + "\" title=\"" + esc(feat.title || "") + "\">" +
       (feat.cover ? "<img src=\"" + esc(feat.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<h3>" + esc(feat.title || "") + "</h3>" +
       (feat.sapo ? "<p class=\"cat-feat-sapo\">" + esc(feat.sapo) + "</p>" : "") + "</a>";
     var rows = rest.map(function (it) {
-      return "<a class=\"cat-row\" href=\"" + esc(it.url || "#") + "\">" +
+      return "<a class=\"cat-row\" href=\"" + esc(it.url || "#") + "\" title=\"" + esc(it.title || "") + "\">" +
         (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
         "<span>" + esc(it.title || "") + "</span></a>";
     }).join("");

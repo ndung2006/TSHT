@@ -21,9 +21,25 @@
     } catch (e) { /* giu trong khi trinh duyet cu khong ho tro */ }
   }
 
-  // ---- Nut "Ve dau trang" trong chan trang chung (co o moi trang) ----
+  // ---- Nut "Ve dau trang" (o vuong co dinh goc phai duoi, trong chan
+  // trang chung, co o moi trang): chi hien khi da cuon qua 1 man hinh;
+  // bam thi cuon muot len dau. z-index (xem footer.css) thap hon
+  // modal/player (100/2000) nen khong che nut cua player hay hop thoai
+  // dang nhap.
+  function shouldShowBackToTop(scrollY, viewportHeight) {
+    return (scrollY || 0) > (viewportHeight || 0);
+  }
   var topBtn = document.getElementById("to-top");
-  if (topBtn) topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+  function updateTopBtn() {
+    if (!topBtn) return;
+    var y = typeof window.scrollY === "number" ? window.scrollY : (window.pageYOffset || 0);
+    topBtn.classList.toggle("is-visible", shouldShowBackToTop(y, window.innerHeight || 0));
+  }
+  if (topBtn) {
+    topBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+    window.addEventListener("scroll", updateTopBtn);
+    updateTopBtn();
+  }
 
   // ---- Cai dat giao dien: fetch 1 lan/trang, dem 5 phut ----
   // sessionStorage dung chung cho moi trang (khong phai localStorage de
@@ -98,18 +114,18 @@
       }).join("");
       strip.hidden = false;
     }
-    // Chan trang tuy chinh (CMS Quan ly giao dien dat): dien logo/mo ta/
-    // ban quyen vao #footer-custom; CMS chua dat gi thi giu an.
+    // Logo chan trang (CMS Quan ly giao dien dat, footer.logo): dien
+    // vao o nen trang #footer-logo-box; CMS chua dat logo thi giu an ca
+    // o. (CMS footer.description/copyright khong render o chan trang
+    // portal tu 2026-11-06 nua — noi dung giay phep/ban bien tap/lien he
+    // lay tu lib/footer-content.mjs; 2 field CMS van tra qua API de sau
+    // dua noi dung chan trang vao CMS phan Cau hinh.)
     var ft = (si && si.footer) || {};
-    if (ft.logo || ft.description || ft.copyright) {
-      var fc = document.getElementById("footer-custom");
+    if (ft.logo) {
+      var fc = document.getElementById("footer-logo-box");
       if (fc) {
         var fl = document.getElementById("footer-logo");
-        if (fl && ft.logo) { fl.src = ft.logo; fl.hidden = false; }
-        var fd = document.getElementById("footer-desc");
-        if (fd && ft.description) fd.innerHTML = ft.description;
-        var fcp = document.getElementById("footer-copyright");
-        if (fcp && ft.copyright) fcp.textContent = ft.copyright;
+        if (fl) { fl.src = ft.logo; fl.hidden = false; }
         fc.hidden = false;
       }
     }
@@ -283,5 +299,5 @@
       if (pa) pa.setAttribute("aria-current", "page");
     }
   }
-  window.TSHTHeader = { setActiveCategory: setActiveCategory };
+  window.TSHTHeader = { setActiveCategory: setActiveCategory, shouldShowBackToTop: shouldShowBackToTop };
 })();

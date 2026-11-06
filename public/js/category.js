@@ -14,7 +14,7 @@
     } catch (e) { return String(iso).slice(0, 10); }
   }
   function card(it) {
-    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\">" +
+    return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
       (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
       "<h3>" + esc(it.title) + "</h3></a>" +
       (it.sapo ? "<p class=\"news-sapo\">" + esc(it.sapo) + "</p>" : "") +

@@ -30,8 +30,6 @@
 // right = time + title max 2 lines + small "Xem lại" button).
 (function () {
   var box = document.getElementById("latest-programs");
-  var toTop = document.getElementById("to-top");
-  if (toTop) toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
   if (!box) return;
   var rendered = false;
   function esc(s) { return window.LiveEpg ? window.LiveEpg.esc(s) : String(s || ""); }
@@ -103,7 +101,7 @@
       }
       return "<article class='" + cardCls + "'" + cardAttrs + "><div class='latest-poster' aria-hidden='true'>" + poster + "</div>"
         + "<p class='latest-time'>" + time + "</p>"
-        + "<p class='latest-title'>" + title + "</p>"
+        + "<p class='latest-title' title=\"" + title + "\">" + title + "</p>"
         + "<p class='latest-action'>" + action + "</p></article>";
     }).join("");
     var btns = box.querySelectorAll("[data-replay]");

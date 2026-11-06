@@ -62,10 +62,13 @@ header.masthead { display: flex; justify-content: space-between; align-items: ce
 .hotlink-strip a { color: #333; text-decoration: none; font-weight: 700; }
 .hotlink-strip a:hover { color: #c00; }
 .catnav-icons { margin-left: auto; color: #fff; }
-/* Khung chung kieu bao dien tu (2026-10-31): cac hang tren/chan trang
-   (link tren, logo, nav do, day hot link, ghi chu, chan trang) cung nam
-   trong khung 1264px can giua nhu main.wrap, khong tran full man hinh. */
-.utilitybar, .masthead, .catnav, .catnav-mega, .catnav-search, .hotlink-strip, .footer {
+/* Khung chung kieu bao dien tu (2026-10-31): cac hang tren (link tren,
+   logo, nav do, day hot link, ghi chu) cung nam trong khung 1264px can
+   giua nhu main.wrap, khong tran full man hinh. Chan trang (.footer)
+   KHONG nam trong khung nay tu 2026-11-06: nen do #b91c1c cua footer
+   can tran het chieu ngang, chi .footer-inner moi can giua 1264px
+   (xem footer.css). */
+.utilitybar, .masthead, .catnav, .catnav-mega, .catnav-search, .hotlink-strip {
   box-sizing: border-box;
   max-width: 1264px;
   margin-left: auto;

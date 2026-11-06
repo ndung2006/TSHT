@@ -258,7 +258,7 @@
     if (it.publishAt) meta.push(esc(fmtDate(it.publishAt)));
     return "<article class=\"search-item\">" +
       (it.cover ? "<a class=\"search-item-thumb\" href=\"" + esc(it.url || ("/tin/" + it.slug)) + "\"><img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\"></a>" : "") +
-      "<div class=\"search-item-body\"><h3><a href=\"" + esc(it.url || ("/tin/" + it.slug)) + "\">" + highlight(it.title || "", terms, exact) + "</a></h3>" +
+      "<div class=\"search-item-body\"><h3><a href=\"" + esc(it.url || ("/tin/" + it.slug)) + "\" title=\"" + esc(it.title || "") + "\">" + highlight(it.title || "", terms, exact) + "</a></h3>" +
       (it.sapo ? "<p class=\"search-sapo\">" + highlight(it.sapo, terms, exact) + "</p>" : "") +
       (meta.length ? "<p class=\"search-meta\">" + meta.join(" · ") + "</p>" : "") +
       "</div></article>";

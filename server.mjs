@@ -22,6 +22,7 @@ import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { escapeXml, truncateDescription, publicOrigin, buildArticleMeta, buildCategoryMeta, decideCategoryRoute, buildSitemapXml, buildRobotsTxt, flattenCategorySlugs } from "./lib/seo.mjs";
 import { clearReaderSessionCookie, jwtExpiryMs, readReaderSession, readerAuthConfigured, readerSessionCookie } from "./lib/reader-session.mjs";
+import { renderFooter } from "./lib/footer-content.mjs";
 
 // ---- Cache link live + master manifest (rut ngan khoi dong player) ----
 // Do truoc (2026-11-05, curl tu VM): /api/v1/live fetch EPG tu VTCANY
@@ -106,6 +107,11 @@ function readPartial(name) {
 }
 const HEADER_PARTIAL = readPartial("header.html");
 const FOOTER_PARTIAL = readPartial("footer.html");
+// Chan trang chung: noi dung (giay phep, ban bien tap, lien he) lay tu
+// lib/footer-content.mjs chen san 1 lan luc khoi dong (noi dung tinh,
+// doi nhan su thi sua file cau hinh + redeploy). Logo van do header.js
+// dien tu CMS (footer.logo) luc chay, nhu cu.
+const FOOTER_HTML = renderFooter(FOOTER_PARTIAL);
 
 // Dem cau hinh giao dien + cay chuyen muc (60 giay): de moi lan tra trang
 // khong phai goi backend 2 lan. Het han thi fetch lai; neu fetch loi thi
@@ -136,6 +142,10 @@ function siteInterfaceWhitelist(d) {
     },
     footer: {
       logo: d.footer && d.footer.logo ? resolveVtcanyImageUrl(d.footer.logo) : "",
+      // description/copyright van tra qua API /api/v2/site-interface
+      // (de CMS hien thi + de sau dua noi dung chan trang vao CMS),
+      // nhung chan trang portal tu 2026-11-06 khong render 2 field nay
+      // nua — noi dung lay tu lib/footer-content.mjs.
       description: d.footer ? str(d.footer.description) : "", copyright: d.footer ? str(d.footer.copyright) : "",
     },
     favicon: {
@@ -289,8 +299,8 @@ async function injectChrome(html, pathname) {
     const header = await buildHeaderHtml(pathname);
     if (header) out = out.replace("<!-- @HEADER -->", header);
   }
-  if (out.includes("<!-- @FOOTER -->") && FOOTER_PARTIAL) {
-    out = out.replace("<!-- @FOOTER -->", FOOTER_PARTIAL);
+  if (out.includes("<!-- @FOOTER -->") && FOOTER_HTML) {
+    out = out.replace("<!-- @FOOTER -->", FOOTER_HTML);
   }
   return out;
 }

@@ -467,7 +467,7 @@
           var thumb = it.thumbnail
             ? "<img src=\"" + esc(it.thumbnail) + "\" alt=\"\" loading=\"lazy\">"
             : "<span class=\"mm-thumb-fallback\">▶</span>";
-          return "<button type=\"button\" class=\"mm-video-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\">" +
+          return "<button type=\"button\" class=\"mm-video-card\" data-id=\"" + esc(it.publicId) + "\" aria-label=\"" + esc(it.title) + "\" title=\"" + esc(it.title) + "\">" +
             "<span class=\"mm-thumb\">" + thumb + "</span>" +
             "<span class=\"mm-video-title\">" + esc(it.title) + "</span></button>";
         }).join("");
