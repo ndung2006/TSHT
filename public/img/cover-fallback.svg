@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1167" viewBox="0 0 800 1167" role="img" aria-label="Bìa báo in chưa có ảnh">
+  <rect width="800" height="1167" fill="#fdf6ea"/>
+  <rect x="24" y="24" width="752" height="1119" fill="none" stroke="#d61f2f" stroke-width="4"/>
+  <rect x="48" y="48" width="704" height="500" fill="#f3e2c7"/>
+  <text x="400" y="320" text-anchor="middle" font-family="sans-serif" font-size="72" font-weight="bold" fill="#d61f2f">BÁO IN</text>
+  <text x="400" y="640" text-anchor="middle" font-family="sans-serif" font-size="34" fill="#6b7280">Chưa có ảnh bìa</text>
+  <text x="400" y="1060" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#9ca3af">Điện Biên Phủ Online</text>
+</svg>

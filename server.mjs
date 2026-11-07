@@ -18,6 +18,7 @@ import { vtcanyAuthEnabled, loginToVtcany, fetchVtcanyMe, mapVtcanyToTshtRole, v
 import { fetchVtcaioChannels, fetchVtcaioSchedule, fetchVtcaioToken, resolveVtcaioChannelName, vtcaioConfigured, getAioTimeshiftCoverage, findAioCoverageEntry, fetchAioTimeshiftPlaylist } from "./lib/vtcaio.mjs";
 import { fetchVtcanyEpg, fetchVtcanyTimeshift, fetchVtcanyGroups, mapVtcanyTimeline, resolveVtcanyChannelName, vtcanyConfigured, vtcanyApiBase, computeEpgStatus } from "./lib/vtcany.mjs";
 import { createThumbMemoryStore, mergeThumbMemory } from "./lib/epg-thumb-memory.mjs";
+import { createCoverThumbService, renderPdfPageToJpeg, coverThumbClientIp, COVER_THUMB_PDF_TIMEOUT_MS } from "./lib/epaper-cover.mjs";
 import { adDisplayItem, sanitizePlacement } from "./lib/ads.mjs";
 import { stitchTimeshiftPlaylists, TIMESHIFT_MAX_MS } from "./lib/timeshift.mjs";
 import { createTimeshiftCache, timeshiftCacheKey } from "./lib/timeshift-cache.mjs";
@@ -375,8 +376,9 @@ function newEpaperListItem(it) {
   // anh bia do bien tap chon (neu co) luon duoc uu tien.
   const cover = it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : `/api/v2/epaper/${it.publicId}/cover`;
   // BÁO IN (khoi hero trang chu): ban thu nho ~400px (render o dpi 50,
-  // cache <publicId>-400.jpg) + srcset 400w/800w. Chi co khi bia la anh
-  // render tu PDF; bia bien tap chon thi dung anh goc, khong co thumb.
+  // route /cover-thumb mac dinh) + srcset 400w/800w (800w qua
+  // /cover-thumb?size=800, dpi 100). Chi co khi bia la anh render tu
+  // PDF; bia bien tap chon thi dung anh goc, khong co thumb.
   const coverThumb = it.coverPath ? "" : `/api/v2/epaper/${it.publicId}/cover-thumb`;
   return {
     issue_number: it.issueNumber, issue_type: it.issueType,
@@ -384,7 +386,7 @@ function newEpaperListItem(it) {
     page_count: it.pageCount, status: "published",
     cover,
     coverThumb,
-    coverSrcset: coverThumb ? `${coverThumb} 400w, ${cover} 800w` : "",
+    coverSrcset: coverThumb ? `${coverThumb} 400w, ${coverThumb}?size=800 800w` : "",
     url: `/bao-in/${it.slug}`,
   };
 }
@@ -431,6 +433,36 @@ async function serveEpaperCover(res, publicId, dpi, cacheName) {
   } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
   finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
 }
+// Anh bia thu nho — route /cover-thumb (siet 2026-11-07, chi tiet xem
+// lib/epaper-cover.mjs): chi so da xuat ban, chi size 400/800, toi da
+// 2 render dong thoi + rate limit theo IP, loi render tra anh du
+// phong, cache theo fingerprint PDF (size + mtime cua file PDF).
+const COVER_FALLBACK_SVG = (() => {
+  try { return fs.readFileSync(path.join(PUBLIC, "img", "cover-fallback.svg")); } catch { return null; }
+})();
+const coverThumbService = createCoverThumbService({
+  coverDir: path.join(STORAGE_DIR, "epaper-covers"),
+  fetchPublishedList: async () => {
+    const ext = await fetchVtcanyEpaperJson("/epaper?page=1&limit=100");
+    if (!ext.ok) return { ok: false };
+    return { ok: true, items: (ext.data.data || []) };
+  },
+  fetchIssueVersion: async (publicId) => {
+    const ext = await fetchVtcanyEpaperJson(`/epaper/${publicId}`);
+    if (!ext.ok) return { ok: false, status: ext.status || 0 };
+    return { ok: true, version: ext.data.pageVersion || null };
+  },
+  fetchPdf: async (publicId) => {
+    const base = vtcanyApiBase();
+    if (!base) throw new Error("backend chua cau hinh");
+    const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(COVER_THUMB_PDF_TIMEOUT_MS) });
+    if (!r.ok) throw new Error(`pdf ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  },
+  renderPdf: (pdfBuffer, dpi) => renderPdfPageToJpeg(pdfBuffer, dpi),
+  readFallback: () => (COVER_FALLBACK_SVG ? { contentType: "image/svg+xml", body: COVER_FALLBACK_SVG } : null),
+  log: (...a) => console.log(...a),
+});
 function saigonToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
 }
@@ -995,10 +1027,12 @@ const server = http.createServer(async (req, res) => {
         return serveEpaperCover(res, publicId, 100, `${publicId}.jpg`);
       }
       if (newEpaperMatch[2] === "/cover-thumb") {
-        // Ban thu nho ~400px cho khoi BÁO IN trang chu (render dpi 50,
-        // cache <publicId>-400.jpg). Lan goi dau render theo yeu cau,
-        // cac lan sau phuc vu tu disk nhu /cover.
-        return serveEpaperCover(res, publicId, 50, `${publicId}-400.jpg`);
+        // Ban thu nho cho khoi BÁO IN trang chu (siet 2026-11-07):
+        // ?size=400 (mac dinh, dpi 50) hoac ?size=800 (dpi 100); chi
+        // so da xuat ban; loi render tra anh du phong, khong treo.
+        const r = await coverThumbService.serveCoverThumb({ publicId, sizeRaw: u.searchParams.get("size"), ip: coverThumbClientIp(req) });
+        res.writeHead(r.status, { "Content-Type": r.contentType, "Content-Length": r.body.length, ...r.headers });
+        return res.end(r.body);
       }
       if (newEpaperMatch[2] && newEpaperMatch[2].startsWith("/pages/")) {
         // Anh trang render san phia server (Hybrid): proxy thang anh
@@ -1698,3 +1732,11 @@ async function warmupOnce(tag) {
   return failed.length === 0;
 }
 warmupOnce("khoi-dong").then((ok) => { if (!ok) setTimeout(() => { warmupOnce("thu-lai").catch(() => {}); }, 15000); }).catch(() => {});
+// Lam nong bia bao in (2026-11-07): portal vua restart thi tu render
+// san bia 400/800 cho 10 so moi nhat, chay nen khong chan listen;
+// neu lan dau khong render duoc gi (backend chua len) thi thu lai 1
+// lan sau 30s. Nho vay ban doc khong bao gio phai cho render o lan mo
+// dau, du cache tren volume co bi mat sau deploy hay khong.
+coverThumbService.warmupCovers(10).then((s) => {
+  if (s.rendered === 0 && s.cached === 0) setTimeout(() => { coverThumbService.warmupCovers(10).catch(() => {}); }, 30000);
+}).catch(() => {});

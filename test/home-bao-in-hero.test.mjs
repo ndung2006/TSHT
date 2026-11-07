@@ -117,7 +117,7 @@ function epaperItem(n, type, date, id) {
     title: "TQ " + n, page_count: type === "vung_cao" ? 4 : 12, status: "published",
     cover: "/api/v2/epaper/" + id + "/cover",
     coverThumb: "/api/v2/epaper/" + id + "/cover-thumb",
-    coverSrcset: "/api/v2/epaper/" + id + "/cover-thumb 400w, /api/v2/epaper/" + id + "/cover 800w",
+    coverSrcset: "/api/v2/epaper/" + id + "/cover-thumb 400w, /api/v2/epaper/" + id + "/cover-thumb?size=800 800w",
     url: "/bao-in/bao-tuyen-quang-so-" + n + "-" + id,
   };
 }
@@ -256,7 +256,7 @@ test("anh bia: srcset thumb 400w + cover 800w, loading lazy; bam bia/mo ten mo d
   loadHome(f, epaperOk(LIVE5));
   await tick();
   const html = f.byId["epaper-more"].innerHTML;
-  assert.ok(html.includes("/api/v2/epaper/4bbdb72c2fd9115efd05ea10/cover-thumb 400w, /api/v2/epaper/4bbdb72c2fd9115efd05ea10/cover 800w"), "thieu srcset 400w/800w cho 559");
+  assert.ok(html.includes("/api/v2/epaper/4bbdb72c2fd9115efd05ea10/cover-thumb 400w, /api/v2/epaper/4bbdb72c2fd9115efd05ea10/cover-thumb?size=800 800w"), "thieu srcset 400w/800w cho 559");
   assert.ok(html.includes('loading="lazy"'), "anh bia phai loading lazy");
   assert.ok(html.includes('href="/bao-in/bao-tuyen-quang-so-559-4bbdb72c2fd9115efd05ea10"'), "bia/ten 559 phai link dung trang doc");
 });
