@@ -85,7 +85,8 @@
         </div>
         <div><label class="field-label">Tiêu đề *</label><InputText v-model="form.title" class="w-full" /></div>
         <div><label class="field-label">Ngày phát hành *</label><input type="date" v-model="form.publishDate"
-          class="p-inputtext p-component w-full" /></div>
+          class="p-inputtext p-component w-full" />
+          <p class="mt-1 text-xs text-neutral-500">Lưu ý: kiểm tra ngày phát hành khớp với ngày trên măng-sét bìa PDF trước khi lưu.</p></div>
         <div><label class="field-label">Số trang (tự động khi chọn PDF, vẫn sửa tay được)</label><InputNumber
             v-model="form.pageCount" class="w-full" /></div>
         <div>
