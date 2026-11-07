@@ -133,6 +133,36 @@ test("renderFooterDescription: Editor rong -> chuoi rong; co chu -> giu HTML da 
   assert.match(out, /mailto:baodientudbp@gmail.com/);
 });
 
+test("renderFooterDescription: &nbsp; cua Quill doi thanh khoang trang thuong (mobile xuong dong duoc), tru trong the <a>", () => {
+  const out = renderFooterDescription(CMS_DESC);
+  // Ngoai link khong con &nbsp; nao — dong dai xuong dong binh thuong
+  // thay vi tran khoi man hinh hep roi bi cat 2 ben (chan trang can giua).
+  assert.doesNotMatch(out.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, ""), /&nbsp;/i);
+  // So dien thoai trong link van giu &nbsp; (1 khoi, khong tach).
+  assert.match(out, /<a href="tel:\+842153835300">\(0215\)&nbsp;3835300<\/a>/);
+  // Dong dia chi / chuc danh co khoang trang thuong, xuong dong duoc.
+  assert.match(out, /Trụ sở chính: Số 829, đường Võ Nguyên Giáp/);
+  assert.match(out, /PHÓ TỔNG BIÊN TẬP: TRẦN VĂN TOẠI,/);
+});
+
+test("footer.css: .footer p co overflow-wrap de chuoi dai khong tran man hinh hep", () => {
+  const css = fs.readFileSync(path.join(root, "public/css/footer.css"), "utf8");
+  assert.match(css, /\.footer p \{[^}]*overflow-wrap:\s*break-word/);
+});
+
+test("footer.css ?v= moi nhat tren moi trang load no (cache Cloudflare)", () => {
+  const pages = fs.readdirSync(path.join(root, "public")).filter((f) => f.endsWith(".html"));
+  const withFooter = pages.filter((f) =>
+    fs.readFileSync(path.join(root, "public", f), "utf8").includes("footer.css?v=")
+  );
+  assert.ok(withFooter.length >= 19, `chi ${withFooter.length} trang load footer.css`);
+  for (const f of withFooter) {
+    const html = fs.readFileSync(path.join(root, "public", f), "utf8");
+    assert.match(html, /footer\.css\?v=20261106-5/, `${f} chua bump footer.css ?v=`);
+    assert.doesNotMatch(html, /footer\.css\?v=20261106-4/, `${f} van dung footer.css ?v= cu`);
+  }
+});
+
 // ---- renderFooterFromCms ----
 
 test("renderFooterFromCms: noi dung CMS len cot phai (3 P.TBT) + cot trai (giay phep)", () => {

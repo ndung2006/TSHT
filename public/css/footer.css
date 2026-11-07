@@ -20,7 +20,11 @@
 .footer-cols { display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; margin-top: 1.5rem; }
 .footer-license { text-align: left; }
 .footer-contact { text-align: right; }
-.footer p { margin: 0.35rem 0; line-height: 1.5; }
+/* Luoi an toan khi gap chuoi dai khong ngat duoc (email/URL dai):
+   cho phep ngat giua tu thay vi tran khoi man hinh hep. Khong phai
+   sua chinh cho &nbsp; cua Quill — cho do da xu ly o
+   renderFooterDescription (lib/sanitize-html.mjs). */
+.footer p { margin: 0.35rem 0; line-height: 1.5; overflow-wrap: break-word; }
 .footer a { color: #fff; }
 .to-top { position: fixed; right: 1rem; bottom: 1rem; z-index: 90; width: 48px; height: 48px; padding: 0; background: #d61f2f; color: #fff; border: 0; border-radius: 4px; font-size: 22px; line-height: 1; cursor: pointer; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
 .to-top.is-visible { opacity: 1; visibility: visible; }
