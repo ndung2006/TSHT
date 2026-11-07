@@ -59,8 +59,8 @@ test("E1: server.mjs proxy coverSrcset qua resolveSrcset (ghep origin backend)",
   assert.ok(server.includes("coverSrcset: resolveSrcset(it.coverSrcset)"), "newsListItem phai tra coverSrcset da resolve");
 });
 
-test("E1+E3: bump ?v= (home.css 20261107-2, home.js 20261107-3, article.js 20261107-1)", () => {
-  assert.ok(homeHtml.includes("/css/home.css?v=20261107-2"), "home.css ?v= phai la 20261107-2");
-  assert.ok(homeHtml.includes("/js/home.js?v=20261107-3"), "home.js ?v= phai la 20261107-3");
+test("E1+E3: bump ?v= (home.css 20261107-3, home.js 20261107-4, article.js 20261107-1)", () => {
+  assert.ok(homeHtml.includes("/css/home.css?v=20261107-3"), "home.css ?v= phai la 20261107-3");
+  assert.ok(homeHtml.includes("/js/home.js?v=20261107-4"), "home.js ?v= phai la 20261107-4");
   assert.ok(articleHtml.includes("/js/article.js?v=20261107-1"), "article.js ?v= phai la 20261107-1");
 });

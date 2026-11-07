@@ -8,7 +8,7 @@
 <meta property="og:title" content="Tòa soạn hội tụ">
 <meta property="og:description" content="Tòa soạn hội tụ: truyền hình, phát thanh, báo in và tin tức.">
 <meta property="og:url" content="https://tsht.vtctech.xyz/">
-<link rel="stylesheet" href="/css/home.css?v=20261107-2">
+<link rel="stylesheet" href="/css/home.css?v=20261107-3">
 <link rel="stylesheet" href="/css/header.css?v=20261106-4">
 <link rel="stylesheet" href="/css/footer.css?v=20261106-5">
 <link rel="stylesheet" href="/css/live-controls.css?v=20261107-2"><link rel="icon" href="/favicon.ico" sizes="any">
@@ -44,6 +44,33 @@
          Noi dung do home.js ve tu zone tieu-diem + tin moi nhat. -->
     <section id="block-hero" aria-label="Tin tức">
       <div id="news-featured">Đang tải…</div>
+    </section>
+    <!-- Vung 2 cot: trai 2/3 = khoi chuyen muc (CMS chon), phai 1/3 =
+         khoi Thoi tiet + slot quang cao cot phai. Khoi chuyen muc do
+         home.js ve tu config; chuyen muc chua co bai da xuat ban thi
+         khoi do tu an, khong de khoang trong. -->
+    <span id="tin-moi-nhat"></span>
+    <div id="home-body">
+      <div id="home-cat-left"></div>
+      <aside id="home-side">
+        <div id="home-weather-slot"></div>
+        <div class="ad-slot" data-ad-placement="web_home_focus_right" hidden></div>
+        <div class="ad-slot" data-ad-placement="web_home_weather_right" hidden></div>
+        <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
+        <div class="ad-slot" data-ad-placement="web_home_below_weather_2" hidden></div>
+      </aside>
+    </div>
+    <!-- BÁO IN dang hero giua trang chu (sau khoi tin chinh, truoc khoi
+         Truyen hinh). Vi tri that do thu tu khoi CMS /api/v2/home-blocks
+         quyet dinh (home.js sap xep lai); thu tu mac dinh duoi day chi
+         dung khi khong co config. -->
+    <section id="block-epaper" aria-label="Báo in">
+      <div class="cat-block-head"><h2>BÁO IN</h2><a href="/bao-in">Xem tất cả →</a></div>
+      <div class="epaper-strip-wrap">
+        <button type="button" class="epaper-arrow epaper-arrow-prev" aria-label="Số báo trước">‹</button>
+        <div id="epaper-more" class="epaper-strip">Đang tải danh sách báo in…</div>
+        <button type="button" class="epaper-arrow epaper-arrow-next" aria-label="Số báo sau">›</button>
+      </div>
     </section>
     <section id="multimedia" class="mm-section" aria-label="Đa phương tiện">
       <div class="mm-top">
@@ -84,27 +111,6 @@
          multimedia khi doi thu tu khoi). -->
     <div class="ad-slot" data-ad-placement="web_home_media_right" hidden></div>
     <div class="ad-slot" data-ad-placement="web_home_under_media" hidden></div>
-    <!-- Vung 2 cot: trai 2/3 = khoi chuyen muc (CMS chon), phai 1/3 =
-         khoi Thoi tiet + slot quang cao cot phai. Khoi chuyen muc do
-         home.js ve tu config; chuyen muc chua co bai da xuat ban thi
-         khoi do tu an, khong de khoang trong. -->
-    <span id="tin-moi-nhat"></span>
-    <div id="home-body">
-      <div id="home-cat-left"></div>
-      <aside id="home-side">
-        <div id="home-weather-slot"></div>
-        <div class="ad-slot" data-ad-placement="web_home_focus_right" hidden></div>
-        <div class="ad-slot" data-ad-placement="web_home_weather_right" hidden></div>
-        <div class="ad-slot" data-ad-placement="web_home_below_weather_1" hidden></div>
-        <div class="ad-slot" data-ad-placement="web_home_below_weather_2" hidden></div>
-      </aside>
-    </div>
-    <!-- Bao in moi nhat o cuoi trang, giu nguyen noi dung nhu truoc. -->
-    <section id="block-epaper" aria-label="Báo in">
-      <h2 class="section-title">Báo in mới nhất</h2>
-      <p><a href="/bao-in">Xem tất cả các số báo in →</a></p>
-      <div id="epaper-more" class="epaper-grid">Đang tải danh sách báo in…</div>
-    </section>
   </div>
   <!-- Quang cao web_home_under_focus 1200x146 — Ngang toan bo sau vung than trang -->
   <div class="ad-slot" data-ad-placement="web_home_under_focus" hidden></div>
@@ -117,7 +123,7 @@
 <script src="/js/ads.js?v=20261102-1"></script>
 <script src="/js/telemetry.js?v=20261105-1"></script>
 <script src="/js/header.js?v=20261106-4"></script>
-<script src="/js/home.js?v=20261107-3"></script>
+<script src="/js/home.js?v=20261107-4"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="/js/stream-player.js?v=20261107-2"></script>
 <script src="/js/live-controls.js?v=20261107-2"></script>

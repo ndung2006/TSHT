@@ -27,39 +27,103 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  function typeLabel(t) { return t === "vung_cao" ? "Vùng cao" : "Thường"; }
-  function issueLabel(it) {
-    var title = (it.title || "").trim();
-    var base = title || ("Báo in số " + it.issue_number);
-    return base + " — Số " + it.issue_number + " (" + typeLabel(it.issue_type) + "), " +
-      (it.publish_date || "") + (it.page_count ? ", " + it.page_count + " trang" : "");
+  // --- BÁO IN (khoi hero giua trang chu, sau khoi tin chinh, truoc
+  // khoi Truyen hinh; vi tri that do thu tu khoi CMS /api/v2/home-blocks
+  // quyet dinh — xem initHomeBlocks). 2 an pham xep chung theo ngay phat
+  // hanh, moi nhat dau, toi da 10 so; nhan "SỐ MỚI" cho so moi nhat cua
+  // MOI an pham; so vung cao co them nhan "VÙNG CAO" goc bia. Anh bia
+  // dung ban thu nho ~400px + srcset 800px (server tra coverSrcset),
+  // loading lazy. Khong co so nao -> an toan bo khoi; loi tai -> giu
+  // khoi + ghi chu nhu cu.
+  var EPAPER_WEEKDAYS = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+  function epaperDisplayName(it) {
+    if (it.issue_type === "vung_cao") return "Báo Điện Biên Phủ vùng cao số " + it.issue_number;
+    return "Báo Điện Biên Phủ số " + it.issue_number;
   }
-  function issueCard(it, small) {
-    var cls = small ? "issue-small" : "issue-card";
-    return "<div class=\"" + cls + "\"><a href=\"" + esc(it.url || ("/api/v1/issues/" + it.id)) + "\">" +
-      "<img src=\"" + esc(it.cover) + "\" alt=\"Bìa " + esc(issueLabel(it)) + "\" loading=\"lazy\"></a>" +
-      "<div><p><a href=\"" + esc(it.url || "#") + "\">" + esc(issueLabel(it)) + "</a></p>" +
-      "<p class=\"issue-meta\">Báo in</p></div></div>";
+  function epaperVnDate(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    if (!m) return iso || "";
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    if (Number.isNaN(d.getTime()) || d.getUTCDate() !== +m[3] || d.getUTCMonth() !== +m[2] - 1 || d.getUTCFullYear() !== +m[1]) return iso;
+    return EPAPER_WEEKDAYS[d.getUTCDay()] + ", " + m[3] + "/" + m[2] + "/" + m[1];
   }
-
-  // --- E-paper: chi khoi "Bao in moi nhat" o cuoi trang (nguon moi,
-  // cung proxy nhu trang /bao-in). Khoi Noi bat giua trang (feat-hero /
-  // feat-left / feat-side) da go theo yeu cau don khoi lap: noi dung
-  // khoi cuoi trang giu nguyen — cac so sau so moi nhat, dang luoi ngang.
+  function epaperPrepare(items) {
+    // Xep chung 2 an pham theo ngay phat hanh (moi nhat dau); cung ngay
+    // thi so lon hon truoc. Cat toi da 10 so. Nhan isNewest cho so moi
+    // nhat cua MOI an pham (toi da 2 nhan).
+    var sorted = (items || []).slice().sort(function (a, b) {
+      var da = String(a.publish_date || ""), db = String(b.publish_date || "");
+      if (db !== da) return db < da ? -1 : 1;
+      return (Number(b.issue_number) || 0) - (Number(a.issue_number) || 0);
+    }).slice(0, 10);
+    var seenType = {};
+    return sorted.map(function (it) {
+      var t = it.issue_type || "thuong";
+      var isNewest = !seenType[t];
+      seenType[t] = true;
+      return { it: it, isNewest: isNewest };
+    });
+  }
+  function epaperCard(entry) {
+    var it = entry.it;
+    var name = epaperDisplayName(it);
+    var srcset = it.coverSrcset ? " srcset=\"" + esc(it.coverSrcset) + "\" sizes=\"(max-width: 800px) 45vw, 272px\"" : "";
+    var img = it.cover ? "<img src=\"" + esc(it.cover) + "\"" + srcset + " alt=\"Bìa " + esc(name) + "\" loading=\"lazy\">" : "";
+    var badges = "";
+    if (entry.isNewest) badges += "<span class=\"bi-badge bi-badge-new\">SỐ MỚI</span>";
+    if (it.issue_type === "vung_cao") badges += "<span class=\"bi-badge bi-badge-hl\">VÙNG CAO</span>";
+    return "<article class=\"bi-card\"><a href=\"" + esc(it.url || "/bao-in") + "\">" +
+      "<div class=\"bi-cover\">" + badges + img + "</div>" +
+      "<h3>" + esc(name) + "</h3>" +
+      "<p class=\"bi-date\">" + esc(epaperVnDate(it.publish_date)) + "</p></a></article>";
+  }
+  function syncEpaperArrows() {
+    var rail = document.getElementById("epaper-more");
+    var sec = document.getElementById("block-epaper");
+    if (!rail || !sec) return;
+    var prev = sec.querySelector(".epaper-arrow-prev");
+    var next = sec.querySelector(".epaper-arrow-next");
+    if (!prev || !next) return;
+    var max = rail.scrollWidth - rail.clientWidth;
+    var noOverflow = max <= 1;
+    prev.classList.toggle("is-hidden", noOverflow || rail.scrollLeft <= 0);
+    next.classList.toggle("is-hidden", noOverflow || rail.scrollLeft >= max - 1);
+  }
+  function initEpaperArrows() {
+    var rail = document.getElementById("epaper-more");
+    var sec = document.getElementById("block-epaper");
+    if (!rail || !sec) return;
+    var prev = sec.querySelector(".epaper-arrow-prev");
+    var next = sec.querySelector(".epaper-arrow-next");
+    if (!prev || !next) return;
+    function cardStep() {
+      var card = rail.querySelector(".bi-card");
+      return card ? card.getBoundingClientRect().width + 16 : 288;
+    }
+    prev.addEventListener("click", function () { rail.scrollBy({ left: -cardStep(), behavior: "smooth" }); });
+    next.addEventListener("click", function () { rail.scrollBy({ left: cardStep(), behavior: "smooth" }); });
+    rail.addEventListener("scroll", syncEpaperArrows, { passive: true });
+    window.addEventListener("resize", syncEpaperArrows);
+    syncEpaperArrows();
+  }
+  initEpaperArrows();
   fetch("/api/v2/epaper?page=1").then(function (r) {
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }).then(function (d) {
     var items = (d && d.items) || [];
     var more = document.getElementById("epaper-more");
+    var sec = document.getElementById("block-epaper");
     if (!more) return;
     if (!items.length) {
-      more.innerHTML = "<p>Chưa có số báo nào đã xuất bản. <a href=\"/bao-in\">Xem trang báo in →</a></p>";
+      // Khong co so nao -> an toan bo khoi (data-epaper-empty de
+      // applyBlocks khong hien lai khi config home-blocks ve sau).
+      if (sec) { sec.setAttribute("data-epaper-empty", "1"); sec.style.display = "none"; }
       return;
     }
-    var rest = items.slice(1);
-    more.innerHTML = rest.map(function (it) { return issueCard(it, false); }).join("") ||
-      "<p>Chỉ có một số báo đã xuất bản.</p>";
+    if (sec) sec.removeAttribute("data-epaper-empty");
+    more.innerHTML = epaperPrepare(items).map(epaperCard).join("");
+    syncEpaperArrows();
   }).catch(function () {
     var more = document.getElementById("epaper-more");
     if (more) more.innerHTML = "<p>Chưa tải được danh sách báo in. <a href=\"/bao-in\">Thử xem trang báo in →</a></p>";
@@ -357,7 +421,12 @@
       });
       Object.keys(fullSections).forEach(function (t) {
         var sec = fullSections[t];
-        if (sec) sec.style.display = activeFull[t] ? "" : "none";
+        if (!sec) return;
+        // BÁO IN rong (khong co so nao) thi giu an ke ca khi config bat
+        // khoi — tranh race: fetch epaper ve truoc, applyBlocks ve sau
+        // hien lai khoi rong.
+        if (t === "EPAPER" && sec.getAttribute("data-epaper-empty") === "1") { sec.style.display = "none"; return; }
+        sec.style.display = activeFull[t] ? "" : "none";
       });
       if (bodyEl) bodyEl.style.display = bodyPlaced ? "" : "none";
       nodes.forEach(function (n) { flow.appendChild(n); });

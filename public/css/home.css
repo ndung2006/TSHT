@@ -26,17 +26,51 @@ a { color: #0b4fa6; }
 .feat-left, .feat-side { border: 1px solid #eee; padding: 0.75rem; }
 .feat-hero { border: 1px solid #eee; padding: 0.75rem; }
 .feat-hero img { width: 100%; height: auto; display: block; background: #f2f2f2; }
-.issue-small { display: flex; gap: 0.6rem; margin: 0.75rem 0; }
-.issue-small img { width: 72px; height: auto; background: #f2f2f2; flex-shrink: 0; }
-.issue-small p { margin: 0; }
-.issue-meta { color: #666; font-size: 0.85rem; }
+/* BÁO IN dang hero giua trang chu (sau khoi tin chinh, truoc khoi
+   Truyen hinh): nen kem + hoa tiet chim rat nhe tu ve (sao 4 canh +
+   cham, tong do Dien Bien Phu) — KHONG chep hoa tiet Tuyen Quang TV;
+   bo tron nhe. Tieu de dung he .cat-block-head, chu lon dam hon. */
+#block-epaper {
+  background-color: #fdf6ea;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23b91c1c' stroke-opacity='0.055' stroke-width='1.4'%3E%3Cpath d='M70 52 L75 65 L88 70 L75 75 L70 88 L65 75 L52 70 L65 65 Z'/%3E%3Ccircle cx='116' cy='24' r='2.2' fill='%23b91c1c' fill-opacity='0.05' stroke='none'/%3E%3Ccircle cx='22' cy='118' r='2.2' fill='%23b91c1c' fill-opacity='0.05' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+#block-epaper .cat-block-head h2 { font-size: 1.6rem; font-weight: 800; }
+/* Day truot ngang: vuot tay tren dien thoai, mui ten tren PC; cuon
+   trong khoi, khong lam trang tran ngang. */
+.epaper-strip-wrap { position: relative; }
+.epaper-strip { display: flex; gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none; padding: 0.25rem 0.1rem 0.5rem; }
+.epaper-strip::-webkit-scrollbar { display: none; }
+.bi-card { flex: 0 0 auto; width: 272px; scroll-snap-align: start; }
+.bi-card a { text-decoration: none; color: inherit; display: block; }
+.bi-cover { position: relative; aspect-ratio: 800 / 1167; border-radius: 4px; overflow: hidden; background: #f2f2f2; box-shadow: 0 4px 14px rgba(0,0,0,0.20); }
+.bi-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bi-badge { position: absolute; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; padding: 0.15rem 0.5rem; border-radius: 3px; text-transform: uppercase; z-index: 1; }
+.bi-badge-new { top: 0.6rem; left: 0.6rem; background: #c00; color: #fff; }
+.bi-badge-hl { top: 0.6rem; right: 0.6rem; background: #fff; color: #c00; border: 1px solid #c00; }
+.bi-card h3 { margin: 0.6rem 0 0.1rem; font-size: 1.05rem; line-height: 1.3; }
+.bi-card .bi-date { margin: 0; color: #666; font-size: 0.9rem; }
+.epaper-arrow { position: absolute; top: 38%; transform: translateY(-50%); width: 2.6rem; height: 2.6rem; border-radius: 50%; border: none; background: rgba(0,0,0,0.45); color: #fff; font-size: 1.5rem; line-height: 1; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; }
+.epaper-arrow:hover { background: rgba(0,0,0,0.6); }
+.epaper-arrow-prev { left: 0.4rem; }
+.epaper-arrow-next { right: 0.4rem; }
+.epaper-arrow.is-hidden { visibility: hidden; }
+@media (max-width: 800px) {
+  #block-epaper { padding: 1rem 0.75rem 1.25rem; border-radius: 10px; }
+  #block-epaper .cat-block-head h2 { font-size: 1.35rem; }
+  .bi-card { width: calc((100% - 0.75rem) / 2); }
+  .epaper-strip { gap: 0.75rem; }
+  .bi-card h3 { font-size: 0.95rem; }
+  .bi-card .bi-date { font-size: 0.8rem; }
+  .epaper-arrow { width: 2.2rem; height: 2.2rem; font-size: 1.3rem; }
+}
 .bottom-blocks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1.5rem 0; }
 .card { border: 1px solid #eee; padding: 1rem; }
 .card h2 { font-size: 1.05rem; margin-top: 0; }
 .btn { display: inline-block; background: #c00; color: #fff !important; padding: 0.4rem 0.8rem; text-decoration: none; border-radius: 3px; }
 .note { color: #666; font-size: 0.9rem; }
-.epaper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
-.epaper-grid img { width: 100%; height: auto; background: #f2f2f2; }
 @media (max-width: 800px) {
   .wordmark { font-size: 2.2rem; }
   .featured, .bottom-blocks { grid-template-columns: 1fr; }

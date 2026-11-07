@@ -370,16 +370,66 @@ function resolveSrcset(ss) {
   }).filter(Boolean).join(", ");
 }
 function newEpaperListItem(it) {
+  // Anh bia mac dinh = anh trang 1 cua PDF: chi khi so khong co anh
+  // bia rieng (coverPath rong) moi tro toi route /cover ben duoi;
+  // anh bia do bien tap chon (neu co) luon duoc uu tien.
+  const cover = it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : `/api/v2/epaper/${it.publicId}/cover`;
+  // BÁO IN (khoi hero trang chu): ban thu nho ~400px (render o dpi 50,
+  // cache <publicId>-400.jpg) + srcset 400w/800w. Chi co khi bia la anh
+  // render tu PDF; bia bien tap chon thi dung anh goc, khong co thumb.
+  const coverThumb = it.coverPath ? "" : `/api/v2/epaper/${it.publicId}/cover-thumb`;
   return {
     issue_number: it.issueNumber, issue_type: it.issueType,
     publish_date: it.publishDate, title: it.title,
     page_count: it.pageCount, status: "published",
-    // Anh bia mac dinh = anh trang 1 cua PDF: chi khi so khong co anh
-    // bia rieng (coverPath rong) moi tro toi route /cover ben duoi;
-    // anh bia do bien tap chon (neu co) luon duoc uu tien.
-    cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : `/api/v2/epaper/${it.publicId}/cover`,
+    cover,
+    coverThumb,
+    coverSrcset: coverThumb ? `${coverThumb} 400w, ${cover} 800w` : "",
     url: `/bao-in/${it.slug}`,
   };
+}
+// Anh bia trang 1 cua PDF, render 1 lan bang pdftoppm roi cache tren
+// disk (giong cach he cu render trang). dpi=100 -> <publicId>.jpg
+// (~800px, dung cho trang /bao-in + trinh doc); dpi=50 ->
+// <publicId>-400.jpg (~400px, thumb cho khoi BÁO IN trang chu).
+// Cache co TTL 24h theo mtime: qua 24h thi render lai 1 lan, de anh bia
+// khong ket vinh vien neu PDF cua so duoc thay sau. Loi render khong
+// duoc cache. Neu thu muc cache ghi khong duoc (storage chi doc), code
+// tu roi ve render moi lan thay vi loi.
+async function serveEpaperCover(res, publicId, dpi, cacheName) {
+  const base = vtcanyApiBase();
+  if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
+  const coverDir = path.join(STORAGE_DIR, "epaper-covers");
+  const cachePath = path.join(coverDir, cacheName);
+  const COVER_TTL_MS = 24 * 60 * 60 * 1000;
+  try {
+    const st = fs.statSync(cachePath);
+    if (st.size > 0 && Date.now() - st.mtimeMs < COVER_TTL_MS) {
+      const buf = fs.readFileSync(cachePath);
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
+      return res.end(buf);
+    }
+  } catch {}
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "epaper-cover-"));
+  try {
+    const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) return err(res, r.status === 404 ? 404 : 502, "khong lay duoc file PDF");
+    const pdfPath = path.join(tmpDir, "issue.pdf");
+    fs.writeFileSync(pdfPath, Buffer.from(await r.arrayBuffer()));
+    await new Promise((resolve, reject) => execFile("pdftoppm", ["-jpeg", "-r", String(dpi), "-f", "1", "-l", "1", pdfPath, path.join(tmpDir, "page")], (e) => e ? reject(e) : resolve()));
+    const jpg = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".jpg")).sort()[0];
+    if (!jpg) return err(res, 502, "khong render duoc anh bia");
+    const buf = fs.readFileSync(path.join(tmpDir, jpg));
+    try {
+      fs.mkdirSync(coverDir, { recursive: true });
+      const tmpCache = path.join(coverDir, `.${cacheName}.${process.pid}.tmp`);
+      fs.writeFileSync(tmpCache, buf);
+      fs.renameSync(tmpCache, cachePath);
+    } catch {}
+    res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
+    return res.end(buf);
+  } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
+  finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
 }
 function saigonToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
@@ -446,7 +496,7 @@ const server = http.createServer(async (req, res) => {
       u.pathname === "/api/v1/timeshift" ||
       u.pathname === "/api/v1/timeshift-coverage" ||
       u.pathname === "/api/v2/epaper" ||
-      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover|\/pages\/\d+)?$/.test(u.pathname) ||
+      /^\/api\/v2\/epaper\/[0-9a-f]{24}(\/pdf|\/cover|\/cover-thumb|\/pages\/\d+)?$/.test(u.pathname) ||
       u.pathname === "/api/v2/news" ||
       u.pathname === "/api/v2/news/search" ||
       /^\/api\/v2\/news\/[a-z0-9-]+$/.test(u.pathname) ||
@@ -937,55 +987,18 @@ const server = http.createServer(async (req, res) => {
       const p = Math.min(page, total_pages);
       return json(res, 200, { items: items.slice((p - 1) * per, p * per), total, page: p, total_pages });
     }
-    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf|\/cover|\/pages\/\d+)?$/);
+    const newEpaperMatch = u.pathname.match(/^\/api\/v2\/epaper\/([0-9a-f]{24})(\/pdf|\/cover|\/cover-thumb|\/pages\/\d+)?$/);
     if (newEpaperMatch && req.method === "GET") {
       const publicId = newEpaperMatch[1];
       if (newEpaperMatch[2] === "/cover") {
-        // Anh bia mac dinh: render trang 1 cua PDF bang pdftoppm (co
-        // san trong container TSHT, giong cach he cu render trang).
-        // CHI RENDER 1 LAN: anh render xong duoc luu vao
-        // STORAGE_DIR/epaper-covers/<publicId>.jpg va phuc vu lai tu
-        // disk cho cac lan sau, kem Cache-Control 1 ngay cho trinh
-        // duyet/CDN. Truoc day moi lan goi deu tai lai PDF + render
-        // lai (do thuc te 7-26s/anh, so 319 con timeout 30s) nen trang
-        // /bao-in load rat cham. Cache co TTL 24h theo mtime: qua 24h
-        // thi render lai 1 lan, de anh bia khong ket vinh vien neu PDF
-        // cua so duoc thay sau. Loi render khong duoc cache. Neu thu
-        // muc cache ghi khong duoc (storage chi doc), code tu roi ve
-        // hanh vi cu (render moi lan) thay vi loi.
-        const base = vtcanyApiBase();
-        if (!base) return err(res, 503, "backend bao in moi chua cau hinh");
-        const coverDir = path.join(STORAGE_DIR, "epaper-covers");
-        const cachePath = path.join(coverDir, `${publicId}.jpg`);
-        const COVER_TTL_MS = 24 * 60 * 60 * 1000;
-        try {
-          const st = fs.statSync(cachePath);
-          if (st.size > 0 && Date.now() - st.mtimeMs < COVER_TTL_MS) {
-            const buf = fs.readFileSync(cachePath);
-            res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
-            return res.end(buf);
-          }
-        } catch {}
-        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "epaper-cover-"));
-        try {
-          const r = await fetch(`${base}/epaper/${publicId}/pdf`, { signal: AbortSignal.timeout(30000) });
-          if (!r.ok) return err(res, r.status === 404 ? 404 : 502, "khong lay duoc file PDF");
-          const pdfPath = path.join(tmpDir, "issue.pdf");
-          fs.writeFileSync(pdfPath, Buffer.from(await r.arrayBuffer()));
-          await new Promise((resolve, reject) => execFile("pdftoppm", ["-jpeg", "-r", "100", "-f", "1", "-l", "1", pdfPath, path.join(tmpDir, "page")], (e) => e ? reject(e) : resolve()));
-          const jpg = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".jpg")).sort()[0];
-          if (!jpg) return err(res, 502, "khong render duoc anh bia");
-          const buf = fs.readFileSync(path.join(tmpDir, jpg));
-          try {
-            fs.mkdirSync(coverDir, { recursive: true });
-            const tmpCache = path.join(coverDir, `.${publicId}.${process.pid}.tmp`);
-            fs.writeFileSync(tmpCache, buf);
-            fs.renameSync(tmpCache, cachePath);
-          } catch {}
-          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400" });
-          return res.end(buf);
-        } catch (e) { return err(res, 502, "khong render duoc anh bia"); }
-        finally { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }
+        // Anh bia day du ~800px (render dpi 100, cache <publicId>.jpg).
+        return serveEpaperCover(res, publicId, 100, `${publicId}.jpg`);
+      }
+      if (newEpaperMatch[2] === "/cover-thumb") {
+        // Ban thu nho ~400px cho khoi BÁO IN trang chu (render dpi 50,
+        // cache <publicId>-400.jpg). Lan goi dau render theo yeu cau,
+        // cac lan sau phuc vu tu disk nhu /cover.
+        return serveEpaperCover(res, publicId, 50, `${publicId}-400.jpg`);
       }
       if (newEpaperMatch[2] && newEpaperMatch[2].startsWith("/pages/")) {
         // Anh trang render san phia server (Hybrid): proxy thang anh
