@@ -425,10 +425,12 @@
 definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Tin bài - VTC ANY CMS' });
 import { buildCategoryOptions, buildParentCategoryOptions, compareCategories } from '~/utils/category-sort';
+import { useConfirm } from 'primevue/useconfirm';
 
 const { can, permissions } = useCmsAuth();
 const api = useApi();
 const toast = useToast();
+const confirm = useConfirm();
 
 // Tai khoan toan quyen (map quyen '*') duoc xuat ban truc tiep tu nhap;
 // tai khoan thuong phai di qua quy trinh duyet (server chan neu sai).
@@ -1120,15 +1122,27 @@ async function unpublishItem(it: any) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Gỡ xuống thất bại', life: 3000 });
   }
 }
-async function removeItem(it: any) {
-  if (!window.confirm(`Xóa bài "${it.title}"?`)) return;
-  try {
-    await api.del(`/admin/news/${it.publicId}`);
-    toast.add({ severity: 'success', summary: 'Đã xóa', life: 2500 });
-    load(meta.value.page);
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Xóa thất bại', life: 3000 });
-  }
+function removeItem(it: any) {
+  // Truoc day dung dialog goc cua trinh duyet: tu dong hoa KHONG chap
+  // nhan duoc nen bam nut Xoa khong co phan hoi gi (2026-11-07, 4 lan
+  // bam). Dung PrimeVue confirm.require (dialog DOM, <ConfirmDialog />
+  // da dang ky toan cuc o layouts/admin.vue) nhu bai-bao-in.vue.
+  confirm.require({
+    message: `Xóa bài "${it.title}"?`,
+    header: 'Xóa bài viết',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Xóa',
+    rejectLabel: 'Hủy',
+    accept: async () => {
+      try {
+        await api.del(`/admin/news/${it.publicId}`);
+        toast.add({ severity: 'success', summary: 'Đã xóa', life: 2500 });
+        load(meta.value.page);
+      } catch (e: any) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiErrDetail(e, 'Xóa thất bại'), life: 3000 });
+      }
+    },
+  });
 }
 
 // --- Quy trinh duyet ---
