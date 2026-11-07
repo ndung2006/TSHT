@@ -219,8 +219,22 @@
         if (ctrl && media) { ctrl.attachMedia(media, current.kind !== "radio"); ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         if (media && window.playTimeshift) replayHandle = window.playTimeshift(media, item.replay_url, showMsg);
         if (ctrl) ctrl.setQualityHandle(replayHandle);
-        // GĐ3 nen: heartbeat xem lai.
-        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "timeshift", media: media });
+        // 3c: heartbeat xem lai — chi bat dau khi media thuc su dang
+        // phat (cung loi beat dau nhu VOD: beat() bo qua khi media con
+        // paused). Cho su kien 'playing' 1 lan; neu media da chay thi
+        // bat dau ngay. Kiem tra handle de listener cu khong bat beat
+        // cho ban xem lai da bi thay the.
+        if (window.TshtTelemetry) {
+          var myHandle = replayHandle;
+          var startTsHeartbeat = function () {
+            if (replayHandle && replayHandle === myHandle) window.TshtTelemetry.startHeartbeat({ channel: current.name, type: "timeshift", media: media });
+          };
+          if (media && !media.paused) startTsHeartbeat();
+          else if (media) media.addEventListener("playing", function onTsPlaying() {
+            media.removeEventListener("playing", onTsPlaying);
+            startTsHeartbeat();
+          });
+        }
         renderSchedule();
       })
       .catch(function (e) {
@@ -558,10 +572,22 @@
         vodPrefetch[publicId] = { url: res.data.url, fetchedAt: Date.now() };
         if (videoEl && window.playDirect) videoHandle = window.playDirect(videoEl, res.data.url, showMsg);
         if (ctrl) ctrl.setQualityHandle(videoHandle);
-        // GĐ3 nen: heartbeat VOD (kem ma video, khong co kenh) — chi
-        // cua video dang phat that (seq moi nhat).
-        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
-        else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
+        // 3c: heartbeat VOD (kem ma video, khong co kenh) — chi bat dau
+        // khi video thuc su dang phat. Goi ngay o day se mat beat dau vi
+        // beat() bo qua khi media con paused (xem telemetry.js). Cho su
+        // kien 'playing' 1 lan; neu video da chay thi bat dau ngay.
+        // Kiem tra seq de beat khong bat len neu nguoi xem da bam video
+        // khac truoc khi video kip phat.
+        if (window.TshtTelemetry) {
+          var startVodHeartbeat = function () {
+            if (seq === vodSeq) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: videoEl });
+          };
+          if (videoEl && !videoEl.paused) startVodHeartbeat();
+          else if (videoEl) videoEl.addEventListener("playing", function onVodPlaying() {
+            videoEl.removeEventListener("playing", onVodPlaying);
+            startVodHeartbeat();
+          });
+        } else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
       })
       .catch(function (e) {
         if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua

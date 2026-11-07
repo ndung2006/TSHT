@@ -242,8 +242,21 @@
         vodPrefetch[publicId] = { url: res.data.url, fetchedAt: Date.now() };
         if (video && window.playDirect) videoHandle = window.playDirect(video, res.data.url, showMsg);
         if (ctrl) ctrl.setQualityHandle(videoHandle);
-        if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: video });
-        else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
+        // 3c: heartbeat VOD — chi bat dau khi video thuc su dang phat.
+        // Goi ngay o day se mat beat dau vi beat() bo qua khi media con
+        // paused (xem telemetry.js). Cho su kien 'playing' 1 lan; neu
+        // video da chay thi bat dau ngay. Kiem tra seq de beat khong bat
+        // len neu nguoi xem da bam video khac truoc khi video kip phat.
+        if (window.TshtTelemetry) {
+          var startVodHeartbeat = function () {
+            if (seq === vodSeq) window.TshtTelemetry.startHeartbeat({ channel: "", type: "vod", contentId: publicId, media: video });
+          };
+          if (video && !video.paused) startVodHeartbeat();
+          else if (video) video.addEventListener("playing", function onVodPlaying() {
+            video.removeEventListener("playing", onVodPlaying);
+            startVodHeartbeat();
+          });
+        } else showMsg("Không tải được trình phát. Vui lòng tải lại trang.");
       })
       .catch(function (e) {
         if (seq !== vodSeq) return; // cum bam moi hon da toi: bo qua

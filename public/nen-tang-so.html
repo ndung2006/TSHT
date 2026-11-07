@@ -107,7 +107,9 @@
   var playerTitle = document.getElementById('sv-player-title');
   var playerErr = document.getElementById('sv-player-err');
   var hls = null;
+  var vodPlayingHandler = null;
   function stopPlayer() {
+    if (vodPlayingHandler) { try { video.removeEventListener('playing', vodPlayingHandler); } catch (e) {} vodPlayingHandler = null; }
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     try { video.pause(); } catch (e) {}
     video.removeAttribute('src');
@@ -128,9 +130,24 @@
     playerErr.textContent = '';
     player.hidden = false;
     stopPlayer();
-    // Heartbeat VOD: gui ngay 1 nhip (neu video chua pause) roi moi
-    // 60s khi dang phat; beat tu bo qua khi video pause (telemetry.js).
-    if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: '', type: 'vod', contentId: shortId, media: video });
+    // 3c: heartbeat VOD — chi bat dau khi video thuc su dang phat.
+    // Goi startHeartbeat ngay o day se mat beat dau vi beat() bo qua
+    // khi video con paused (xem telemetry.js): dang ky listener
+    // 'playing' 1 lan sau khi gan nguon, luc video.play() chay.
+    var startVodHeartbeat = function () {
+      if (window.TshtTelemetry) window.TshtTelemetry.startHeartbeat({ channel: '', type: 'vod', contentId: shortId, media: video });
+    };
+    var armVodHeartbeat = function () {
+      if (vodPlayingHandler) return; // da dang cho 'playing' roi
+      if (video && !video.paused) { startVodHeartbeat(); return; }
+      if (!video) return;
+      vodPlayingHandler = function onVodPlaying() {
+        video.removeEventListener('playing', vodPlayingHandler);
+        vodPlayingHandler = null;
+        startVodHeartbeat();
+      };
+      video.addEventListener('playing', vodPlayingHandler);
+    };
     fetch('/api/v2/vod/short/' + encodeURIComponent(shortId) + '/play')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
@@ -139,10 +156,11 @@
           hls = new window.Hls();
           hls.loadSource(d.url);
           hls.attachMedia(video);
-          hls.on(window.Hls.Events.MANIFEST_PARSED, function () { video.play().catch(function () {}); });
+          hls.on(window.Hls.Events.MANIFEST_PARSED, function () { video.play().catch(function () {}); armVodHeartbeat(); });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = d.url;
           video.play().catch(function () {});
+          armVodHeartbeat();
         } else {
           throw new Error('no-hls');
         }
