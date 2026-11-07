@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 import {
   DISTRIBUTION_MEDIA_TYPES,
   DISTRIBUTION_PLATFORMS,
@@ -57,6 +58,8 @@ export class DistributionService {
   }
 
   async create(dto: DistributionUpsert, actorId?: string) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Textarea caption phan phoi).
+    normalizeNbspFields(dto, ['title', 'caption']);
     if (!dto.title?.trim()) throw new BadRequestException('thieu tieu de');
     if (dto.mediaType && !(DISTRIBUTION_MEDIA_TYPES as readonly string[]).includes(dto.mediaType)) {
       throw new BadRequestException('mediaType khong hop le');
@@ -93,6 +96,8 @@ export class DistributionService {
   }
 
   async update(publicId: string, dto: DistributionUpsert) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    normalizeNbspFields(dto, ['title', 'caption']);
     // Bai nhap: sua day du nhu cu. Bai da xuat ban: CHI duoc gan/go
     // catalogPublicId (dien ma short cho bai live) — moi thay doi noi
     // dung khac van bi chan de khong doi publishedAt/dich dang chay.

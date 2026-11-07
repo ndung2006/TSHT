@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
 import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
@@ -246,6 +247,8 @@ export class LiveblogService {
   }
 
   async create(input: LiveblogInput, actor: Actor) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Textarea mo ta tuong thuat).
+    normalizeNbspFields(input, ['title', 'description']);
     this.validateInput(input);
     const eventId = await this.checkEvent(input.eventId);
     const slug = await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title);
@@ -272,6 +275,8 @@ export class LiveblogService {
   async patch(publicId: string, input: Partial<LiveblogInput>, actor: Actor) {
     const row = await this.prisma.liveblog.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay liveblog');
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    normalizeNbspFields(input, ['title', 'description']);
     this.validateInput({ title: input.title ?? row.title });
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = input.title.trim();
@@ -322,6 +327,9 @@ export class LiveblogService {
 
   async createEntry(publicId: string, input: EntryInput, actor: Actor) {
     const row = await this.workflowRow(publicId);
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (noi dung dong tin — co the
+    // la HTML dan tu editor).
+    normalizeNbspFields(input, ['body']);
     if (!input.body || !input.body.trim()) throw new BadRequestException('noi dung dong tuong thuat bat buoc');
     const entry = await this.prisma.liveblogEntry.create({
       data: {
@@ -341,6 +349,8 @@ export class LiveblogService {
     const row = await this.workflowRow(publicId);
     const entry = await this.prisma.liveblogEntry.findFirst({ where: { id: entryId, liveblogId: row.id } });
     if (!entry) throw new NotFoundException('khong tim thay dong tuong thuat');
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi truong gui len.
+    normalizeNbspFields(input, ['body']);
     if (input.body !== undefined && !input.body.trim()) throw new BadRequestException('noi dung dong tuong thuat bat buoc');
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.body !== undefined) data.body = input.body;

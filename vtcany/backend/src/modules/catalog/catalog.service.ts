@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 import { UploadsService } from '../uploads/uploads.service';
 import { SAMPLE_CATEGORIES, SAMPLE_ITEMS, SAMPLE_RAIL_LINKS, BANNER_SEEDS } from '../layout/seed-data';
 
@@ -453,6 +454,9 @@ export class CatalogService implements OnModuleInit {
     const data = input || {};
     checkRequired(REQUIRED[entity], data);
     const item = { ...data, id: data.id || nid(PREFIX[entity]), createdAt: new Date().toISOString() };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (cac o text trong JSON data:
+    // tieu de/mo ta/noi dung bai viet catalog, thong bao, su kien...).
+    normalizeNbspFields(item, ['title', 'name', 'description', 'content', 'body']);
     await this.prisma.catalogItem.create({ data: { id: item.id, entity, data: item } });
     return item;
   }
@@ -466,7 +470,11 @@ export class CatalogService implements OnModuleInit {
 
   async update(name: string, id: string, patch: any): Promise<any> {
     const cur = await this.get(name, id);
-    const next = { ...cur, ...(patch || {}), id: cur.id, createdAt: cur.createdAt };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len
+    // (khong dung vao truong cu chi vi gop vao ban ghi moi).
+    const p = patch || {};
+    normalizeNbspFields(p, ['title', 'name', 'description', 'content', 'body']);
+    const next = { ...cur, ...p, id: cur.id, createdAt: cur.createdAt };
     await this.prisma.catalogItem.update({ where: { id }, data: { data: next } });
     return next;
   }
@@ -566,6 +574,8 @@ export class CatalogService implements OnModuleInit {
       if (s.movieId !== movieId) throw new Error('season khong thuoc phim nay');
     }
     const item = { ...data, movieId, seasonId, id: data.id || nid('ep'), createdAt: new Date().toISOString() };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (tieu de/mo ta tap phim).
+    normalizeNbspFields(item, ['title', 'name', 'description']);
     await this.prisma.catalogEpisode.create({ data: { id: item.id, movieId, seasonId, data: item } as any });
     return item as Episode;
   }
@@ -589,7 +599,10 @@ export class CatalogService implements OnModuleInit {
 
   async updateEpisode(id: string, patch: any): Promise<Episode> {
     const cur = await this.getEpisode(id);
-    const next = { ...cur, ...(patch || {}), id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    const p = patch || {};
+    normalizeNbspFields(p, ['title', 'name', 'description']);
+    const next = { ...cur, ...p, id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId };
     await this.prisma.catalogEpisode.update({
       where: { id },
       data: { data: next, seasonId: (next as any).seasonId ?? null } as any,
@@ -609,6 +622,8 @@ export class CatalogService implements OnModuleInit {
     if (!data.title && data.name) data.title = data.name; // CMS gui name
     if (!data.title || !String(data.title).trim()) throw new Error('title is required');
     const item = { ...data, movieId, id: data.id || nid('se'), createdAt: new Date().toISOString() };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (tieu de/mo ta mua phim).
+    normalizeNbspFields(item, ['title', 'name', 'description']);
     await this.seasonDb.create({ data: { id: item.id, movieId, data: item } });
     return item as Season;
   }
@@ -630,7 +645,10 @@ export class CatalogService implements OnModuleInit {
 
   async updateSeason(id: string, patch: any): Promise<Season> {
     const cur = await this.getSeason(id);
-    const next = { ...cur, ...(patch || {}), id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    const p = patch || {};
+    normalizeNbspFields(p, ['title', 'name', 'description']);
+    const next = { ...cur, ...p, id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId };
     await this.seasonDb.update({ where: { id }, data: { data: next } });
     return next as Season;
   }
@@ -667,6 +685,8 @@ export class CatalogService implements OnModuleInit {
     if (!data.title && data.name) data.title = data.name; // CMS gui name
     if (!data.title || !String(data.title).trim()) throw new Error('title is required');
     const item = { ...data, movieId, seasonId, id: data.id || nid('tr'), createdAt: new Date().toISOString() };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (tieu de/mo ta trailer).
+    normalizeNbspFields(item, ['title', 'name', 'description']);
     await this.trailerDb.create({ data: { id: item.id, movieId, seasonId, data: item } });
     return item as Trailer;
   }
@@ -688,7 +708,10 @@ export class CatalogService implements OnModuleInit {
 
   async updateTrailer(id: string, patch: any): Promise<Trailer> {
     const cur = await this.getTrailer(id);
-    const next = { ...cur, ...(patch || {}), id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId, seasonId: cur.seasonId };
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    const p = patch || {};
+    normalizeNbspFields(p, ['title', 'name', 'description']);
+    const next = { ...cur, ...p, id: cur.id, createdAt: cur.createdAt, movieId: cur.movieId, seasonId: cur.seasonId };
     await this.trailerDb.update({ where: { id }, data: { data: next } });
     return next as Trailer;
   }

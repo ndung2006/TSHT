@@ -4,6 +4,7 @@
 // ten/slug luc doc, giong khuon print-articles (tranh P1012).
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 
 function isHttpUrl(v: string) {
   return /^https?:\/\/.+/i.test(v);
@@ -270,6 +271,9 @@ export class SiteInterfaceService {
 
   async putFooter(input: Record<string, string | undefined>) {
     const mapped = this.toDotted(input, 'footer', ['logo', 'description', 'copyright']);
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Quill mo ta footer + o
+    // copyright): day la goc cua loi cat chu tren mobile.
+    normalizeNbspFields(mapped, ['footer.description', 'footer.copyright']);
     if (mapped['footer.logo'] && !isImageRef(String(mapped['footer.logo']))) throw new BadRequestException('anh footer khong hop le');
     await this.putSettings(mapped, ['footer.logo', 'footer.description', 'footer.copyright']);
     this.notifyPortalCacheInvalidated();

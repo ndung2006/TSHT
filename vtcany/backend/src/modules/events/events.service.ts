@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
@@ -221,6 +222,8 @@ export class EventsService {
   }
 
   async create(input: EventInput, actor: Actor) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Textarea mo ta su kien).
+    normalizeNbspFields(input, ['title', 'description']);
     this.validateInput(input);
     const categoryId = await this.checkCategory(input.categoryId);
     const slug = await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title);
@@ -249,6 +252,8 @@ export class EventsService {
   async patch(publicId: string, input: Partial<EventInput>, actor: Actor) {
     const row = await this.prisma.newsroomEvent.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay su kien');
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi cac truong gui len.
+    normalizeNbspFields(input, ['title', 'description']);
     this.validateInput({
       title: input.title ?? row.title,
       startsAt: input.startsAt !== undefined ? input.startsAt : (row.startsAt ? row.startsAt.toISOString() : null),

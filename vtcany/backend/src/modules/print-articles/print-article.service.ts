@@ -12,6 +12,7 @@ import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
 import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import { slugify, type Actor } from '../news/news.service';
+import { normalizeNbspFields, normalizeNbspForSave } from '../../common/normalize-nbsp';
 import {
   WORKFLOW_ACTION_LABELS,
 } from './print-article-workflow';
@@ -181,10 +182,13 @@ export class PrintArticleService {
     const row = await this.prisma.printArticle.create({
       data: {
         publicId: this.newPublicId(),
-        title: src.title,
+        // Chuyen doi cheo tu bai online: chuan hoa &nbsp;/U+00A0 cua
+        // ban goc (co the luu truoc khi co chuan hoa luc luu) truoc khi
+        // ghi sang ban bao in moi.
+        title: normalizeNbspForSave(src.title) as string,
         slug: await this.uniqueSlug(src.title),
-        sapo: src.sapo || '',
-        body: src.body || '',
+        sapo: normalizeNbspForSave(src.sapo) || '',
+        body: normalizeNbspForSave(src.body) || '',
         categoryId,
         coverPath: src.coverPath,
         authors: src.authors || [],
@@ -212,6 +216,8 @@ export class PrintArticleService {
    *  publicId 24-hex cua bai that, chan trung chuyen doi van giu nguyen;
    *  sourceNewsSlug rong de CMS hien '—'. */
   async createManual(input: any, actor: Actor) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Quill).
+    normalizeNbspFields(input, ['title', 'sapo', 'body']);
     if (!input.title || !String(input.title).trim()) throw new BadRequestException('tieu de bat buoc');
     this.validateManualInput(input.title, input.sapo);
     const categoryId = await this.checkCategory(input.categoryId);
@@ -259,6 +265,8 @@ export class PrintArticleService {
     if (row.status === 'approved') {
       throw new ConflictException('bai da duyet, cho dan trang, khong sua duoc');
     }
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Quill): chi cac truong gui len.
+    normalizeNbspFields(input, ['title', 'sapo', 'body']);
     this.validateManualInput(input.title, input.sapo);
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = String(input.title).trim();

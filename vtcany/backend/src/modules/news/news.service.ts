@@ -19,6 +19,7 @@ import { normalizeFormatData } from './news-format-data';
 import { buildSearchQuery, hasSearchInput, parseSearchQuery } from './news-search-rules';
 import { publishCategoryError } from './news-publish-rules';
 import { coverSrcset } from '../uploads/image-variants';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -568,6 +569,8 @@ export class NewsService {
   }
 
   async create(input: ArticleInput, actor: Actor) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Quill): sapo + body + meta.
+    normalizeNbspFields(input, ['title', 'sapo', 'body', 'metaTitle', 'metaDescription']);
     this.validateInput(input);
     const categoryId = await this.checkCategory(input.categoryId);
     const slug = await this.uniqueSlug(input.slug?.trim() ? input.slug : input.title);
@@ -615,6 +618,8 @@ export class NewsService {
     // Gioi han sua cua PV: chi bai do minh tao, o trang thai nhap.
     const pvBlock = pvEditCheck(row, actor);
     if (pvBlock) throw new ForbiddenException(pvBlock);
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (Quill): chi cac truong gui len.
+    normalizeNbspFields(input, ['title', 'sapo', 'body', 'metaTitle', 'metaDescription']);
     this.validateInput({ title: input.title ?? row.title, sapo: input.sapo ?? row.sapo, contentType: input.contentType, formatData: input.formatData });
     const data: any = { updatedBy: actor.username, updatedByRole: actor.roleName };
     if (input.title !== undefined) data.title = input.title.trim();

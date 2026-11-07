@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeNbspFields } from '../../common/normalize-nbsp';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { clearSidebarCounts } from '../dashboard/sidebar-counts-cache';
 import {
@@ -201,6 +202,10 @@ export class AdsService {
   }
 
   async create(input: AdInput, actor: Actor) {
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu (ten quang cao). htmlContent
+    // KHONG chuan hoa: do la ma HTML/JS nhung san cua ben thu ba, doi
+    // khoang trang trong do co the lam hong ma nhung.
+    normalizeNbspFields(input, ['name']);
     this.validateInput(input);
     const row = await this.prisma.newsroomAd.create({
       data: {
@@ -228,6 +233,9 @@ export class AdsService {
   async patch(publicId: string, input: Partial<AdInput>, actor: Actor) {
     const row = await this.prisma.newsroomAd.findUnique({ where: { publicId } });
     if (!row) throw new NotFoundException('khong tim thay quang cao');
+    // Chuan hoa &nbsp;/U+00A0 ngay khi luu: chi ten; htmlContent khong
+    // dung vao (ma nhung cua ben thu ba).
+    normalizeNbspFields(input, ['name']);
     this.validateInput({
       name: input.name ?? row.name,
       type: input.type ?? row.type,
