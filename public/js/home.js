@@ -37,6 +37,13 @@
   // khoi + ghi chu nhu cu.
   var EPAPER_WEEKDAYS = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
   function epaperDisplayName(it) {
+    // Ten hien thi lay tu du lieu: title do CMS nhap khi tao so (vd
+    // "Tuyen Quang 320", "Tuyen Quang vung cao 558") — khoi BÁO IN
+    // dung duoc cho tinh khac ma khong ghi cung ten an pham. Chi khi
+    // title trong (so cu chua co title) moi dung ten mac dinh theo
+    // loai so + so hieu nhu truoc.
+    var t = (it.title || "").trim();
+    if (t) return t;
     if (it.issue_type === "vung_cao") return "Báo Điện Biên Phủ vùng cao số " + it.issue_number;
     return "Báo Điện Biên Phủ số " + it.issue_number;
   }

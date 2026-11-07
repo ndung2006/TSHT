@@ -5,6 +5,9 @@
 // highland covers; ~400px thumb + srcset 800px, lazy; fix the old
 // items.slice(1) bug that skipped the newest issue; hide the whole block
 // when there are no issues.
+// Ten hien thi cua the lay tu title do CMS nhap (2026-11-07: khong ghi
+// cung "Báo Điện Biên Phủ" de dung duoc cho tinh khac); title trong thi
+// fallback ve ten mac dinh theo loai so + so hieu.
 // - home.js block logic is tested functionally via the vm stub-DOM harness
 //   (same pattern as replay-immediate.test.mjs): real home.js runs against
 //   stubbed fetch + DOM, assertions read the rendered innerHTML.
@@ -111,10 +114,11 @@ function querySelectorAll(rootEl, sel) {
 // ---- Fixture: 5 live issues as GET /api/v2/epaper returns them
 // (server-mapped shape, with coverThumb/coverSrcset from newEpaperListItem).
 // Deliberately SCRAMBLED input order to prove the client-side sort.
-function epaperItem(n, type, date, id) {
+// title = ten that trong CMS nhu live (lay tu API that ngay 2026-11-07).
+function epaperItem(n, type, date, id, title) {
   return {
     issue_number: n, issue_type: type, publish_date: date,
-    title: "TQ " + n, page_count: type === "vung_cao" ? 4 : 12, status: "published",
+    title: title || ("TQ " + n), page_count: type === "vung_cao" ? 4 : 12, status: "published",
     cover: "/api/v2/epaper/" + id + "/cover",
     coverThumb: "/api/v2/epaper/" + id + "/cover-thumb",
     coverSrcset: "/api/v2/epaper/" + id + "/cover-thumb 400w, /api/v2/epaper/" + id + "/cover-thumb?size=800 800w",
@@ -122,11 +126,11 @@ function epaperItem(n, type, date, id) {
   };
 }
 const LIVE5 = [
-  epaperItem(318, "thuong", "2026-10-20", "6e8fe8f176bcd664521cf58b"),
-  epaperItem(559, "vung_cao", "2026-10-27", "4bbdb72c2fd9115efd05ea10"),
-  epaperItem(319, "thuong", "2026-10-21", "b62e16d4e2f8331a6df51ef4"),
-  epaperItem(320, "thuong", "2026-10-26", "014ab17ef75433437d62e473"),
-  epaperItem(558, "vung_cao", "2026-10-26", "971e9a91cc68d27463971ef1"),
+  epaperItem(318, "thuong", "2026-10-20", "6e8fe8f176bcd664521cf58b", "Tuyên Quang 318"),
+  epaperItem(559, "vung_cao", "2026-10-27", "4bbdb72c2fd9115efd05ea10", "bao_tuyen_quang_vung_cao_so_559"),
+  epaperItem(319, "thuong", "2026-10-21", "b62e16d4e2f8331a6df51ef4", "TQ 319"),
+  epaperItem(320, "thuong", "2026-10-26", "014ab17ef75433437d62e473", "Tuyên Quang 320"),
+  epaperItem(558, "vung_cao", "2026-10-26", "971e9a91cc68d27463971ef1", "Tuyên Quang vùng cao 558"),
 ];
 
 function buildFixture(epaperResponder, railOverflow = true) {
@@ -207,18 +211,44 @@ function cardNames(html) {
   return [...html.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]);
 }
 
-test("hien thi: ten so thuong + so vung cao + ngay VN dung thu", async () => {
+test("hien thi: ten the lay tu title CMS + ngay VN dung thu", async () => {
   const f = buildFixture();
   loadHome(f, epaperOk(LIVE5));
   await tick();
   const html = f.byId["epaper-more"].innerHTML;
-  assert.ok(html.includes("Báo Điện Biên Phủ số 320"), "thieu ten so thuong 320");
-  assert.ok(html.includes("Báo Điện Biên Phủ vùng cao số 559"), "thieu ten so vung cao 559");
+  assert.ok(html.includes("Tuyên Quang 320"), "thieu ten so thuong 320 lay tu title");
+  assert.ok(html.includes("bao_tuyen_quang_vung_cao_so_559"), "thieu ten so vung cao 559 lay tu title");
+  assert.ok(html.includes('alt="Bìa Tuyên Quang 320"'), "alt anh bia phai dung ten theo title");
+  assert.ok(!html.includes("Báo Điện Biên Phủ số 320") && !html.includes("Báo Điện Biên Phủ vùng cao số 559"), "khong duoc ghi cung ten an pham khi da co title");
   assert.ok(html.includes("Thứ Ba, 27/10/2026"), "ngay 559 phai la Thu Ba 27/10/2026");
   assert.ok(html.includes("Thứ Hai, 26/10/2026"), "ngay 558/320 phai la Thu Hai 26/10/2026");
   assert.ok(html.includes("Thứ Tư, 21/10/2026"), "ngay 319 phai la Thu Tu 21/10/2026");
   assert.ok(html.includes("Thứ Ba, 20/10/2026"), "ngay 318 phai la Thu Ba 20/10/2026");
-  assert.ok(!html.includes("Tuyên Quang 559") && !html.includes("TQ 559"), "khong duoc dung title noi bo lam ten hien thi");
+});
+
+test("ten hien thi: title trong/thieu/chi khoang trang thi fallback ve ten mac dinh theo loai so", async () => {
+  const items = [
+    { ...epaperItem(321, "thuong", "2026-10-28", "aaaaaaaaaaaaaaaaaaaaaaaa"), title: undefined },
+    epaperItem(560, "vung_cao", "2026-10-28", "bbbbbbbbbbbbbbbbbbbbbbbb", "   "),
+  ];
+  const f = buildFixture();
+  loadHome(f, epaperOk(items));
+  await tick();
+  const html = f.byId["epaper-more"].innerHTML;
+  assert.ok(html.includes("Báo Điện Biên Phủ số 321"), "title thieu thi fallback ten mac dinh so thuong");
+  assert.ok(html.includes("Báo Điện Biên Phủ vùng cao số 560"), "title chi khoang trang thi fallback ten mac dinh so vung cao");
+  assert.ok(html.includes('alt="Bìa Báo Điện Biên Phủ số 321"'), "alt cung phai dung ten fallback");
+});
+
+test("ten hien thi: title da dung dang 'Báo Điện Biên Phủ số 320' thi hien dung nhu da luu, khong gan them tien to", async () => {
+  const items = [epaperItem(320, "thuong", "2026-10-26", "014ab17ef75433437d62e473", "Báo Điện Biên Phủ số 320")];
+  const f = buildFixture();
+  loadHome(f, epaperOk(items));
+  await tick();
+  const html = f.byId["epaper-more"].innerHTML;
+  assert.ok(html.includes("Báo Điện Biên Phủ số 320"), "title sach phai hien dung nhu da luu");
+  assert.ok(!html.includes("Báo Điện Biên Phủ Báo Điện Biên Phủ"), "khong duoc gan them tien to vao title");
+  assert.ok(!html.includes("Báo Điện Biên Phủ số Báo"), "khong duoc long ten cu vao title");
 });
 
 test("sap xep: chung 2 an pham theo ngay phat hanh, moi nhat dau; so moi nhat KHONG bi bo qua", async () => {
@@ -227,11 +257,11 @@ test("sap xep: chung 2 an pham theo ngay phat hanh, moi nhat dau; so moi nhat KH
   await tick();
   const names = cardNames(f.byId["epaper-more"].innerHTML);
   assert.deepEqual(names, [
-    "Báo Điện Biên Phủ vùng cao số 559",
-    "Báo Điện Biên Phủ vùng cao số 558",
-    "Báo Điện Biên Phủ số 320",
-    "Báo Điện Biên Phủ số 319",
-    "Báo Điện Biên Phủ số 318",
+    "bao_tuyen_quang_vung_cao_so_559",
+    "Tuyên Quang vùng cao 558",
+    "Tuyên Quang 320",
+    "TQ 319",
+    "Tuyên Quang 318",
   ]);
 });
 
@@ -347,7 +377,7 @@ test("home.html: tieu de BÁO IN + link Xem tat ca + strip + mui ten; ?v= moi", 
   assert.ok(homeHtml.includes('<a href="/bao-in">Xem tất cả →</a>'), "thieu link Xem tat ca -> /bao-in");
   assert.ok(homeHtml.includes('id="epaper-more" class="epaper-strip"'), "thieu strip epaper-strip");
   assert.ok(homeHtml.includes("epaper-arrow-prev") && homeHtml.includes("epaper-arrow-next"), "thieu 2 nut mui ten");
-  assert.ok(homeHtml.includes("/js/home.js?v=20261107-4"), "home.js ?v= phai la 20261107-4");
+  assert.ok(homeHtml.includes("/js/home.js?v=20261107-5"), "home.js ?v= phai la 20261107-5");
   assert.ok(homeHtml.includes("/css/home.css?v=20261107-3"), "home.css ?v= phai la 20261107-3");
   assert.ok(!homeHtml.includes("Báo in mới nhất"), "khong con tieu de cu 'Báo in mới nhất'");
 });
