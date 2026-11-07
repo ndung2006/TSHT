@@ -3,18 +3,22 @@
 // bang node --test (xem home-slots.test.mjs).
 //
 // Quyet dinh user da chot:
-// - Q1: noi-bat toi da 4, tieu-diem toi da 3; maxSlots doi duoc trong
+// - Q1: noi-bat toi da 10, tieu-diem toi da 3; maxSlots doi duoc trong
 //   cau hinh (chi zones:publish). Q2: mot bai duoc o ca hai khoi, cam
 //   trung trong cung mot khoi. Q6: giam maxSlots xuong duoi so bai dang
 //   co -> chan luu, bao go bot truoc. Q9/Q11: chi noi-bat co "Bai chinh"
 //   o vi tri 1, nguoi sap xep tu chon.
+// - Goi C 2026-11-07: noi-bat 4 -> 10 (user chot); dong live cu
+//   (max_slots=4) duoc nang len 10 bang migration
+//   20261107085611_home_slots_noi_bat_max10, vi ensureList() chi dung
+//   defaultMaxSlots khi tao dong moi.
 
 export const HOME_SLOT_BLOCKS = {
   'noi-bat': {
     key: 'noi-bat',
     label: 'Tin nổi bật',
     flag: 'isFeatured',
-    defaultMaxSlots: 4,
+    defaultMaxSlots: 10,
     hasMainArticle: true,
   },
   'tieu-diem': {

@@ -223,7 +223,7 @@
         });
     });
   }
-  loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=4", "Chưa có tin.");
+  loadHeroBlock("tieu-diem", "news-featured", "/api/v2/news?featured=1&limit=10", "Chưa có tin.");
   // Cai dat giao dien do CMS Quan ly giao dien dat (hot link, khoi
   // trang chu, footer, favicon). Header chung: header.js (nap truoc)
   // da fetch /api/v2/site-interface 1 lan/trang va de o

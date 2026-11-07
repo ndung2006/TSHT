@@ -14,8 +14,8 @@ import {
 } from './home-slot-rules';
 
 describe('home-slot-rules: khoi + co tick', () => {
-  test('2 khoi dung Q1: noi-bat max 4 co Bai chinh, tieu-diem max 3 khong Bai chinh', () => {
-    assert.equal(defaultMaxSlots('noi-bat'), 4);
+  test('2 khoi dung Q1: noi-bat max 10 co Bai chinh, tieu-diem max 3 khong Bai chinh', () => {
+    assert.equal(defaultMaxSlots('noi-bat'), 10);
     assert.equal(defaultMaxSlots('tieu-diem'), 3);
     assert.equal(HOME_SLOT_BLOCKS['noi-bat'].hasMainArticle, true);
     assert.equal(HOME_SLOT_BLOCKS['tieu-diem'].hasMainArticle, false);
@@ -66,6 +66,12 @@ describe('home-slot-rules: maxSlots (Q1/Q6)', () => {
     assert.equal(maxSlotsError(4, 4), null);
     assert.equal(maxSlotsError(3, 2), null);
     assert.equal(maxSlotsError(4, 0), null);
+  });
+  test('noi-bat max moi 10: du 10 -> null, 11 -> bao go bot 1 bai', () => {
+    assert.equal(maxSlotsError(10, 10), null);
+    assert.equal(maxSlotsError(10, 9), null);
+    const msg = maxSlotsError(10, 11);
+    assert.ok(msg && msg.includes('11 bai') && msg.includes('10') && msg.includes('go bot 1 bai'));
   });
   test('vuot max -> bao go bot truoc', () => {
     const msg = maxSlotsError(3, 5);

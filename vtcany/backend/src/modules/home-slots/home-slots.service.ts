@@ -17,7 +17,7 @@ import {
 // Tick trong form bai chi dua bai vao KHO; thu tu hien thi chi quyet
 // dinh o man hinh sap xep. Trang chu chi doc GET /home-slots/:block
 // (cong khai), khong tu lap day khi danh sach rong.
-// - Q1: noi-bat max 4, tieu-diem max 3; maxSlots doi duoc trong cau hinh
+// - Q1: noi-bat max 10 (goi C 2026-11-07, truoc do 4), tieu-diem max 3; maxSlots doi duoc trong cau hinh
 //   (chi zones:publish, guard o controller). Q2: mot bai duoc o ca hai
 //   khoi, cam trung trong cung mot khoi (UNIQUE + kiem tra o day).
 // - Q3: bai ha xuat ban GIU hang trong danh sach admin, chi an khoi

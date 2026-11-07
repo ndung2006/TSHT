@@ -44,9 +44,9 @@
       <!-- Cot phai: dang hien thi -->
       <div class="surface-card p-4 flex flex-col gap-3">
         <p class="text-sm font-medium">Đang hiển thị — {{ items.length }}/{{ maxSlots }}</p>
-        <DataTable :value="items" :loading="loading" size="small" dataKey="articlePublicId" @row-reorder="onRowReorder">
+        <DataTable :value="items" :loading="loading" size="small" dataKey="articlePublicId" tableStyle="table-layout: fixed" @row-reorder="onRowReorder">
           <Column rowReorder :reorderableColumn="false" style="width:2.5rem" />
-          <Column header="#" style="width:4.5rem">
+          <Column header="#" style="width:6rem">
             <template #body="{ index }">
               <span>{{ index + 1 }}</span>
               <Tag v-if="block === 'noi-bat' && index === 0" value="Bài chính" severity="info" class="ml-1" />
@@ -100,7 +100,7 @@ const saving = ref(false);
 const loaded = ref(false); // (b) dirty chi co nghia sau lan tai dau tien; tranh hien oan "Co thay doi chua luu" khi savedSnapshot con ''.
 const items = ref<any[]>([]);
 const version = ref(0);
-const maxSlots = ref(4);
+const maxSlots = ref(10); // mac dinh khoi noi-bat (goi C 2026-11-07: 10, truoc do 4); load() nap lai tu API.
 // (c) Bai chinh (vi tri 1 khoi Noi bat) de ghi chu o khoi Tieu diem.
 const mainArticlePublicId = ref<string | null>(null);
 
@@ -147,7 +147,7 @@ async function load() {
     const d: any = await api.get(`/admin/home-slots/${block.value}`);
     items.value = d.items || [];
     version.value = d.version ?? 0;
-    maxSlots.value = d.maxSlots ?? (block.value === 'noi-bat' ? 4 : 3);
+    maxSlots.value = d.maxSlots ?? (block.value === 'noi-bat' ? 10 : 3);
     if (block.value === 'tieu-diem') {
       try {
         const nb: any = await api.get('/admin/home-slots/noi-bat');
@@ -245,7 +245,12 @@ function onRowReorder(e: any) {
 }
 
 async function save() {
-  if (!dirty.value) return;
+  // (c) Chi 1 thong bao cho 1 lan bam Luu: chan goi chong khi dang luu
+  // (bam dup 2 lan nhanh truoc khi nut kịp vo hieu hoa thi 2 PUT chay
+  // song song, moi lan 1 toast — nut :disabled theo `saving` chi co
+  // hieu luc tu tick Vue sau, khong chan duoc lan bam thu 2 trong cung
+  // tick). Trong ham chi co dung 1 toast.add cho moi nhanh.
+  if (!dirty.value || saving.value) return;
   saving.value = true;
   try {
     const sentIds = items.value.map((x: any) => x.articlePublicId);
@@ -298,7 +303,7 @@ onBeforeRouteLeave((_to, _from, next) => {
 // sang; load() se xoa danh sach cu va nap du lieu moi.
 watch(block, () => {
   poolQ.value = '';
-  maxSlots.value = block.value === 'noi-bat' ? 4 : 3;
+  maxSlots.value = block.value === 'noi-bat' ? 10 : 3;
   load();
 });
 onMounted(load);
