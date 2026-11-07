@@ -64,7 +64,10 @@ class El {
   }
   dispatch(type, event = {}) {
     const ev = { type, ...event, preventDefault() {}, target: this };
-    (this.listeners[type] || []).forEach((fn) => fn(ev));
+    // Chup nhanh danh sach listener nhu DOM that: listener tu xoa
+    // minh trong luc dispatch (vd once 'playing') khong duoc lam
+    // mat listener dang sau no trong cung luot dispatch.
+    (this.listeners[type] || []).slice().forEach((fn) => fn(ev));
     return ev;
   }
   scrollIntoView() { this._scrolledIntoView += 1; }
@@ -111,6 +114,17 @@ const PROGRAM = {
   status: "REPLAY",
 };
 const REPLAY_KEY = PROGRAM.startTime + "|" + PROGRAM.title;
+const PROGRAM2 = {
+  title: "Du bao thoi tiet",
+  start_time: "23:29",
+  end_time: "23:59",
+  startTime: "2026-11-06T23:29:00.000+07:00",
+  endTime: "2026-11-06T23:59:00.000+07:00",
+  replay_url: "/api/v1/timeshift?channel=TUYENQUANG&start=2026-11-06T23%3A29%3A00.000%2B07%3A00&end=2026-11-06T23%3A59%3A00.000%2B07%3A00",
+  thumbnail: "https://example.test/poster-weather.jpg",
+  status: "REPLAY",
+};
+const REPLAY_KEY2 = PROGRAM2.startTime + "|" + PROGRAM2.title;
 
 function buildFixture() {
   const byId = {};
@@ -142,6 +156,7 @@ function buildFixture() {
 
 function loadTv(fixture) {
   const fetchCalls = [];
+  const fetchInits = [];
   let timeshiftResponder = null;
   const dispatched = [];
   const sandbox = {
@@ -149,8 +164,9 @@ function loadTv(fixture) {
     document: fixture.doc,
     location: { pathname: "/truyen-hinh", href: "/truyen-hinh" },
     innerWidth: 1280,
-    fetch: async (url) => {
+    fetch: async (url, init) => {
       fetchCalls.push(url);
+      fetchInits.push({ url, init: init || {} });
       const u = new URL(url, "https://example.test");
       if (u.pathname === "/api/v1/channels") return { ok: true, status: 200, json: async () => ({ items: [{ name: "TUYENQUANG", kind: "tv", status: "RUNNING", description: "Kenh TUYENQUANG" }] }) };
       if (u.pathname === "/api/v2/catalog-categories") return { ok: true, status: 200, json: async () => ({ items: [] }) };
@@ -165,6 +181,11 @@ function loadTv(fixture) {
     },
     setTimeout,
     clearTimeout,
+    // Trinh duyet that luon co AbortController; dua vao sandbox de
+    // onReplay tao duoc controller that + truyen signal vao fetch
+    // (khong co no, tv.js roi ve khong-co-signal nhu tren trinh duyet
+    // cu, va test B1d khong thay duoc abort).
+    AbortController,
     addEventListener: () => {},
     dispatchEvent: (ev) => { dispatched.push(ev.type); return true; },
     CustomEvent: function (type, opts) { this.type = type; this.detail = (opts && opts.detail) || {}; },
@@ -185,6 +206,7 @@ function loadTv(fixture) {
   return {
     sandbox,
     fetchCalls,
+    fetchInits,
     dispatched,
     setTimeshiftResponder: (fn) => { timeshiftResponder = fn; },
   };
@@ -304,4 +326,133 @@ test("tv-extra: hover/focus nut PHAT LAI tren the 'Moi nhat' -> prefetch qua hel
   assert.ok(tvExtraSrc.includes('addEventListener("focus"'), "tv-extra.js phai gan focus cho nut PHAT LAI");
   assert.ok(tvExtraSrc.includes("window.__tshtPrefetchReplayUrl"), "tv-extra.js phai dung helper prefetch chung cua tv.js");
   assert.ok(tvSrc.includes("window.__tshtPrefetchReplayUrl = "), "tv.js phai expose helper prefetch cho tv-extra.js");
+});
+
+test("B1c: bam PHAT LAI -> poster = thumbnail chuong trinh NGAY khi bam (truoc ca fetch kiem tra)", async () => {
+  const f = buildFixture();
+  const { sandbox, setTimeshiftResponder } = loadTv(f);
+  await tick();
+  replayButton(f);
+  sandbox.playTimeshift = () => ({ stop() {} });
+  sandbox.TshtTelemetry = { startHeartbeat: () => {}, stopHeartbeat: () => {}, setHeartbeatType: () => {} };
+  let resolveTs;
+  setTimeshiftResponder(() => new Promise((r) => { resolveTs = r; }));
+  sandbox.playScheduleReplay(PROGRAM);
+  // Dong bo, ngay sau khi goi — fetch kiem tra chua xong.
+  assert.equal(f.byId["player"].getAttribute("poster"), PROGRAM.thumbnail, "poster phai la thumbnail chuong trinh ngay khi bam, de lam nen suot luc tai");
+  resolveTs({ ok: true, status: 200 });
+  await tick();
+  assert.equal(f.byId["player"].getAttribute("poster"), PROGRAM.thumbnail, "sau khi fetch xong poster van la thumbnail");
+});
+
+test("B1d: bam xem lai thu 2 khi fetch kiem tra thu 1 chua xong -> abort fetch 1, ket qua muon cua fetch 1 bi bo qua", async () => {
+  const f = buildFixture();
+  const { sandbox, fetchInits, setTimeshiftResponder } = loadTv(f);
+  await tick();
+  replayButton(f);
+  const playCalls = [];
+  sandbox.playTimeshift = (media, url) => { playCalls.push(url); return { stop() {} }; };
+  sandbox.TshtTelemetry = { startHeartbeat: () => {}, stopHeartbeat: () => {}, setHeartbeatType: () => {} };
+  const deferreds = [];
+  setTimeshiftResponder(() => new Promise((r) => { deferreds.push(r); }));
+  sandbox.playScheduleReplay(PROGRAM);
+  sandbox.playScheduleReplay(PROGRAM2);
+  const sig1 = (((fetchInits.find((x) => x.url === PROGRAM.replay_url) || {}).init) || {}).signal;
+  assert.ok(sig1, "fetch kiem tra 1 phai truyen signal");
+  assert.equal(sig1.aborted, true, "fetch kiem tra 1 phai bi abort khi bam chuong trinh 2");
+  // Giai quyet MUON fetch 1 (da bi abort): ket qua phai bi bo qua.
+  deferreds[0]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(playCalls.length, 0, "ket qua muon cua fetch 1 khong duoc goi playTimeshift");
+  deferreds[1]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(playCalls.length, 1, "chi chuong trinh 2 duoc phat");
+  assert.equal(playCalls[0], PROGRAM2.replay_url);
+});
+
+test("B1d: bam xem lai thu 2 khi ban thu 1 dang tai (chua len hinh) -> huy handle 1 ngay", async () => {
+  const f = buildFixture();
+  const { sandbox, setTimeshiftResponder } = loadTv(f);
+  await tick();
+  replayButton(f);
+  const handles = [];
+  sandbox.playTimeshift = (media, url) => {
+    const h = { url, stopped: false, stop() { h.stopped = true; } };
+    handles.push(h);
+    return h;
+  };
+  sandbox.TshtTelemetry = { startHeartbeat: () => {}, stopHeartbeat: () => {}, setHeartbeatType: () => {} };
+  const deferreds = [];
+  setTimeshiftResponder(() => new Promise((r) => { deferreds.push(r); }));
+  sandbox.playScheduleReplay(PROGRAM);
+  deferreds[0]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(handles.length, 1, "ban 1 phai bat dau phat (handle tao)");
+  assert.equal(handles[0].stopped, false);
+  // Chua co su kien playing (video van paused) -> ban 1 dang tai.
+  sandbox.playScheduleReplay(PROGRAM2);
+  assert.equal(handles[0].stopped, true, "bam chuong trinh 2 phai huy handle 1 dang tai ngay, khong doi fetch 2");
+  deferreds[1]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(handles.length, 2, "ban 2 phai tao handle moi");
+  assert.equal(handles[1].stopped, false);
+});
+
+test("B1d: bam xem lai thu 2 khi ban thu 1 DA phat -> khong huy handle 1 cho toi khi fetch kiem tra 2 xong", async () => {
+  const f = buildFixture();
+  const { sandbox, setTimeshiftResponder } = loadTv(f);
+  await tick();
+  replayButton(f);
+  const handles = [];
+  sandbox.playTimeshift = (media, url) => {
+    const h = { url, stopped: false, stop() { h.stopped = true; } };
+    handles.push(h);
+    return h;
+  };
+  sandbox.TshtTelemetry = { startHeartbeat: () => {}, stopHeartbeat: () => {}, setHeartbeatType: () => {} };
+  const deferreds = [];
+  setTimeshiftResponder(() => new Promise((r) => { deferreds.push(r); }));
+  sandbox.playScheduleReplay(PROGRAM);
+  deferreds[0]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(handles.length, 1);
+  // Ban 1 len hinh: mo phong su kien playing.
+  f.byId["player"].paused = false;
+  f.byId["player"].dispatch("playing");
+  sandbox.playScheduleReplay(PROGRAM2);
+  assert.equal(handles[0].stopped, false, "ban 1 dang phat thi chua duoc huy khi bam chuong trinh 2");
+  deferreds[1]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(handles[0].stopped, true, "fetch kiem tra 2 xong thi handle 1 moi duoc huy");
+  assert.equal(handles.length, 2, "ban 2 phai tao handle moi");
+});
+
+test("B1d: fetch kiem tra 2 loi khi ban 1 dang tai da bi huy -> ve live (khong de player chet)", async () => {
+  const f = buildFixture();
+  const { sandbox, setTimeshiftResponder } = loadTv(f);
+  await tick();
+  replayButton(f);
+  const handles = [];
+  sandbox.playTimeshift = (media, url) => {
+    const h = { url, stopped: false, stop() { h.stopped = true; } };
+    handles.push(h);
+    return h;
+  };
+  const playDirectCalls = [];
+  sandbox.playDirect = (...args) => { playDirectCalls.push(args); return { stop() {} }; };
+  sandbox.TshtTelemetry = { startHeartbeat: () => {}, stopHeartbeat: () => {}, setHeartbeatType: () => {} };
+  const deferreds = [];
+  setTimeshiftResponder(() => new Promise((r) => { deferreds.push(r); }));
+  sandbox.playScheduleReplay(PROGRAM);
+  deferreds[0]({ ok: true, status: 200 });
+  await tick();
+  assert.equal(handles.length, 1);
+  sandbox.playScheduleReplay(PROGRAM2);
+  assert.equal(handles[0].stopped, true, "ban 1 dang tai phai bi huy khi bam chuong trinh 2");
+  deferreds[1]({ ok: false, status: 404, json: async () => ({ error: "khong co ban ghi" }) });
+  await tick();
+  assert.ok(f.byId["player-msg"].textContent.includes("Không xem lại được"), "phai bao ro ly do");
+  assert.equal(f.badge.textContent, "● TRỰC TIẾP", "phai ve live (nhan live)");
+  assert.equal(f.byId["replay-bar"].style.display, "none", "ve live thi an replay-bar");
+  assert.ok(playDirectCalls.length >= 1, "phai goi lai playDirect de phat live");
 });

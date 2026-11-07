@@ -183,7 +183,7 @@
   }
   function saigonToday() { return window.LiveEpg.saigonToday(); }
   function stopLive() { if (liveHandle) { liveHandle.stop(); liveHandle = null; } if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
-  function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
+  function stopReplayOnly() { if (replayHandle) { replayHandle.stop(); replayHandle = null; } replayingKey = null; replayHasPlayed = false; if (window.TshtTelemetry) window.TshtTelemetry.stopHeartbeat(); }
   function stopVideoOnly() {
     if (videoHandle) { videoHandle.stop(); videoHandle = null; }
     currentVideoId = null;
@@ -438,9 +438,25 @@
   // Luot bam xem lai gan nhat (de loi cua luot cu khong xoa trang thai
   // cua luot moi khi nguoi xem bam nhanh 2 chuong trinh lien nhau).
   var replaySeq = 0;
+  // B1d: fetch kiem tra + hen gio 45s cua luot dang bay, de luot bam
+  // moi huy duoc; co "da len hinh" (su kien playing) de chi huy luot
+  // chua phat, luot da phat giu den khi fetch moi xong.
+  var replayPrecheckAborter = null;
+  var replayPrecheckTimer = null;
+  var replayHasPlayed = false;
   function onReplay(item) {
     if (!item.replay_url) return;
     var mySeq = ++replaySeq;
+    // B1d: huy luot tai cu neu no chua len hinh — abort fetch kiem tra
+    // dang bay + huy handle xem lai chua phat. Luot da phat thi giu
+    // nguyen (chi huy sau khi fetch kiem tra moi thanh cong, o .then)
+    // de fetch moi loi khong giet ban xem lai dang chay; khi do .catch
+    // se ve live (cancelledLoading).
+    var cancelledLoading = false;
+    if (replayPrecheckAborter) { try { replayPrecheckAborter.abort(); } catch (e) {} replayPrecheckAborter = null; }
+    if (replayPrecheckTimer) { clearTimeout(replayPrecheckTimer); replayPrecheckTimer = null; }
+    if (replayHandle && !replayHasPlayed) { stopReplayOnly(); cancelledLoading = true; }
+    replayHasPlayed = false;
     // B1 — phan hoi NGAY khi bam (truoc fetch kiem tra): cuon trinh
     // phat vao tam nhin + hien "Dang tai ban xem lai…" + danh dau the
     // vua bam dang tai, de nguoi bam thay co phan hoi thay vi ~10s
@@ -452,6 +468,11 @@
     if (replayTitleEl) replayTitleEl.textContent = "Đang tải bản xem lại…";
     if (replayBar) replayBar.style.display = "block";
     hideMsg();
+    // B1c: dat poster = anh dai dien chuong trinh NGAY khi bam, de anh
+    // lam nen trong suot thoi gian tai (truoc ca fetch kiem tra);
+    // poster chi hien khi video chua co khung hinh, khong anh huong
+    // live dang phat.
+    if (playerEl) { if (item.thumbnail) playerEl.setAttribute("poster", item.thumbnail); else playerEl.removeAttribute("poster"); }
     // Nut PHAT LAI / Xem lai cua dung chuong trinh nay (co the co 2
     // nut: 1 o the "Moi nhat", 1 o hang lich) -> "Dang tai…" + vo
     // hieu hoa trong luc fetch. So sanh bang getAttribute thay vi
@@ -478,15 +499,19 @@
     }
     // Kiem tra truoc khi dung live: neu timeshift loi thi giu nguyen live
     // dang phat va bao ro ly do, khong de player dung hinh o trang thai loi.
-    // LUU Y: bien aborter (AbortController cho fetch kiem tra) KHONG duoc
-    // dat ten 'ctrl' — 'ctrl' o day la LiveControls o pham vi ngoai, va
-    // dung ten trung se che mat no khien ctrl.setMode bi loi (loi live
-    // 2026-11-05: "ctrl.setMode is not a function", xem lai khong chay).
-    var aborter = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    var timer = aborter ? setTimeout(function () { aborter.abort(); }, 45000) : null;
-    fetch(item.replay_url, aborter ? { signal: aborter.signal } : {})
+    // LUU Y: AbortController cho fetch kiem tra KHONG duoc dat ten 'ctrl'
+    // — 'ctrl' o day la LiveControls o pham vi ngoai, va dung ten trung
+    // se che mat no khien ctrl.setMode bi loi (loi live 2026-11-05:
+    // "ctrl.setMode is not a function", xem lai khong chay).
+    replayPrecheckAborter = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    replayPrecheckTimer = replayPrecheckAborter ? setTimeout(function () { replayPrecheckAborter.abort(); }, 45000) : null;
+    fetch(item.replay_url, replayPrecheckAborter ? { signal: replayPrecheckAborter.signal } : {})
       .then(function (r) {
-        if (timer) clearTimeout(timer);
+        // Luot moi hon da thay the (vd fetch cu giai quyet muon sau khi
+        // bi abort): bo qua ket qua cu, khong cham trang thai moi.
+        if (mySeq !== replaySeq) return;
+        if (replayPrecheckTimer) { clearTimeout(replayPrecheckTimer); replayPrecheckTimer = null; }
+        replayPrecheckAborter = null;
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || "khoảng giờ này không có bản ghi"); });
         stopReplayOnly();
         stopVideoOnly();
@@ -504,6 +529,13 @@
         if (ctrl) { ctrl.setMode("replay"); ctrl.setReplayTitle(item.title); ctrl.setRetry(function () { if (replayItem) onReplay(replayItem); }); ctrl.onStart(); }
         replayHandle = window.playTimeshift(video, item.replay_url, showMsg);
         if (ctrl) ctrl.setQualityHandle(replayHandle);
+        // B1d: co "da len hinh" — dung song song voi hook heartbeat
+        // (chi chay 1 lan); neu video da chay thi dat ngay.
+        if (video && !video.paused) { if (mySeq === replaySeq) replayHasPlayed = true; }
+        else if (video) video.addEventListener("playing", function onTsPlayed() {
+          video.removeEventListener("playing", onTsPlayed);
+          if (mySeq === replaySeq) replayHasPlayed = true;
+        });
         // GĐ3 nen: heartbeat xem lai — chi bat dau khi video thuc su
         // dang phat. Goi ngay o day se mat beat dau vi beat() bo qua
         // khi media con paused (xem telemetry.js). Cho su kien
@@ -523,12 +555,17 @@
         renderLastSchedule();
       })
       .catch(function (e) {
-        if (timer) clearTimeout(timer);
         // Luot bam moi hon da thay the luot nay: khong khoi phuc gi
         // (trang thai hien tai thuoc ve luot moi).
         if (mySeq !== replaySeq) return;
+        if (replayPrecheckTimer) { clearTimeout(replayPrecheckTimer); replayPrecheckTimer = null; }
+        replayPrecheckAborter = null;
         restoreLoadingState();
         var why = (e && e.name === "AbortError") ? "quá thời gian chờ" : (e && e.message ? e.message : "lỗi mạng");
+        // B1d: luot cu dang tai da bi huy o dau onReplay: player luc
+        // nay khong con luong nao — ve live truoc roi moi bao
+        // (startLive goi hideMsg nen phai ve live truoc, bao sau).
+        if (cancelledLoading) backToLive();
         showMsg("Không xem lại được (" + why + "). Đang tiếp tục phát trực tiếp.");
       });
   }

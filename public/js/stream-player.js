@@ -12,13 +12,20 @@
 //  - Neu kenh den tu DB noi bo (source:"internal"): phat stream_url truc tiep,
 //    khong xoay (vi do khong phai link xoay vtcaio).
 (function (global) {
-  function attachHls(media, url, onFatal) {
+  function attachHls(media, url, onFatal, opts) {
     if (global.Hls && global.Hls.isSupported()) {
       // startLevel 0 = muc thap nhat (360p): segment dau nhe nhat nen
       // len hinh nhanh nhat; ABR tu chuyen len muc cao sau khi do bang
       // thong. (Mac dinh hls.js cung khoi dong o muc thap, dat tuong
       // minh de chac chan khong doi theo phien ban thu vien.)
-      var hls = new global.Hls({ startLevel: 0 });
+      // progressive (chi xem lai): hls.js 1.5.13 tu doi loader sang
+      // FetchLoader khi progressive: true (enableStreamingMode trong
+      // src/config.ts) nen chi can co nay, khong can cau hinh loader
+      // rieng; phat ngay khi co vai giay du lieu dau thay vi doi tai
+      // xong ca file .ts 60s (~15 MB) cua AIO.
+      var cfg = { startLevel: 0 };
+      if (opts && opts.progressive) cfg.progressive = true;
+      var hls = new global.Hls(cfg);
       hls.loadSource(url);
       hls.attachMedia(media);
       hls.on(global.Hls.Events.ERROR, function (e, data) {
@@ -263,7 +270,7 @@
   // tua ve qua khu (live playlist khong co ENDLIST, seek bi gioi han boi
   // trinh duyet/hls.js).
   global.playTimeshift = function (mediaEl, url, showMsg) {
-    var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được bản ghi xem lại. Có thể khoảng giờ này không có bản ghi."); });
+    var engine = attachHls(mediaEl, url, function () { showMsg("Không phát được bản ghi xem lại. Có thể khoảng giờ này không có bản ghi."); }, { progressive: true });
     var bridge = levelBridge();
     if (engine) bridge.setEngine(engine);
     if (!engine) showMsg("Trình duyệt này không hỗ trợ phát HLS. Vui lòng dùng Chrome/Safari mới nhất.");

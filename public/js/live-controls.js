@@ -32,6 +32,11 @@
   var QUALITY_KEY = "tsht_quality"; // "auto" | "720" | "480" | "360"
   var LIVE_LAG_S = 10; // tre <= 10s thi coi la dang o mep live
   var WATCHDOG_MS = 15000; // chua phat duoc sau 15s thi hien panel loi
+  var REPLAY_SLOW_MS = 25000; // xem lai: sau 25s chua co hinh thi bao "dang tai cham" (van dang tai, khong phai loi that bai)
+  var REPLAY_SLOW_TEXT = "Bản xem lại đang tải chậm";
+  var ERROR_TEXT_DEFAULT = "Không phát được kênh này";
+  var LOADING_TEXT_DEFAULT = "Đang tải…";
+  var REPLAY_LOADING_TEXT = "Đang tải bản xem lại, có thể mất khoảng 10–15 giây…";
   var UI_HIDE_MS = 3000; // an thanh sau 3s khong re chuot khi dang phat
 
   function $(tag, cls, text) {
@@ -214,10 +219,10 @@
         row.appendChild(pipBtn);
         row.appendChild(fsBtn);
       }
-      var loadingEl = $("div", "lc-status lc-loading", "Đang tải…");
+      var loadingEl = $("div", "lc-status lc-loading", LOADING_TEXT_DEFAULT);
       loadingEl.style.display = "none";
       var errorEl = $("div", "lc-status lc-error");
-      var errorText = $("span", "", "Không phát được kênh này");
+      var errorText = $("span", "", ERROR_TEXT_DEFAULT);
       var retryBtn = $("button", "lc-retry", "Thử lại");
       retryBtn.type = "button";
       retryBtn.setAttribute("aria-label", "Thử lại");
@@ -252,12 +257,21 @@
       }
 
       // Lop phu "Dang tai" tren khung video (chi video).
-      var overlay = null;
+      var overlay = null, overlayText = null;
       if (isVideo && media && media.parentNode) {
         overlay = $("div", "lc-overlay-loading");
-        overlay.appendChild($("span", "", "Đang tải…"));
+        overlayText = $("span", "", LOADING_TEXT_DEFAULT);
+        overlay.appendChild(overlayText);
         overlay.style.display = "none";
         media.parentNode.appendChild(overlay);
+      }
+      // Chu tai theo che do: xem lai hien dong dai + vong xoay (class
+      // is-replay tren overlay); live/VOD giu "Đang tải…".
+      function syncLoadingText() {
+        var t = (mode === "replay") ? REPLAY_LOADING_TEXT : LOADING_TEXT_DEFAULT;
+        loadingEl.textContent = t;
+        if (overlayText) overlayText.textContent = t;
+        if (overlay) overlay.classList.toggle("is-replay", mode === "replay");
       }
       function showLoading(show) {
         loadingVisible = !!show;
@@ -275,9 +289,17 @@
       }
       function armWatchdog() {
         clearWatchdog();
+        // 25s dem tu onStart (luc bat dau tai nguon xem lai, ~1s sau
+        // khi bam PHAT LAI): chi che do xem lai moi doi 25s + hien chu
+        // "dang tai cham"; live/VOD giu 15s + chu loi mac dinh. Dieu
+        // kien no (started && !paused && readyState < 3) giu nguyen.
+        var delay = (mode === "replay") ? REPLAY_SLOW_MS : WATCHDOG_MS;
         watchdog = setTimeout(function () {
-          if (started && !media.paused && media.readyState < 3) showError(true);
-        }, WATCHDOG_MS);
+          if (started && !media.paused && media.readyState < 3) {
+            if (mode === "replay") errorText.textContent = REPLAY_SLOW_TEXT;
+            showError(true);
+          }
+        }, delay);
       }
 
       // ---- Tu an thanh (chi khi dang phat) ----
@@ -882,6 +904,7 @@
           if (m !== "replay") replayTitle = "";
           behind = false;
           lastViewState = null;
+          syncLoadingText();
           tick();
         },
         setReplayTitle: function (t) {
@@ -892,6 +915,11 @@
         setRetry: function (fn) { retryFn = (typeof fn === "function") ? fn : null; },
         onStart: function () {
           started = true;
+          // Tra chu loi ve mac dinh: chu "dang tai cham" cua luot xem
+          // lai truoc khong duoc ro sang luot phat sau (vd live that
+          // bai that).
+          errorText.textContent = ERROR_TEXT_DEFAULT;
+          syncLoadingText();
           showError(false);
           showLoading(true);
           armWatchdog();

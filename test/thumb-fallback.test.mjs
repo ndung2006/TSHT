@@ -229,7 +229,7 @@ test("CSS: luat [hidden] + dong thuong hieu + gradient cho fallback o ca 3 file"
 
 test("?v= moi cho 5 file da doi (tranh Cloudflare giu ban cu)", () => {
   assert.ok(tvHtml.includes('/js/tv-extra.js?v=20261107-1'), "tv.html phai tro tv-extra.js?v=20261107-1");
-  assert.ok(tvHtml.includes('/js/tv.js?v=20261107-1'), "tv.html phai tro tv.js?v=20261107-1");
+  assert.ok(tvHtml.includes('/js/tv.js?v=20261107-2'), "tv.html phai tro tv.js?v=20261107-2");
   assert.ok(tvHtml.includes('/css/tv-page.css?v=20261107-1'), "tv.html phai tro tv-page.css?v=20261107-1");
   assert.ok(homeHtml.includes('/js/multimedia.js?v=20261107-1'), "home.html phai tro multimedia.js?v=20261107-1");
   assert.ok(homeHtml.includes('/css/home.css?v=20261107-1'), "home.html phai tro home.css?v=20261107-1");

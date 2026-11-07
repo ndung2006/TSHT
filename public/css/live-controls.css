@@ -160,6 +160,17 @@
   font-size: 14px; pointer-events: none;
 }
 
+/* Vong xoay chi o che do xem lai (overlay co class is-replay): live
+   giu nguyen chi chu "Đang tải…". Nen overlay san mo (rgba 0.45) nen
+   poster chuong trinh van thay qua lam nen. */
+@keyframes lc-spin { to { transform: rotate(360deg); } }
+.lc-overlay-loading.is-replay { flex-direction: column; gap: 12px; text-align: center; padding: 0 16px; }
+.lc-overlay-loading.is-replay::before {
+  content: ""; width: 36px; height: 36px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.35); border-top-color: #fff;
+  animation: lc-spin 0.9s linear infinite;
+}
+
 /* Danh sach kenh tren trang truyen-hinh / phat-thanh. */
 .lc-channels {
   display: flex;
