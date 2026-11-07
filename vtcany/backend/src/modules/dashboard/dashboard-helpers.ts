@@ -1,6 +1,8 @@
 // Ham thuan cho dashboard GĐ1 — KHONG import Nest/Prisma, test truc tiep
 // bang node --test (khuon retry-policy.ts). Moi dinh nghia chi so o day
 // hoac dashboard-queries.ts; widget va danh sach drill-down dung chung.
+import { readdirSync, statSync } from 'fs';
+import { join } from 'path';
 
 const VN_TZ = 'Asia/Ho_Chi_Minh';
 
@@ -383,6 +385,90 @@ export function sumMediaSizes(rows: MediaSizeRow[]): MediaSizeAgg[] {
   return [...order, '__other__', '__null__']
     .filter((k) => map.has(k))
     .map((k) => map.get(k) as MediaSizeAgg);
+}
+
+/** Mot dong cua widget D3 (drill null = dong khong link; unit = don vi
+ *  hien sau so luong, mac dinh 'file' o CMS — chi dong HLS dat rieng). */
+export interface StorageRow {
+  type: string;
+  label: string;
+  files: number;
+  bytes: number;
+  unit?: string;
+  drill: { route: string; query: Record<string, string> } | null;
+}
+
+/** Do dung luong cay HLS (storage/hls): files = so thu muc con TRUC TIEP
+ *  (moi thu muc = 1 video da chuyen ma), bytes = tong kich thuoc toan bo
+ *  cay (de quy). Thu muc khong ton tai / khong doc duoc -> 0/0, khong
+ *  nem loi (widget van hien dong 0). */
+export function measureHlsStorage(storageRoot: string): { files: number; bytes: number } {
+  const hlsDir = join(storageRoot, 'hls');
+  let files = 0;
+  let bytes = 0;
+  const walk = (dir: string): void => {
+    let entries: Array<{ name: string; isDirectory: () => boolean; isFile: () => boolean }>;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      try {
+        if (e.isDirectory()) {
+          if (dir === hlsDir) files += 1; // chi dem thu muc cap 1
+          walk(p);
+        } else if (e.isFile()) {
+          bytes += statSync(p).size;
+        }
+      } catch { /* file bien mat giua chung: bo qua */ }
+    }
+  };
+  walk(hlsDir);
+  return { files, bytes };
+}
+
+/** Xay dung dung 5 dong luu tru goc + dong HLS cho widget D3 (GĐ2).
+ *  - Anh/Video/Am thanh: tu sumMediaSizes (thieu loai thi 0 file/0 byte).
+ *  - PDF bao in: dem theo so co pdfPath (khong theo cot pdfSizeBytes).
+ *  - Khac: gop subtitle + loai la + chua phan loai thanh 1 dong, drill
+ *    null (Thu vien khong loc duoc kind=other).
+ *  - Ban chuyen ma (HLS): tong dung luong HLS da chuyen ma, KHONG tinh
+ *    trong cac dong tren; drill null. */
+export function buildStorageRows(
+  mediaAggs: MediaSizeAgg[],
+  pdfFiles: number,
+  pdfBytes: number,
+  hlsFiles: number,
+  hlsBytes: number,
+): StorageRow[] {
+  const byType = new Map(mediaAggs.map((a) => [a.type, a]));
+  const pick = (t: string): { files: number; bytes: number } => {
+    const a = byType.get(t);
+    return { files: a?.files ?? 0, bytes: a?.bytes ?? 0 };
+  };
+  const other = ['subtitle', '__other__', '__null__'].reduce(
+    (acc, k) => {
+      const a = byType.get(k);
+      if (a) { acc.files += a.files; acc.bytes += a.bytes; }
+      return acc;
+    },
+    { files: 0, bytes: 0 },
+  );
+  const img = pick('image');
+  const vid = pick('video');
+  const aud = pick('audio');
+  return [
+    { type: 'image', label: 'Ảnh', files: img.files, bytes: img.bytes, drill: { route: '/thu-vien', query: { kind: 'image' } } },
+    { type: 'video', label: 'Video', files: vid.files, bytes: vid.bytes, drill: { route: '/thu-vien', query: { kind: 'video' } } },
+    { type: 'audio', label: 'Âm thanh', files: aud.files, bytes: aud.bytes, drill: { route: '/thu-vien', query: { kind: 'audio' } } },
+    { type: 'pdf', label: 'PDF báo in', files: pdfFiles, bytes: pdfBytes, drill: { route: '/bao-in', query: {} } },
+    { type: 'other', label: 'Khác', files: other.files, bytes: other.bytes, drill: null },
+    // Dong HLS dem theo VIDEO (moi thu muc = 1 video da chuyen ma), khong
+    // goi la 'file': CMS hien "N video đã chuyển mã · X GB".
+    { type: 'hls', label: 'Bản chuyển mã (HLS)', files: hlsFiles, bytes: hlsBytes, unit: 'video đã chuyển mã', drill: null },
+  ];
 }
 
 /** dd/MM/yyyy theo gio VN. */

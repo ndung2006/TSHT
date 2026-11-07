@@ -5,6 +5,9 @@ export interface UploadRecord {
   filename: string;
   sizeBytes: number;
   contentType: string;
+  /** Loai file suy ra tu MIME + duoi file (video|audio|image|pdf|subtitle|other);
+   *  ghi khi init/complete, dung cho widget D3. Null = chua phan loai. */
+  fileType?: string | null;
   videoId?: string;
   status: UploadStatus;
   progress?: number; // % tien trinh transcode do worker bao ve (in-memory, chi khi processing)
@@ -37,12 +40,53 @@ export function planUpload(filename: string, sizeBytes: number, contentType: str
     filename,
     sizeBytes,
     contentType: contentType || 'video/mp4',
+    fileType: inferFileType(filename, contentType),
     videoId,
     status: 'pending',
     chunks: chunkCount(sizeBytes),
     createdAt: Date.now(),
     attempts: 0,
   };
+}
+
+// --- Suy loai file tu MIME + duoi file (D3) ---
+// Dung cho: ghi fileType khi init/complete (+ persist) va chay bu
+// fileType NULL. Quy tac:
+//   - MIME co prefix nhan dang duoc -> loai do (video/*, audio/*,
+//     image/*, application/pdf, text/vtt).
+//   - MIME thieu/chung chung (application/octet-stream, rong) -> suy
+//     tu duoi file.
+//   - Hai nguon mau thuan -> UU TIEN duoi file (vd MIME mac dinh
+//     'video/mp4' nhung duoi .mp3 -> audio).
+//   - Ca hai khong nhan ra -> 'other'.
+const EXT_TO_TYPE: Record<string, string> = {
+  mp4: 'video', mov: 'video', webm: 'video', mkv: 'video', avi: 'video',
+  m4v: 'video', mpg: 'video', mpeg: 'video', '3gp': 'video',
+  mp3: 'audio', wav: 'audio', aac: 'audio', ogg: 'audio', oga: 'audio',
+  m4a: 'audio', flac: 'audio', wma: 'audio',
+  jpg: 'image', jpeg: 'image', png: 'image', webp: 'image', gif: 'image',
+  avif: 'image', bmp: 'image', svg: 'image',
+  pdf: 'pdf',
+  vtt: 'subtitle', srt: 'subtitle',
+};
+
+function typeFromMime(contentType: string | null | undefined): string | null {
+  const mime = (contentType || '').toLowerCase().split(';')[0].trim();
+  if (!mime || mime === 'application/octet-stream') return null;
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'text/vtt') return 'subtitle';
+  return null;
+}
+
+export function inferFileType(filename: string | null | undefined, contentType: string | null | undefined): string {
+  const name = String(filename || '');
+  const ext = name.includes('.') ? (name.split('.').pop() || '').toLowerCase() : '';
+  const extType = ext ? EXT_TO_TYPE[ext] || null : null;
+  if (extType) return extType; // duoi file nhan dang duoc -> uu tien
+  return typeFromMime(contentType) || 'other';
 }
 
 // --- Upload anh (thumbnail/poster/banner) ---

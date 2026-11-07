@@ -27,6 +27,7 @@ import {
   type WidgetCode,
 } from './dashboard-layout.config';
 import {
+  buildStorageRows,
   countMembersByRole,
   epgDayState,
   filterMyQueue,
@@ -37,6 +38,7 @@ import {
   isReturnedDraft,
   isStrictDraft,
   latestApprovalsByItem,
+  measureHlsStorage,
   median,
   passesStructureCutoff,
   periodRange,
@@ -1001,8 +1003,11 @@ export class DashboardService {
     };
   }
 
-  /** D3 (GĐ2): dung luong FILE GOC da dung theo loai — chi 4 loai hien
-   *  tren widget: anh, video, audio (tu MediaAsset.sizeBytes) + PDF bao in.
+  /** D3 (GĐ2): dung luong FILE GOC da dung theo loai — dung 5 dong:
+   *  anh, video, audio (tu MediaAsset.sizeBytes) + PDF bao in + Khac
+   *  (gop phu de + loai la + chua phan loai, khong link vi Thu vien
+   *  khong loc duoc kind=other). Them dong 'Ban chuyen ma (HLS)' =
+   *  tong dung luong cay storage/hls, KHONG tinh trong 5 dong tren.
    *  PDF BAO IN DEM THEO FILE THAT (pdfPath co gia tri), KHONG theo cot
    *  pdfSizeBytes: xac minh 2026-11-04, ca 5 so hien co deu co pdfPath
    *  nhung pdfSizeBytes deu NULL (form CMS khong gui truong nay) nen dem
@@ -1013,40 +1018,36 @@ export class DashboardService {
    *  cac ban HLS + poster khong nam trong so nay — widget phai ghi ro
    *  'dung luong file goc'.
    *  Drill: anh/video/audio ve Thu vien loc theo kind; PDF ve Bao in
-   *  (Thu vien khong loc duoc PDF). */
+   *  (Thu vien khong loc duoc PDF); Khac va HLS khong link. */
   private async wD3() {
     const db: any = this.prisma as any;
     const assets = await db.mediaAsset.findMany({
       select: { fileType: true, sizeBytes: true },
     }).catch(() => []);
-    const rows = sumMediaSizes(assets.map((r: any) => ({
+    const aggs = sumMediaSizes(assets.map((r: any) => ({
       fileType: r.fileType ?? null, sizeBytes: r.sizeBytes ?? null,
-    }))).filter((r) => ['image', 'video', 'audio'].includes(r.type));
+    })));
     const pdfRows = await db.epaperIssue.findMany({
       where: { pdfPath: { not: null } },
       select: { pdfPath: true, pdfSizeBytes: true },
     }).catch(() => []);
     const pdfRoot = this.uploads.storageRoot();
     const pdfBytes = pdfRows.reduce((a: number, r: any) => {
-      if (r.pdfSizeBytes !== null && r.pdfSizeBytes !== undefined) return a + Number(r.pdfSizeBytes);
+      // pdfSizeBytes = 0 cung coi nhu chua do (PDF that khong bao gio 0
+      // byte) -> roi xuong do file that tren dia, khong cong 0.
+      const n = Number(r.pdfSizeBytes);
+      if (r.pdfSizeBytes !== null && r.pdfSizeBytes !== undefined && Number.isFinite(n) && n > 0) return a + n;
       try {
         const abs = join(pdfRoot, String(r.pdfPath));
         if (abs.startsWith(pdfRoot) && existsSync(abs)) return a + statSync(abs).size;
       } catch { /* file mat/khong doc duoc: tinh 0 */ }
       return a;
     }, 0);
-    const out: Array<{ type: string; label: string; files: number; bytes: number; drill: { route: string; query: Record<string, string> } | null }> = rows.map((r) => ({
-      ...r,
-      drill: { route: '/thu-vien', query: { kind: r.type } },
-    }));
-    out.push({
-      type: 'pdf', label: 'PDF báo in', files: pdfRows.length, bytes: pdfBytes,
-      drill: { route: '/bao-in', query: {} },
-    });
+    const hls = measureHlsStorage(pdfRoot);
     return {
       data: {
-        rows: out,
-        note: 'Dung lượng file gốc theo loại (sizeBytes ghi lúc tải lên, chưa tính các bản transcode HLS). Dòng PDF dẫn ra Báo in vì Thư viện không lọc được PDF.',
+        rows: buildStorageRows(aggs, pdfRows.length, pdfBytes, hls.files, hls.bytes),
+        note: "Dung lượng file gốc theo loại; dòng 'Bản chuyển mã' là tổng dung lượng HLS đã chuyển mã, không tính trong các dòng trên. Dòng PDF dẫn ra Báo in vì Thư viện không lọc được PDF.",
       },
       drill: { route: '/thu-vien', query: {} },
     };

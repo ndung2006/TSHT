@@ -2,6 +2,9 @@
 //   node --test --import ./test-hooks-register.mjs dashboard-gd2.test.mjs
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   ALL_WIDGETS,
@@ -11,7 +14,8 @@ import {
   WIDGET_META,
   resolveLayout,
 } from './src/modules/dashboard/dashboard-layout.config.ts';
-import { fmtBytes, isPastDailyCutoff, sumMediaSizes, vnHourOf, filterMyQueue, countMembersByRole } from './src/modules/dashboard/dashboard-helpers.ts';
+import { buildStorageRows, fmtBytes, isPastDailyCutoff, measureHlsStorage, sumMediaSizes, vnHourOf, filterMyQueue, countMembersByRole } from './src/modules/dashboard/dashboard-helpers.ts';
+import { inferFileType, planUpload } from './src/modules/uploads/upload.plan.ts';
 import { stepRolesFromDefinitions } from './src/modules/dashboard/dashboard-queries.ts';
 
 describe('D3 thuoc tap widget tu GĐ2, dung role moi thay', () => {
@@ -122,5 +126,101 @@ describe('fmtBytes', () => {
     assert.equal(fmtBytes(1536), '1,5 KB');
     assert.equal(fmtBytes(5 * 1024 * 1024), '5 MB');
     assert.equal(fmtBytes(3 * 1024 * 1024 * 1024), '3 GB');
+  });
+});
+
+describe('inferFileType (D3): suy loai file tu MIME + duoi file', () => {
+  it('MIME co prefix nhan dang duoc -> loai do', () => {
+    assert.equal(inferFileType('a.bin', 'video/mp4'), 'video');
+    assert.equal(inferFileType('a.bin', 'audio/mpeg'), 'audio');
+    assert.equal(inferFileType('a.bin', 'image/png'), 'image');
+    assert.equal(inferFileType('a.bin', 'application/pdf'), 'pdf');
+    assert.equal(inferFileType('a.bin', 'text/vtt'), 'subtitle');
+    assert.equal(inferFileType('a.bin', 'video/mp4; codecs="avc1"'), 'video');
+  });
+  it('MIME thieu/chung chung -> suy tu duoi file', () => {
+    assert.equal(inferFileType('song.mp3', ''), 'audio');
+    assert.equal(inferFileType('song.mp3', 'application/octet-stream'), 'audio');
+    assert.equal(inferFileType('doc.pdf', null), 'pdf');
+    assert.equal(inferFileType('sub.vtt', 'application/octet-stream'), 'subtitle');
+    assert.equal(inferFileType('sub.srt', 'text/plain'), 'subtitle');
+    assert.equal(inferFileType('photo.JPG', 'application/octet-stream'), 'image');
+  });
+  it('hai nguon mau thuan -> UU TIEN duoi file', () => {
+    // MIME mac dinh 'video/mp4' nhung duoi .mp3 -> audio (loi gap o init).
+    assert.equal(inferFileType('song.mp3', 'video/mp4'), 'audio');
+    assert.equal(inferFileType('clip.mp4', 'audio/mpeg'), 'video');
+    assert.equal(inferFileType('anh.png', 'video/mp4'), 'image');
+    assert.equal(inferFileType('tai-lieu.pdf', 'video/mp4'), 'pdf');
+  });
+  it('ca hai khong nhan ra -> other', () => {
+    assert.equal(inferFileType('file.xyz', 'application/octet-stream'), 'other');
+    assert.equal(inferFileType('file.xyz', 'application/x-unknown'), 'other');
+    assert.equal(inferFileType('README', ''), 'other');
+    assert.equal(inferFileType(null, null), 'other');
+  });
+  it('planUpload gan fileType suy ra (duong init)', () => {
+    assert.equal(planUpload('song.mp3', 1000, 'video/mp4').fileType, 'audio');
+    assert.equal(planUpload('clip.mp4', 1000, 'video/mp4').fileType, 'video');
+    assert.equal(planUpload('anh.png', 1000, 'image/png').fileType, 'image');
+  });
+});
+
+describe('wD3: 5 dong goc + dong HLS (qua buildStorageRows + measureHlsStorage)', () => {
+  it('du 6 dong theo thu tu, Khac gop phu de + loai la + chua phan loai, drill Khac/HLS null', () => {
+    const aggs = sumMediaSizes([
+      { fileType: 'image', sizeBytes: 2000 },
+      { fileType: 'video', sizeBytes: 4000 },
+      { fileType: 'audio', sizeBytes: null },
+      { fileType: 'subtitle', sizeBytes: 700 },
+      { fileType: 'weird', sizeBytes: 11 },
+      { fileType: null, sizeBytes: 500 },
+    ]);
+    const rows = buildStorageRows(aggs, 3, 9000, 2, 12345);
+    assert.deepEqual(rows.map((r) => r.type), ['image', 'video', 'audio', 'pdf', 'other', 'hls']);
+    assert.deepEqual(rows.map((r) => r.label), ['Ảnh', 'Video', 'Âm thanh', 'PDF báo in', 'Khác', 'Bản chuyển mã (HLS)']);
+    const byType = Object.fromEntries(rows.map((r) => [r.type, r]));
+    assert.deepEqual([byType.image.files, byType.image.bytes], [1, 2000]);
+    assert.deepEqual([byType.video.files, byType.video.bytes], [1, 4000]);
+    assert.deepEqual([byType.audio.files, byType.audio.bytes], [1, 0]);
+    assert.deepEqual([byType.pdf.files, byType.pdf.bytes], [3, 9000]);
+    // Khac = subtitle (1/700) + loai la (1/11) + chua phan loai (1/500).
+    assert.deepEqual([byType.other.files, byType.other.bytes], [3, 1211]);
+    assert.deepEqual([byType.hls.files, byType.hls.bytes], [2, 12345]);
+    assert.deepEqual(byType.image.drill, { route: '/thu-vien', query: { kind: 'image' } });
+    assert.deepEqual(byType.video.drill, { route: '/thu-vien', query: { kind: 'video' } });
+    assert.deepEqual(byType.audio.drill, { route: '/thu-vien', query: { kind: 'audio' } });
+    assert.deepEqual(byType.pdf.drill, { route: '/bao-in', query: {} });
+    assert.equal(byType.other.drill, null);
+    assert.equal(byType.hls.drill, null);
+    // Dong HLS dem theo video, khong goi la 'file' (CMS hien unit nay).
+    assert.equal(byType.hls.unit, 'video đã chuyển mã');
+    assert.equal(byType.image.unit, undefined);
+    assert.equal(byType.other.unit, undefined);
+  });
+  it('khong co du lieu van du 5 dong goc (0/0) + dong HLS', () => {
+    const rows = buildStorageRows([], 0, 0, 0, 0);
+    assert.deepEqual(rows.map((r) => r.type), ['image', 'video', 'audio', 'pdf', 'other', 'hls']);
+    assert.ok(rows.slice(0, 5).every((r) => r.files === 0 && r.bytes === 0));
+  });
+  it('measureHlsStorage: files = so thu muc con, bytes = tong cay; thu muc khong co -> 0/0', () => {
+    assert.deepEqual(measureHlsStorage(join(tmpdir(), 'd3-khong-ton-tai-xyz')), { files: 0, bytes: 0 });
+    const root = mkdtempSync(join(tmpdir(), 'd3-hls-'));
+    try {
+      const v1 = join(root, 'hls', 'vid1');
+      const v2 = join(root, 'hls', 'vid2');
+      mkdirSync(v1, { recursive: true });
+      mkdirSync(v2, { recursive: true });
+      writeFileSync(join(v1, 'master.m3u8'), 'x'.repeat(100));
+      writeFileSync(join(v1, 'seg-0.ts'), 'y'.repeat(1000));
+      writeFileSync(join(v2, 'master.m3u8'), 'z'.repeat(50));
+      assert.deepEqual(measureHlsStorage(root), { files: 2, bytes: 1150 });
+      // Thu muc con cap 2 khong tinh vao files, chi cong bytes.
+      mkdirSync(join(v1, 'sub'), { recursive: true });
+      writeFileSync(join(v1, 'sub', 'extra.ts'), 'w'.repeat(10));
+      assert.deepEqual(measureHlsStorage(root), { files: 2, bytes: 1160 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

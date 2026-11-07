@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { transcodeLocal } from './transcode-local';
+import { cleanupStaleChunks, STALE_CHUNK_MAX_AGE_MS } from './cleanup-stale-chunks';
 
 // Worker Phase 2 (Bước 6/8):
 // - Có REDIS_URL: subscribe BullMQ queue 'transcode' (concurrency 2, retry 3
@@ -111,6 +112,25 @@ async function tick() {
   }
 }
 
+// ---- Don chunk tai len do dang (D3) ----
+// Chay toi da 1 gio/lan (kiem tra moi phut), chay ca 2 che do queue
+// (BullMQ va poll). Chi don chunk qua 24h; upload dang chay khong bi cham.
+const CLEANUP_CHECK_MS = 60 * 1000;
+let lastCleanupAt = 0;
+function maybeCleanupStaleChunks(): void {
+  const now = Date.now();
+  if (now - lastCleanupAt < STALE_CHUNK_MAX_AGE_MS) return;
+  lastCleanupAt = now;
+  try {
+    const r = cleanupStaleChunks(STORAGE);
+    // eslint-disable-next-line no-console
+    console.log(`[worker] cleanup stale chunks: checked=${r.checked} removed=${r.removed} freed=${r.bytesFreed}B`);
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.log('[worker] cleanup stale chunks failed:', e?.message);
+  }
+}
+
 if (REDIS_URL) {
   startBullmq().catch((e) => {
     // eslint-disable-next-line no-console
@@ -124,3 +144,8 @@ if (REDIS_URL) {
   void tick();
   setInterval(tick, POLL_MS);
 }
+
+// Don chunk tai len do dang: chay ngay khi khoi dong, roi kiem tra moi phut
+// (ben trong tu gioi han 1 gio/lan). Chay ca 2 che do queue.
+void maybeCleanupStaleChunks();
+setInterval(() => maybeCleanupStaleChunks(), CLEANUP_CHECK_MS);

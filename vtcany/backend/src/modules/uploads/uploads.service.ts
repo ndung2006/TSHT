@@ -8,7 +8,7 @@ import { isAbsolute, join, relative } from 'path';
 import { Readable } from 'stream';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, planImage, planUpload } from './upload.plan';
+import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, inferFileType, planImage, planUpload } from './upload.plan';
 import {
   applyClaim,
   applyRetry,
@@ -79,6 +79,7 @@ export class UploadsService implements OnModuleInit {
           filename: r.filename || r.id,
           sizeBytes: Number(r.sizeBytes || 0),
           contentType: r.contentType || 'video/mp4',
+          fileType: r.fileType || undefined,
           videoId: r.videoId || undefined,
           status: (r.status as UploadStatus) || 'pending',
           chunks: chunkCount(Number(r.sizeBytes || 0)),
@@ -106,6 +107,10 @@ export class UploadsService implements OnModuleInit {
       filename: rec.filename,
       sizeBytes: BigInt(Math.trunc(rec.sizeBytes)),
       contentType: rec.contentType,
+      // Ghi fileType suy ra tu MIME + duoi file neu ban ghi chua co (ban
+      // ghi cu tu truoc goi D3); khong ghi de 'image' cua saveImage (duong
+      // anh dung upsert rieng, khong qua persist nay).
+      fileType: rec.fileType ?? inferFileType(rec.filename, rec.contentType),
       status: rec.status,
       videoId: rec.videoId || null,
       durationSec: rec.durationSec ?? null,
@@ -191,6 +196,9 @@ export class UploadsService implements OnModuleInit {
     }
     void this.mergeChunks(root, id, rec.filename);
     rec.status = 'uploaded';
+    // File gop da nam tren dia, duoi file chac chan: suy lai loai file
+    // (MIME luc init co the la mac dinh 'video/mp4' cua trinh duyet).
+    rec.fileType = inferFileType(rec.filename, rec.contentType);
     this.persist(rec);
     return { ...rec, localPath: finalPath(root, id, rec.filename) };
   }
@@ -356,6 +364,10 @@ export class UploadsService implements OnModuleInit {
   complete(id: string): UploadRecord & { localPath?: string } {
     const rec = this.get(id);
     const root = this.storageRoot();
+    // File da hoan tat (local da gop / S3 da len bucket), duoi file chac
+    // chan: suy lai loai file truoc khi chuyen trang thai (persist o
+    // finalizeLocal/transition se ghi fileType nay xuong DB).
+    rec.fileType = inferFileType(rec.filename, rec.contentType);
     if (existsLocalUpload(root, id)) {
       const fin = this.finalizeLocal(id);
       this.markProcessing(id);

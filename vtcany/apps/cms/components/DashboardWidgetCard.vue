@@ -250,7 +250,7 @@
         <div v-for="r in state.data.rows" :key="r.type" class="flex items-center justify-between gap-2">
           <NuxtLink v-if="r.drill" :to="drillTo(r.drill)" class="truncate hover:underline">{{ r.label }}</NuxtLink>
           <span v-else class="truncate">{{ r.label }}</span>
-          <span class="shrink-0">{{ fmtNum(r.files) }} file · <b>{{ fmtBytes(r.bytes) }}</b></span>
+          <span class="shrink-0">{{ fmtNum(r.files) }} {{ r.unit || 'file' }} · <b>{{ fmtBytes(r.bytes) }}</b></span>
         </div>
         <NuxtLink v-if="state.drill" :to="drillTo(state.drill)" class="text-sky-400 hover:underline">Mở Thư viện</NuxtLink>
       </template>

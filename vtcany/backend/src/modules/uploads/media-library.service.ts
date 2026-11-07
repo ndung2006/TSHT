@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { unlinkSync } from 'fs';
+import { existsSync, unlinkSync, rmSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from './uploads.service';
@@ -15,6 +15,7 @@ import { cleanFolderName, foldersWithCounts, wouldCreateCycle } from './media-fo
 // KHONG tang gioi han JSON 256kb: endpoint chi la GET list, khong nhan body.
 @Injectable()
 export class MediaLibraryService {
+  private readonly logger = new Logger(MediaLibraryService.name);
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -145,8 +146,9 @@ export class MediaLibraryService {
   // Thu tu: purge in-memory truoc roi xoa row DB, sau do moi xoa file vat ly
   // (best-effort): file da mat (ban ghi mo coi) thi bo qua loi, row van xoa
   // thanh cong. Chi xoa file trong storage/images theo basename cua fileUrl;
-  // video (fileUrl rong, HLS o storage/hls/<id>/) chi xoa row + bo nho, khong
-  // don dep thu muc HLS trong dot nay. Khong co khoa ngoai nao tro toi
+  // video: xoa luon thu muc HLS storage/hls/<id>/ (chi khi XOA THAT —
+  // day la duong xoa that duy nhat; ha xuat ban khong di qua day nen
+  // khong anh huong). Khong co khoa ngoai nao tro toi
   // MediaAsset (anh/video chi duoc tham chieu bang chuoi URL trong noi dung),
   // nen xoa row khong vi pham toan ven DB.
   async remove(id: string) {
@@ -158,6 +160,20 @@ export class MediaLibraryService {
       const name = row.fileUrl.split('/').pop() || '';
       if (name && !name.includes('/') && !name.includes('\\')) {
         try { unlinkSync(join(this.uploads.imagesDir(), name)); } catch { /* file da mat: bo qua */ }
+      }
+    }
+    // Don dep thu muc HLS cua video vua xoa that (chi khi thu muc ton
+    // tai; xoa khong duoc thi log canh bao, KHONG lam loi ca thao tac
+    // xoa). File goc trong storage/raw co tinh giu lai (nguon de
+    // transcode lai); chunk do dang do job don rieng.
+    if (id && !id.includes('/') && !id.includes('\\')) {
+      const hlsDir = join(this.uploads.storageRoot(), 'hls', id);
+      if (existsSync(hlsDir)) {
+        try {
+          rmSync(hlsDir, { recursive: true, force: true });
+        } catch (e) {
+          this.logger.warn(`khong xoa duoc thu muc HLS ${hlsDir} khi xoa media ${id}: ${(e as Error).message}`);
+        }
       }
     }
     return { ok: true };

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { applyDrillWhere } from '../dashboard/dashboard-queries';
 import { applyNarrowScope, myStepNumbers } from '../dashboard/sidebar-scope';
@@ -21,7 +21,31 @@ import { WorkflowConfigService } from '../workflows/workflow-config.service';
 // tao/cap nhat; khong bao gio tu dem gia. TODO: dem tu dong khi co pdf parser.
 @Injectable()
 export class EpaperService {
+  private readonly logger = new Logger(EpaperService.name);
   constructor(private prisma: PrismaService, private uploads: UploadsService, private wf: WorkflowConfigService) {}
+
+  // Do dung luong file PDF that tren storage (D3/pdfSizeBytes): backend
+  // TU DO, KHONG lay tu client (form CMS khong gui pdfSizeBytes). File
+  // thieu/khong doc duoc/duong dan thoat storage root -> null + log canh
+  // bao, KHONG chan luu. Mau chan path-traversal giong wD3.
+  private measurePdfSize(pdfPath: string): number | null {
+    const root = this.uploads.storageRoot();
+    const abs = join(root, String(pdfPath));
+    if (!abs.startsWith(root)) {
+      this.logger.warn(`pdfPath thoat storage root, bo qua do dung luong: ${pdfPath}`);
+      return null;
+    }
+    try {
+      if (!existsSync(abs)) {
+        this.logger.warn(`khong tim thay file PDF tren dia khi do dung luong: ${pdfPath}`);
+        return null;
+      }
+      return statSync(abs).size;
+    } catch (e) {
+      this.logger.warn(`khong do duoc pdfSizeBytes cho ${pdfPath}: ${(e as Error).message}`);
+      return null;
+    }
+  }
 
   // --- Anh trang render san phia server (Hybrid, thay cho PDF.js ve toan
   // bo o muc fit) ---
@@ -345,12 +369,17 @@ export class EpaperService {
     });
     if (dup) throw new ConflictException('da co so bao nay o loai so do (UNIQUE issue_type, issue_number)');
     const publicId = generatePublicId();
+    // pdfSizeBytes do backend TU DO tu file that tren storage (D3): BO QUA
+    // dto.pdfSizeBytes — form CMS khong gui truong nay, gia tri client
+    // gui len khong tin cay. Khong co pdfPath -> null.
+    const pdfPath = dto.pdfPath || null;
+    const pdfSizeBytes = pdfPath ? this.measurePdfSize(pdfPath) : null;
     const row = await this.prisma.epaperIssue.create({
       data: {
         publicId, issueNumber: dto.issueNumber, issueType: dto.issueType,
         publishDate, title: String(dto.title).trim(), slug: issueSlug(dto.issueNumber, publicId),
-        status: 'draft', pdfPath: dto.pdfPath || null,
-        pdfSizeBytes: dto.pdfSizeBytes !== undefined && dto.pdfSizeBytes !== null ? BigInt(dto.pdfSizeBytes) : null,
+        status: 'draft', pdfPath,
+        pdfSizeBytes: pdfSizeBytes === null ? null : BigInt(pdfSizeBytes),
         pageCount, coverPath: dto.coverPath || null, createdBy: actorId || null,
       },
     });
@@ -375,8 +404,14 @@ export class EpaperService {
       if (!d) throw new BadRequestException('publish_date phai dang YYYY-MM-DD');
       data.publishDate = d;
     }
-    if (dto.pdfPath !== undefined) data.pdfPath = dto.pdfPath || null;
-    if (dto.pdfSizeBytes !== undefined) data.pdfSizeBytes = dto.pdfSizeBytes === null ? null : BigInt(dto.pdfSizeBytes);
+    if (dto.pdfPath !== undefined) {
+      data.pdfPath = dto.pdfPath || null;
+      // So doi PDF -> do lai dung luong that tu storage; bo PDF -> null.
+      // BO QUA dto.pdfSizeBytes (giu truong trong DTO cho tuong thich
+      // nhung khong dung). Khong doi pdfPath thi giu nguyen pdfSizeBytes cu.
+      const size = data.pdfPath ? this.measurePdfSize(data.pdfPath) : null;
+      data.pdfSizeBytes = size === null ? null : BigInt(size);
+    }
     if (dto.pageCount !== undefined) {
       if (!Number.isInteger(dto.pageCount) || dto.pageCount < 0) throw new BadRequestException('page_count phai la so nguyen >= 0');
       data.pageCount = dto.pageCount;
