@@ -187,3 +187,91 @@ describe('rollupDaily: prune du lieu tho qua 90 ngay van chay', () => {
     assert.ok(res.pruned.heartbeats >= 1);
   });
 });
+
+// ---- Beat cuoi VOD (3c-final-beat): watched_seconds theo phien ----
+function dailyVod(db, vnDate, contentId, viewType = 'vod') {
+  return db.tables.channelTelemetryDaily.find(
+    (r) => r.vnDate.getTime() === vnDateForDb(vnDate).getTime() && r.contentId === contentId && r.viewType === viewType,
+  );
+}
+
+describe('rollupDaily: watched_seconds tu beat cuoi', () => {
+  test('phien co beat cuoi -> giay = max(watchedSeconds), khong phai so beat x 60', async () => {
+    const db = makeDb();
+    // Short 30 giay: 2 beat thuong (luc bat dau phat + sau 60s dong ho)
+    // + 1 beat cuoi watchedSeconds=30.
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-1', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-1', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-1', sessionId: 's1', createdAt: vn('2026-11-04T10:01:30'), isClean: true, isFinal: true, watchedSeconds: 30 });
+    await rollupDaily(db, OPTS);
+    const row = dailyVod(db, '2026-11-04', 'short-1');
+    assert.equal(row.heartbeats, 3);
+    assert.equal(row.uniqueSessions, 1);
+    assert.equal(row.watchedMinutes, 3, 'watchedMinutes giu nhu cu (= heartbeats)');
+    assert.equal(row.watchedSeconds, 30, 'phien co beat cuoi -> max(watchedSeconds), khong lam tron');
+  });
+
+  test('phien khong co beat cuoi -> giay = so beat x 60', async () => {
+    const db = makeDb();
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-2', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-2', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true });
+    await rollupDaily(db, OPTS);
+    const row = dailyVod(db, '2026-11-04', 'short-2');
+    assert.equal(row.heartbeats, 2);
+    assert.equal(row.uniqueSessions, 1);
+    assert.equal(row.watchedMinutes, 2);
+    assert.equal(row.watchedSeconds, 120);
+  });
+
+  test('nhieu phien trong 1 nhom: cong giay theo phien (co/khong beat cuoi)', async () => {
+    const db = makeDb();
+    // s1: 2 beat thuong + beat cuoi 30 giay -> 30 giay.
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's1', createdAt: vn('2026-11-04T10:01:30'), isClean: true, isFinal: true, watchedSeconds: 30 });
+    // s2: 3 beat thuong, khong beat cuoi -> 180 giay.
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's2', createdAt: vn('2026-11-04T10:02:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's2', createdAt: vn('2026-11-04T10:03:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-3', sessionId: 's2', createdAt: vn('2026-11-04T10:04:00'), isClean: true });
+    await rollupDaily(db, OPTS);
+    const row = dailyVod(db, '2026-11-04', 'short-3');
+    assert.equal(row.heartbeats, 6);
+    assert.equal(row.uniqueSessions, 2);
+    assert.equal(row.watchedMinutes, 6);
+    assert.equal(row.watchedSeconds, 30 + 180);
+  });
+
+  test('live/timeshift khong co beat cuoi -> watchedSeconds = heartbeats x 60', async () => {
+    const db = makeDb();
+    db.addHeartbeat({ channelPublicId: 'ch-1', channelName: 'TUYENQUANG', viewType: 'live', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ channelPublicId: 'ch-1', channelName: 'TUYENQUANG', viewType: 'live', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true });
+    db.addHeartbeat({ channelPublicId: 'ch-1', channelName: 'TUYENQUANG', viewType: 'live', sessionId: 's2', createdAt: vn('2026-11-04T10:02:00'), isClean: true });
+    await rollupDaily(db, OPTS);
+    const row = dailyChannel(db, '2026-11-04', 'ch-1', 'live');
+    assert.equal(row.heartbeats, 3);
+    assert.equal(row.uniqueSessions, 2);
+    assert.equal(row.watchedMinutes, 3);
+    assert.equal(row.watchedSeconds, 180);
+  });
+
+  test('beat cuoi khong co so giay (null) thi phien do roi ve so beat x 60', async () => {
+    const db = makeDb();
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-4', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-4', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true, isFinal: true, watchedSeconds: null });
+    await rollupDaily(db, OPTS);
+    const row = dailyVod(db, '2026-11-04', 'short-4');
+    assert.equal(row.heartbeats, 2);
+    assert.equal(row.watchedSeconds, 120);
+  });
+
+  test('nhieu beat cuoi cung phien (neu co) thi lay MAX, khong cong don', async () => {
+    const db = makeDb();
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-5', sessionId: 's1', createdAt: vn('2026-11-04T10:00:00'), isClean: true });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-5', sessionId: 's1', createdAt: vn('2026-11-04T10:00:30'), isClean: true, isFinal: true, watchedSeconds: 30 });
+    db.addHeartbeat({ viewType: 'vod', contentId: 'short-5', sessionId: 's1', createdAt: vn('2026-11-04T10:01:00'), isClean: true, isFinal: true, watchedSeconds: 45 });
+    await rollupDaily(db, OPTS);
+    const row = dailyVod(db, '2026-11-04', 'short-5');
+    assert.equal(row.heartbeats, 3);
+    assert.equal(row.watchedSeconds, 45);
+  });
+});

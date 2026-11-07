@@ -1316,6 +1316,11 @@ model ChannelHeartbeat {
   contentId       String?  @map("content_id")
   viewType        String   @map("view_type") // live | timeshift | vod
   isClean         Boolean? @map("is_clean")
+  // Beat cuoi VOD (3c-final-beat): so giay thuc su phat cua phien
+  // (chi beat cuoi moi co gia tri; beat thuong de null). isFinal
+  // danh dau day la beat cuoi (ended / pause lau / pagehide).
+  watchedSeconds  Int?     @map("watched_seconds")
+  isFinal         Boolean  @default(false) @map("is_final")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([channelPublicId, createdAt])
@@ -1354,6 +1359,11 @@ model ChannelTelemetryDaily {
   heartbeats      Int      @default(0)
   uniqueSessions  Int      @default(0) @map("unique_sessions")
   watchedMinutes  Int      @default(0) @map("watched_minutes")
+  // Tong so giay thuc su phat (3c-final-beat, KHONG lam tron khi luu):
+  // phien co beat cuoi -> max(watchedSeconds) cua phien do; phien
+  // khong co beat cuoi -> so beat x 60. watchedMinutes giu nhu cu
+  // (= heartbeats) de tuong thich; dashboard GĐ3 dung
+  // watchedSeconds / 60 khi hien thi.
 
   @@unique([vnDate, channelPublicId, viewType])
   @@unique([vnDate, contentId, viewType])

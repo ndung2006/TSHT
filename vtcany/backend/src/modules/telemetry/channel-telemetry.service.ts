@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TvService } from '../tv/tv.service';
 import { isBotUserAgent } from '../news/pageview-input';
 import { rollupDaily as runRollupDaily } from './rollup-daily';
 import {
   HEARTBEAT_DEDUPE_WINDOW_MS,
+  decideFinalBeat,
   normalizeChannelHeartbeatInput,
 } from './channel-telemetry-input';
 
@@ -51,6 +52,7 @@ function normalizeChannelKey(s: string): string {
 
 @Injectable()
 export class ChannelTelemetryService {
+  private readonly logger = new Logger(ChannelTelemetryService.name);
   private channelCache: { byName: Map<string, string>; at: number } | null = null;
 
   constructor(
@@ -101,21 +103,58 @@ export class ChannelTelemetryService {
       if (!hit) return { ok: true };
       channelPublicId = hit;
     }
+    // Beat cuoi: watchedSeconds vuot nguong da bi cat o normalize —
+    // ghi log, khong tu choi beat (xem channel-telemetry-input.ts).
+    if (data.clamped) {
+      this.logger.warn(
+        `watchedSeconds bi cat ve nguong: session=${data.sessionId || ''} content=${data.contentId || ''} type=${data.viewType} durationSec=${data.durationSec ?? ''} watchedSeconds=${data.watchedSeconds ?? ''}`,
+      );
+    }
     if (data.sessionId) {
-      const since = new Date(Date.now() - HEARTBEAT_DEDUPE_WINDOW_MS);
-      const seen = await db.channelHeartbeat
-        .findFirst({
-          where: {
-            sessionId: data.sessionId,
-            channelPublicId,
-            contentId: data.contentId,
-            viewType: data.viewType,
-            createdAt: { gte: since },
-          },
-          select: { id: true },
-        })
-        .catch(() => null);
-      if (seen) return { ok: true };
+      if (data.isFinal) {
+        // Beat cuoi MIEN dedupe 45s; dedupe theo MAX cho cung phien:
+        // neu da co beat cuoi thi chi cap nhat khi gia tri moi lon
+        // hon (cong don), khong chen row trung.
+        const existing = await db.channelHeartbeat
+          .findFirst({
+            where: {
+              sessionId: data.sessionId,
+              channelPublicId,
+              contentId: data.contentId,
+              viewType: data.viewType,
+              isFinal: true,
+            },
+            select: { id: true, watchedSeconds: true },
+          })
+          .catch(() => null);
+        const decision = decideFinalBeat(
+          existing ? { watchedSeconds: existing.watchedSeconds ?? null } : null,
+          data.watchedSeconds,
+        );
+        if (decision.action === 'update') {
+          await db.channelHeartbeat
+            .update({ where: { id: existing.id }, data: { watchedSeconds: decision.watchedSeconds } })
+            .catch(() => null);
+          return { ok: true };
+        }
+        if (decision.action === 'skip') return { ok: true };
+        // 'create' -> roi xuong chen row moi ben duoi.
+      } else {
+        const since = new Date(Date.now() - HEARTBEAT_DEDUPE_WINDOW_MS);
+        const seen = await db.channelHeartbeat
+          .findFirst({
+            where: {
+              sessionId: data.sessionId,
+              channelPublicId,
+              contentId: data.contentId,
+              viewType: data.viewType,
+              createdAt: { gte: since },
+            },
+            select: { id: true },
+          })
+          .catch(() => null);
+        if (seen) return { ok: true };
+      }
     }
     await db.channelHeartbeat.create({
       data: {
@@ -125,6 +164,9 @@ export class ChannelTelemetryService {
         contentId: data.contentId,
         viewType: data.viewType,
         isClean: true,
+        // Chi beat cuoi moi luu so giay thuc phat; beat thuong de null.
+        isFinal: data.isFinal,
+        watchedSeconds: data.isFinal ? data.watchedSeconds : null,
       },
     });
     return { ok: true };

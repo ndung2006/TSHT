@@ -67,33 +67,56 @@ export async function rollupPageViewDay(db: any, vnDate: string, from: Date, to:
 export async function rollupChannelDay(db: any, vnDate: string, from: Date, to: Date): Promise<void> {
   const rows = await db.channelHeartbeat.findMany({
     where: { isClean: true, createdAt: { gte: from, lt: to } },
-    select: { channelPublicId: true, channelName: true, contentId: true, viewType: true, sessionId: true },
+    select: { channelPublicId: true, channelName: true, contentId: true, viewType: true, sessionId: true, watchedSeconds: true, isFinal: true },
   });
-  const groups = new Map<string, { channelPublicId: string | null; channelName: string | null; contentId: string | null; viewType: string; heartbeats: number; sessions: Set<string> }>();
+  // Moi nhom gom theo (kenh/loai) hoac (contentId VOD). watchedSeconds
+  // tinh THEO PHIEN roi cong lai (3c-final-beat): phien co beat cuoi
+  // -> max(watchedSeconds) cua phien do; phien khong co beat cuoi ->
+  // so beat x 60. Row khong co sessionId coi nhu 1 phien rieng (moi
+  // row 1 khoa) de khong gop nham. watchedMinutes giu nhu cu
+  // (= heartbeats) de tuong thich; uniqueSessions khong doi.
+  type SessionAgg = { beats: number; finalMax: number | null };
+  const groups = new Map<string, { channelPublicId: string | null; channelName: string | null; contentId: string | null; viewType: string; heartbeats: number; sessions: Set<string>; perSession: Map<string, SessionAgg> }>();
+  let noSessionSeq = 0;
   for (const r of rows) {
     const key = r.viewType === 'vod' ? `vod:${r.contentId || ''}` : `${r.channelPublicId || ''}|${r.viewType}`;
     let g = groups.get(key);
     if (!g) {
-      g = { channelPublicId: r.channelPublicId ?? null, channelName: r.channelName ?? null, contentId: r.viewType === 'vod' ? r.contentId ?? null : null, viewType: r.viewType, heartbeats: 0, sessions: new Set() };
+      g = { channelPublicId: r.channelPublicId ?? null, channelName: r.channelName ?? null, contentId: r.viewType === 'vod' ? r.contentId ?? null : null, viewType: r.viewType, heartbeats: 0, sessions: new Set(), perSession: new Map() };
       groups.set(key, g);
     }
     g.heartbeats += 1;
     if (r.sessionId) g.sessions.add(r.sessionId);
+    const sKey = r.sessionId ? String(r.sessionId) : `__row__${noSessionSeq++}`;
+    let s = g.perSession.get(sKey);
+    if (!s) {
+      s = { beats: 0, finalMax: null };
+      g.perSession.set(sKey, s);
+    }
+    s.beats += 1;
+    if (r.isFinal === true && typeof r.watchedSeconds === 'number' && Number.isFinite(r.watchedSeconds)) {
+      const ws = Math.max(0, Math.floor(r.watchedSeconds));
+      if (s.finalMax === null || ws > s.finalMax) s.finalMax = ws;
+    }
   }
   const day = vnDateForDb(vnDate);
   for (const g of groups.values()) {
+    let watchedSeconds = 0;
+    for (const s of g.perSession.values()) {
+      watchedSeconds += s.finalMax !== null ? s.finalMax : s.beats * 60;
+    }
     // watchedMinutes ≈ so heartbeat x 1 phut (nhip 60 giay, chi gui khi dang phat).
     if (g.viewType === 'vod') {
       await db.channelTelemetryDaily.upsert({
         where: { vnDate_contentId_viewType: { vnDate: day, contentId: g.contentId, viewType: g.viewType } },
-        update: { heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats },
-        create: { vnDate: day, channelPublicId: null, channelName: null, contentId: g.contentId, viewType: g.viewType, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats },
+        update: { heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats, watchedSeconds },
+        create: { vnDate: day, channelPublicId: null, channelName: null, contentId: g.contentId, viewType: g.viewType, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats, watchedSeconds },
       });
     } else {
       await db.channelTelemetryDaily.upsert({
         where: { vnDate_channelPublicId_viewType: { vnDate: day, channelPublicId: g.channelPublicId, viewType: g.viewType } },
-        update: { channelName: g.channelName, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats },
-        create: { vnDate: day, channelPublicId: g.channelPublicId, channelName: g.channelName, contentId: null, viewType: g.viewType, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats },
+        update: { channelName: g.channelName, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats, watchedSeconds },
+        create: { vnDate: day, channelPublicId: g.channelPublicId, channelName: g.channelName, contentId: null, viewType: g.viewType, heartbeats: g.heartbeats, uniqueSessions: g.sessions.size, watchedMinutes: g.heartbeats, watchedSeconds },
       });
     }
   }
