@@ -28,6 +28,37 @@ test('doi &nbsp; / &#160; / &#xa0; / ky tu U+00A0 thanh khoang trang thuong', ()
   assert.equal(normalizeNbspForSave('a&nbsp;&nbsp;b'), 'a  b'); // khong gop khoang trang
 });
 
+test('&nbsp; dung mot minh lam toan bo noi dung cua mot phan tu: GIU NGUYEN (doan trang)', () => {
+  // 2 dang da gap trong 23 bai ngay 07/11 — phai con nguyen sau khi luu
+  assert.equal(normalizeNbspForSave('<p>&nbsp;</p>'), '<p>&nbsp;</p>');
+  assert.equal(
+    normalizeNbspForSave('<p class="ql-align-justify">&nbsp;</p>'),
+    '<p class="ql-align-justify">&nbsp;</p>',
+  );
+  // Cac dang &nbsp; khac dung mot minh cung giu nguyen
+  assert.equal(normalizeNbspForSave('<p>&#160;</p>'), '<p>&#160;</p>');
+  assert.equal(normalizeNbspForSave('<p>&#xa0;</p>'), '<p>&#xa0;</p>');
+  assert.equal(normalizeNbspForSave('<p>\u00A0</p>'), '<p>\u00A0</p>');
+  assert.equal(normalizeNbspForSave('<p>&nbsp;&nbsp;</p>'), '<p>&nbsp;&nbsp;</p>');
+  // Doan trang giua bai: giu nguyen, &nbsp; kem chu van doi nhu cu
+  assert.equal(
+    normalizeNbspForSave('<p>Đoạn một.</p><p>&nbsp;</p><p>A&nbsp;B</p>'),
+    '<p>Đoạn một.</p><p>&nbsp;</p><p>A B</p>',
+  );
+  assert.equal(
+    normalizeNbspForSave('<p>Text</p><p>&nbsp;</p><p>More</p>'),
+    '<p>Text</p><p>&nbsp;</p><p>More</p>',
+  );
+  // &nbsp; dung kem chu (khong phai dung mot minh): van doi thanh khoang trang thuong
+  assert.equal(normalizeNbspForSave('<p>&nbsp;abc</p>'), '<p> abc</p>');
+  assert.equal(normalizeNbspForSave('<p>abc&nbsp;</p>'), '<p>abc </p>');
+  assert.equal(normalizeNbspForSave('<p>&nbsp;abc&nbsp;</p>'), '<p> abc </p>');
+  // Duong luu bai (normalizeNbspFields) cung giu doan trang
+  const obj = { body: '<p>Text</p><p>&nbsp;</p><p>A&nbsp;B</p>' };
+  normalizeNbspFields(obj, ['body']);
+  assert.equal(obj.body, '<p>Text</p><p>&nbsp;</p><p>A B</p>');
+});
+
 test('khong doi gi khac: &amp;nbsp; (escape kep), dau tieng Viet, the HTML', () => {
   assert.equal(normalizeNbspForSave('&amp;nbsp;'), '&amp;nbsp;');
   assert.equal(normalizeNbspForSave('không có gì lạ'), 'không có gì lạ');
