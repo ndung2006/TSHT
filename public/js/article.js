@@ -70,9 +70,19 @@
     });
     return tpl.innerHTML;
   }
+  // E1: anh bia co srcset (backend sinh 3 co khi anh o trong kho) thi
+  // trinh duyet tu chon co phu hop theo sizes; khong co srcset thi
+  // dung src goc. cls = class CSS cua the img (vd article-cover).
+  function coverImg(it, cls, sizes, lazy) {
+    if (!it.cover) return "";
+    var srcset = it.coverSrcset ? " srcset=\"" + esc(it.coverSrcset) + "\" sizes=\"" + sizes + "\"" : "";
+    var load = lazy ? " loading=\"lazy\"" : "";
+    var clsAttr = cls ? " class=\"" + cls + "\"" : "";
+    return "<img" + clsAttr + " src=\"" + esc(it.cover) + "\" alt=\"\"" + srcset + load + ">";
+  }
   function card(it) {
     return "<div class=\"news-card\"><a href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
-      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      coverImg(it, "", "300px", true) +
       "<h3>" + esc(it.title) + "</h3></a>" +
       (it.sapo ? "<p class=\"news-sapo\">" + esc(it.sapo) + "</p>" : "") +
       "<p class=\"news-meta\">" + esc(it.category ? it.category.name : "") +
@@ -130,7 +140,7 @@
       box.innerHTML = "<p class=\"news-meta\">" + meta.join(" · ") + "</p>" +
         "<h1>" + esc(it.title) + "</h1>" +
         (it.sapo ? "<p class=\"article-sapo\">" + esc(it.sapo) + "</p>" : "") +
-        (it.cover && !coverInBody ? "<img class=\"article-cover\" src=\"" + esc(it.cover) + "\" alt=\"\">" : "") +
+        (it.cover && !coverInBody ? coverImg(it, "article-cover", "(max-width: 900px) 100vw, 800px", false) : "") +
         mediaHtml(it) +
         "<div class=\"article-body" + (it.contentType === "emagazine" ? " article-body--emagazine" : "") + "\">" + (coverInBody ? bodyHtml : stripCoverFromBody(bodyHtml, it.cover)) + "</div>" + tags;
       // Quang cao trong bai (article_inbody): chen slot giua than bai

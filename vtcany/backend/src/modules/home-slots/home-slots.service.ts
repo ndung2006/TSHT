@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { coverSrcset } from '../uploads/image-variants';
 import {
   HOME_SLOT_BLOCKS,
   blockFlag,
@@ -42,6 +43,9 @@ function publicArticle(row: any) {
     slug: row.slug,
     sapo: row.sapo,
     coverPath: row.coverPath,
+    // E1: srcset 3 co neu anh bia co bien the trong kho; null neu khong
+    // co (portal dung cover goc). URL ngoai khong co srcset.
+    coverSrcset: coverSrcset(row.coverPath),
     category: row.category
       ? { publicId: row.category.publicId, name: row.category.name, slug: row.category.slug }
       : null,

@@ -359,6 +359,16 @@ function resolveVtcanyImageUrl(p) {
   if (!p.startsWith("/")) return p;
   try { return new URL(vtcanyApiBase()).origin + p; } catch { return p; }
 }
+// E1: srcset backend tra ve gom cac URL tuong doi /images/<id>-<w>.<ext>;
+// ghep origin backend cho tung muc giong anh bia. Srcset rong -> "".
+function resolveSrcset(ss) {
+  if (!ss) return "";
+  return String(ss).split(",").map((part) => {
+    const m = /^\s*(\S+)\s+(\d+w)\s*$/.exec(part);
+    if (!m) return null;
+    return `${resolveVtcanyImageUrl(m[1])} ${m[2]}`;
+  }).filter(Boolean).join(", ");
+}
 function newEpaperListItem(it) {
   return {
     issue_number: it.issueNumber, issue_type: it.issueType,
@@ -1070,6 +1080,9 @@ const server = http.createServer(async (req, res) => {
         slug: it.slug, title: it.title, sapo: it.sapo,
         publicId: it.publicId || "",
         cover: it.coverPath ? resolveVtcanyImageUrl(it.coverPath) : "",
+        // E1: srcset 3 co cua anh bia (backend sinh khi co bien the);
+        // "" = khong co bien the (trinh duyet dung cover goc).
+        coverSrcset: resolveSrcset(it.coverSrcset),
         category: it.category || null, authors: it.authors || [], tags: it.tags || [],
         publishAt: it.publishAt, isFeatured: !!it.isFeatured,
         contentType: it.contentType || "text",

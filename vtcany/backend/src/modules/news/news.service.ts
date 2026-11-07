@@ -17,6 +17,8 @@ import { HomeSlotService } from '../home-slots/home-slots.service';
 import { normalizeContentType, typeFlags } from './news-content';
 import { normalizeFormatData } from './news-format-data';
 import { buildSearchQuery, hasSearchInput, parseSearchQuery } from './news-search-rules';
+import { publishCategoryError } from './news-publish-rules';
+import { coverSrcset } from '../uploads/image-variants';
 
 /** Slug tieng Viet: bo dau, 'd' -> 'd', ky tu la -> '-'. */
 export function slugify(input: string): string {
@@ -115,6 +117,9 @@ export class NewsService {
       categoryId: row.categoryId,
       category: row.category ? { publicId: row.category.publicId, name: row.category.name, slug: row.category.slug } : null,
       coverPath: row.coverPath,
+      // E1: srcset 3 co neu anh bia co bien the trong kho; null neu
+      // khong co (portal dung cover goc). URL ngoai khong co srcset.
+      coverSrcset: coverSrcset(row.coverPath),
       authors: row.authors || [],
       tags: row.tags || [],
       status: row.status,
@@ -218,6 +223,9 @@ export class NewsService {
       body: row.body,
       category: row.category ? { publicId: row.category.publicId, name: row.category.name, slug: row.category.slug } : null,
       coverPath: row.coverPath,
+      // E1: srcset 3 co neu anh bia co bien the trong kho; null neu
+      // khong co (portal dung cover goc). URL ngoai khong co srcset.
+      coverSrcset: coverSrcset(row.coverPath),
       authors: row.authors || [],
       tags: row.tags || [],
       publishAt: row.publishAt ? row.publishAt.toISOString() : null,
@@ -265,6 +273,15 @@ export class NewsService {
     });
     if (!cat) throw new BadRequestException('chuyen muc khong ton tai');
     return cat.id;
+  }
+
+  // E2 — bai bat buoc co chuyen muc moi duoc gui duyet / xuat ban.
+  // Chi goi tai 3 diem duoi day; nhap chua co chuyen muc la hop le
+  // (create/patch khong goi). Loi tra ve: 400 {error:{code:'bad_request',
+  // message:'Chọn chuyên mục'}} (ApiExceptionFilter).
+  private requireCategory(row: { categoryId?: string | null }) {
+    const err = publishCategoryError(row.categoryId);
+    if (err) throw new BadRequestException(err);
   }
 
   // ---------------- Anh bia luc luu: bia mac dinh + chuan hoa URL (xem cover-dedupe.ts) ----------------
@@ -693,6 +710,8 @@ export class NewsService {
   async submitForReview(publicId: string, actor: Actor) {
     const row = await this.workflowRow(publicId);
     const next = this.applyTransition(row, 'submit');
+    // E2: khong cho gui duyet bai chua co chuyen muc.
+    this.requireCategory(row);
     const updated = await this.prisma.newsArticle.update({
       where: { id: row.id }, data: { status: next.status, workflowStep: next.step },
     });
@@ -730,6 +749,10 @@ export class NewsService {
       next = this.applyTransition(row, 'approve');
     }
     const wasFinal = next.status === 'published';
+    // E2: duyet buoc cuoi (ca duyet khan) = xuat ban — bai thieu chuyen
+    // muc khong duoc xuat ban. Bat ca bai da gui duyet truoc khi cong
+    // co hieu luc va bai bi PATCH go chuyen muc khi dang cho duyet.
+    if (wasFinal) this.requireCategory(row);
     const updated = await this.prisma.newsArticle.update({
       where: { id: row.id },
       data: { status: next.status, workflowStep: next.step, publishAt: wasFinal ? (row.publishAt || new Date()) : row.publishAt },
@@ -786,6 +809,9 @@ export class NewsService {
     if (publish && row.status === 'draft' && !isFullAdmin) {
       throw new ConflictException('bai nhap phai gui duyet truoc, chi toan quyen moi xuat ban truc tiep duoc');
     }
+    // E2: xuat ban truc tiep (tu nhap / ha xuat ban, ke ca toan quyen)
+    // cung bat buoc co chuyen muc — neu khong full-admin lach qua workflow.
+    if (publish) this.requireCategory(row);
     const out = await this.prisma.newsArticle.update({
       where: { id: row.id },
       data: publish

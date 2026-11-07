@@ -232,12 +232,13 @@ test("?v= moi cho 5 file da doi (tranh Cloudflare giu ban cu)", () => {
   assert.ok(tvHtml.includes('/js/tv.js?v=20261107-2'), "tv.html phai tro tv.js?v=20261107-2");
   assert.ok(tvHtml.includes('/css/tv-page.css?v=20261107-1'), "tv.html phai tro tv-page.css?v=20261107-1");
   assert.ok(homeHtml.includes('/js/multimedia.js?v=20261107-1'), "home.html phai tro multimedia.js?v=20261107-1");
-  assert.ok(homeHtml.includes('/css/home.css?v=20261107-1'), "home.html phai tro home.css?v=20261107-1");
+  // E3 (2026-11-07): home.css doi -> bump ?v= 20261107-1 -> 20261107-2.
+  assert.ok(homeHtml.includes('/css/home.css?v=20261107-2'), "home.html phai tro home.css?v=20261107-2");
   const pages = fs.readdirSync(path.join(root, "public")).filter((f) => f.endsWith(".html"));
   for (const f of pages) {
     const html = fs.readFileSync(path.join(root, "public", f), "utf8");
     for (const m of html.matchAll(/home\.css\?v=([0-9-]+)/g)) {
-      assert.equal(m[1], "20261107-1", `${f} dung home.css cu ?v=${m[1]}`);
+      assert.equal(m[1], "20261107-2", `${f} dung home.css cu ?v=${m[1]}`);
     }
   }
 });

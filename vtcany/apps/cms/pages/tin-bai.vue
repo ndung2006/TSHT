@@ -1061,6 +1061,13 @@ async function uploadInlineImages(html: string): Promise<string> {
   }
   return doc.body.innerHTML;
 }
+// Doc loi API dung cach: ofetch dat body loi da parse vao e.data
+// ({error:{code,message}}), khong phai e.response.data — neu chi doc
+// truong cu thi toast chi hien "[POST] url: 400" thay vi cau loi that
+// (vd "Chọn chuyên mục" khi gui duyet bai khong co chuyen muc, E2).
+function apiErrDetail(e: any, fallback: string) {
+  return e?.data?.error?.message || e?.data?.message || e?.response?.data?.message || e?.message || fallback;
+}
 async function save() {
   saving.value = true;
   try {
@@ -1092,7 +1099,7 @@ async function save() {
     dlg.value = false;
     load(meta.value.page);
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Lưu thất bại', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiErrDetail(e, 'Lưu thất bại'), life: 3000 });
   } finally { saving.value = false; }
 }
 async function publishItem(it: any) {
@@ -1101,7 +1108,7 @@ async function publishItem(it: any) {
     toast.add({ severity: 'success', summary: 'Đã xuất bản', life: 2500 });
     load(meta.value.page);
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Xuất bản thất bại', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiErrDetail(e, 'Xuất bản thất bại'), life: 3000 });
   }
 }
 async function unpublishItem(it: any) {
@@ -1131,7 +1138,7 @@ async function submitItem(it: any) {
     toast.add({ severity: 'success', summary: 'Đã gửi duyệt', life: 2500 });
     load(meta.value.page);
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Gửi duyệt thất bại', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiErrDetail(e, 'Gửi duyệt thất bại'), life: 3000 });
   }
 }
 async function approveItem(it: any) {
@@ -1149,7 +1156,9 @@ async function approveItem(it: any) {
     // ofetch dat body loi da parse vao e.data, khong phai e.response.data
     // (e.message chi la "[POST] url: 403" nen dialog ngoai le khong bao
     // gio mo duoc neu chi doc 2 truong cu — dung nhu live-run 2026-10-28).
-    const msg = e?.data?.message || e?.response?.data?.message || e?.message || '';
+    // apiErrDetail doc dung e.data.error.message truoc (vd "Chọn chuyên
+    // mục" khi duyet bai khong co chuyen muc, E2).
+    const msg = apiErrDetail(e, '');
     // Tach nhiem vu (Dot 1b): server chan khi nguoi duyet trung nguoi xu ly
     // buoc truoc — mo dialog ngoai le tin nong de duyet tiep co ghi log.
     if (String(msg).includes('tach nhiem vu')) { openExceptionApprove(it); return; }
@@ -1172,7 +1181,7 @@ async function confirmExceptionApprove() {
     excDlg.value = false;
     load(meta.value.page);
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: e?.response?.data?.message || e?.message || 'Duyệt thất bại', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiErrDetail(e, 'Duyệt thất bại'), life: 3000 });
   }
 }
 const emgDlg = ref(false);

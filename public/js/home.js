@@ -73,14 +73,24 @@
   // phai lay tu tin moi nhat (tru cac tin da hien o hero). Chi hoc bo
   // cuc, noi dung la tin cua minh; chua co API xep hang luot doc that
   // nen cot phai khong phai "doc nhieu nhat" dung nghia.
+  // E1: anh co srcset (backend sinh 3 co khi anh bia o trong kho) thi
+  // trinh duyet tu chon co phu hop theo sizes; khong co srcset thi
+  // dung src goc. eager=true: anh hero dau trang tai ngay (khong lazy,
+  // fetchpriority high); mac dinh lazy cho anh duoi man hinh dau.
+  function imgTag(it, sizes, eager) {
+    if (!it.cover) return "";
+    var srcset = it.coverSrcset ? " srcset=\"" + esc(it.coverSrcset) + "\" sizes=\"" + sizes + "\"" : "";
+    var load = eager ? " fetchpriority=\"high\"" : " loading=\"lazy\"";
+    return "<img src=\"" + esc(it.cover) + "\" alt=\"\"" + srcset + load + ">";
+  }
   function heroSideRow(it) {
     return "<a class=\"hero-side-row\" href=\"" + esc(it.url) + "\" title=\"" + esc(it.title || "") + "\">" +
-      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      imgTag(it, "200px") +
       "<span>" + esc(it.title) + "</span></a>";
   }
   function heroLeftRow(it, idx, active) {
     return "<button type=\"button\" class=\"hero-left-row" + (active ? " active" : "") + "\" data-idx=\"" + idx + "\" title=\"" + esc(it.title || "") + "\">" +
-      (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      imgTag(it, "200px") +
       "<span>" + esc(it.title) + "</span></button>";
   }
   // Link duoi tin lon: tu danh sach Tin tieu diem da sap, tru tin lon
@@ -102,10 +112,13 @@
       return heroLeftRow(it, idx, idx === heroIdx);
     }).join("");
     var html = "<div class=\"hero-block\">" +
-      "<div class=\"hero-left-wrap\"><div class=\"hero-left\">" + leftHtml + "</div><div class=\"hero-scroll\"><i></i></div></div>" +
+      // E3: tieu de khoi "Tin nổi bật" tren khung cuon cot trai (kieu
+      // .cat-block-head h2); .hero-left ha 639 -> 592px de tong chieu
+      // cao hero khong doi (home.css).
+      "<div class=\"hero-left-wrap\"><div class=\"hero-left-title\"><h2>Tin nổi bật</h2></div><div class=\"hero-left\">" + leftHtml + "</div><div class=\"hero-scroll\"><i></i></div></div>" +
       "<div class=\"hero-center\">" +
         "<div class=\"hero-media\">" +
-          (hero.cover ? "<a href=\"" + esc(hero.url) + "\"><img src=\"" + esc(hero.cover) + "\" alt=\"\" loading=\"lazy\"></a>" : "") +
+          (hero.cover ? "<a href=\"" + esc(hero.url) + "\">" + imgTag(hero, "(max-width: 900px) 100vw, 640px", true) + "</a>" : "") +
           "<button type=\"button\" class=\"hero-arrow hero-prev\" aria-label=\"Tin trước\">‹</button>" +
           "<button type=\"button\" class=\"hero-arrow hero-next\" aria-label=\"Tin sau\">›</button>" +
         "</div>" +
@@ -272,12 +285,12 @@
     var feat = items[0];
     var rest = items.slice(1, 5);
     var featHtml = "<a class=\"cat-feat\" href=\"" + esc(feat.url || "#") + "\" title=\"" + esc(feat.title || "") + "\">" +
-      (feat.cover ? "<img src=\"" + esc(feat.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+      imgTag(feat, "(max-width: 900px) 100vw, 600px") +
       "<h3>" + esc(feat.title || "") + "</h3>" +
       (feat.sapo ? "<p class=\"cat-feat-sapo\">" + esc(feat.sapo) + "</p>" : "") + "</a>";
     var rows = rest.map(function (it) {
       return "<a class=\"cat-row\" href=\"" + esc(it.url || "#") + "\" title=\"" + esc(it.title || "") + "\">" +
-        (it.cover ? "<img src=\"" + esc(it.cover) + "\" alt=\"\" loading=\"lazy\">" : "") +
+        imgTag(it, "300px") +
         "<span>" + esc(it.title || "") + "</span></a>";
     }).join("");
     return "<div class=\"cat-block-head\"><h2>" + esc(title) + "</h2>" +

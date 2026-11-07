@@ -18,6 +18,7 @@ import {
 } from './retry-policy';
 import { chunkExists, finalPath, rawDir, storageRootDefault, writeChunk } from './local-store';
 import { enqueueTranscode } from './transcode-queue';
+import { generateImageVariants } from './image-variants';
 import { PLAYLIST_TTL_SEC, SEGMENT_TTL_SEC, isValidUploadId, signMedia } from './media-sign';
 
 export function existsLocalUpload(root: string, uploadId: string): boolean {
@@ -279,6 +280,15 @@ export class UploadsService implements OnModuleInit {
       fileUrl: `/images/${id}.${ext}`,
       createdAt: Date.now(),
     };
+    // E1 — sinh 3 co phai sinh (1920/800/400, q~80) cho anh tinh.
+    // Anh goc giu nguyen; loi sinh bien the chi log, KHONG chan upload
+    // (generateImageVariants da fail-open; o day bat them 1 lop nua).
+    try {
+      const made = await generateImageVariants(filePath, dir, id, ext);
+      if (made.length) this.logger.log(`Anh ${id}: da sinh ${made.length} bien the (${made.map((v) => v.width).join('/')})`);
+    } catch (e) {
+      this.logger.warn(`Anh ${id}: khong sinh duoc bien the: ${(e as Error).message}`);
+    }
     this.images.push(rec);
     if (this.prisma && process.env.DATABASE_URL) {
       void this.prisma.mediaAsset
