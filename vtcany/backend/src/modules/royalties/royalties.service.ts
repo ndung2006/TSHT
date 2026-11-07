@@ -10,6 +10,7 @@ import {
   articleTotal, authorPoints, equalShares, normalizeScores, validateScores, validateShares,
   AuthorShare, ComponentScores,
 } from './royalties-score';
+import { royaltyPeriodRange, royaltyPublishDay } from './royalties-range';
 
 export interface Actor {
   id: string | null;
@@ -378,17 +379,12 @@ export class RoyaltiesService {
 
   // ---------------- Dashboard + xuat Excel ----------------
 
+  // Ky loc theo ngay VN (xem royalties-range.ts): [from, to] (to bao ham)
+  // -> khoang Prisma nua mo { gte, lt } qua vnDayRange. Khong dung ngay
+  // UTC nhu truoc (new Date(from+'T00:00:00.000') la gio local cua server
+  // = UTC trong container, lech 7 gio so voi ngay VN).
   private rangeWhere(from?: string, to?: string) {
-    const range: any = {};
-    if (from) {
-      const d = new Date(`${from}T00:00:00.000`);
-      if (!Number.isNaN(d.getTime())) range.gte = d;
-    }
-    if (to) {
-      const d = new Date(`${to}T23:59:59.999`);
-      if (!Number.isNaN(d.getTime())) range.lte = d;
-    }
-    return Object.keys(range).length ? range : null;
+    return royaltyPeriodRange(from, to);
   }
 
   /** Ban cham DA KHOA (approved) trong ky, kem bai viet. Loc theo publishAt cua bai. */
@@ -404,7 +400,7 @@ export class RoyaltiesService {
       const p = r.article?.publishAt;
       if (!p) return false;
       if (range.gte && p < range.gte) return false;
-      if (range.lte && p > range.lte) return false;
+      if (range.lt && p >= range.lt) return false;
       return true;
     });
   }
@@ -445,7 +441,10 @@ export class RoyaltiesService {
     const dayMap = new Map<string, number>();
     for (const a of published) {
       if (!a.publishAt) continue;
-      const day = a.publishAt.toISOString().slice(0, 10);
+      // Gom theo ngay VN (vnTodayStr), KHONG theo ngay UTC
+      // (toISOString().slice(0,10)) — de khop widget B4 dashboard (cung
+      // gom theo vnTodayStr) trong cung ky.
+      const day = royaltyPublishDay(a.publishAt);
       dayMap.set(day, (dayMap.get(day) || 0) + 1);
     }
     const articlesByDay = [...dayMap.entries()]

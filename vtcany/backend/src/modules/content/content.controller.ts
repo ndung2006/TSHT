@@ -11,6 +11,7 @@ import { mapEpgSchedule } from '../playback/aio-client';
 import { UploadsService } from '../uploads/uploads.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { aioEpgAllowed, channelKeyOf } from '../tv/tv.catalog';
+import { vnTodayStr } from '../dashboard/dashboard-helpers';
 
 class CreateVideoDto {
   @IsString()
@@ -156,7 +157,10 @@ export class ContentController {
   @RequirePerms('epg:read')
   @Get('channels/:slug/schedule')
   async schedule(@Param('slug') slug: string, @Query('date') date?: string) {
-    const day = date || new Date().toISOString().slice(0, 10);
+    // Ngay mac dinh = ngay VN (vnTodayStr), KHONG phai ngay UTC
+    // (toISOString().slice(0,10)): 00:00-06:59 VN se mac dinh sang lich
+    // ngay hom truoc neu dung ngay UTC. Portal da dung saigonToday dung.
+    const day = date || vnTodayStr();
     // Admin tat "lay EPG tu AIO" cho kenh nay -> chi dung lich CMS nhap tay.
     let useAio = true;
     try {

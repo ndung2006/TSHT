@@ -93,6 +93,7 @@ definePageMeta({ layout: 'admin', middleware: 'auth' });
 useHead({ title: 'Dashboard - VTC ANY CMS' });
 
 import { visibleMenu } from '~/utils/workspaces';
+import { addDaysStr } from '~/utils/vn-date';
 
 const api = useApi();
 const { permissions } = useCmsAuth();
@@ -120,25 +121,23 @@ const customTo = ref('');
 // trinh duyet (nguoi dung co the o mui gio khac khi di cong tac).
 const vnFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' });
 function vnDateStr(d: Date) { return vnFmt.format(d); }
-function vnAddDays(base: Date, n: number) {
-  const d = new Date(base);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-function vnToday() { return new Date(); }
 
 const range = computed(() => {
-  const today = vnToday();
-  if (period.value === 'today') return { from: vnDateStr(today), to: vnDateStr(vnAddDays(today, 1)) };
-  if (period.value === '30d') return { from: vnDateStr(vnAddDays(today, -29)), to: vnDateStr(vnAddDays(today, 1)) };
+  // Hop dong `to` CMS<->backend (chuan ngay VN §12): `to` = ngay cuoi,
+  // BAO HAM. Backend rangeOf da coi `to` la bao ham (vnDayRange(q.to).to
+  // = het ngay q.to) nen CMS gui dung ngay cuoi, KHONG cong them 1 ngay
+  // nhu truoc (gui ngay mai / customTo+1 lam ky dai hon 1 ngay).
+  // Cong/tru ngay bang addDaysStr (so hoc lich UTC tren chuoi YYYY-MM-DD,
+  // khong dung getDate/setDate local cua trinh duyet).
+  const today = vnDateStr(new Date());
+  if (period.value === 'today') return { from: today, to: today };
+  if (period.value === '30d') return { from: addDaysStr(today, -29), to: today };
   if (period.value === 'custom' && customFrom.value && customTo.value) {
     const from = customFrom.value <= customTo.value ? customFrom.value : customTo.value;
     const to = customFrom.value <= customTo.value ? customTo.value : customFrom.value;
-    const toDate = new Date(`${to}T00:00:00Z`);
-    toDate.setUTCDate(toDate.getUTCDate() + 1);
-    return { from, to: toDate.toISOString().slice(0, 10) };
+    return { from, to };
   }
-  return { from: vnDateStr(vnAddDays(today, -6)), to: vnDateStr(vnAddDays(today, 1)) };
+  return { from: addDaysStr(today, -6), to: today };
 });
 const periodLabel = computed(() => {
   if (period.value === 'today') return 'Hôm nay';
