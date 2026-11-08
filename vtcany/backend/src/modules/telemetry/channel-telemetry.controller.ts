@@ -1,12 +1,13 @@
 import { Body, Controller, Headers, HttpException, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { ChannelTelemetryService } from './channel-telemetry.service';
 import { CollectRateLimitGuard } from '../auth/rate-limit.guard';
 
 // Thu telemetry kenh (GĐ3 nen). Endpoint heartbeat CONG KHAI, khong JWT:
 // body chi co sessionId ngau nhien + ten kenh + loai xem + contentId
-// (VOD), khong dinh danh nguoi dung; gioi han body bang DTO (kem gioi
+// (VOD) + 3 truong beat cuoi VOD (watchedSeconds/final/durationSec),
+// khong dinh danh nguoi dung; gioi han body bang DTO (kem gioi
 // han JSON 256kb toan cuc) + gioi han tan suat theo IP (guard).
 // Endpoint gop ngay: internal, giu bang shared secret giong
 // /internal/transcode-queue (x-webhook-secret = MEDIA_WEBHOOK_SECRET),
@@ -30,6 +31,25 @@ class ChannelHeartbeatDto {
   @IsString()
   @MaxLength(128)
   contentId?: string;
+
+  // Beat cuoi VOD (3c-final-beat): portal gui them watchedSeconds (so
+  // giay THUC SU phat) + final:true + durationSec. DTO PHAI khai du
+  // 3 truong nay — neu khong, global ValidationPipe (whitelist: true,
+  // main.ts) se luoc bo chung truoc khi service nhan (bug phat hien
+  // 2026-11-08: beat cuoi bi ghi thanh beat thuong).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  watchedSeconds?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  final?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSec?: number;
 }
 
 @Controller()
