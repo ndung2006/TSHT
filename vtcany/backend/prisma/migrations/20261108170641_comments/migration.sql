@@ -64,17 +64,20 @@ WHERE "name" IN ('PBĐT', 'T.PP');
 
 -- Seed cai dat mac dinh (8 key — khong co comments.bannedWords: tu cam
 -- dung chung entity 'banned' cua catalog, xem thiet ke §2.3).
--- LUU Y: cot id cua site_settings la TEXT NOT NULL va KHONG co default
--- o DB (Prisma @default(uuid()) chi sinh o client), nen INSERT tho
--- phai ghi ro id = gen_random_uuid()::text; bo sot id se loi P3018
--- (null violates not-null) va ca migration bi rollback.
-INSERT INTO "site_settings" ("id", "key", "value") VALUES
-  (gen_random_uuid()::text, 'comments.enabled', 'false'),
-  (gen_random_uuid()::text, 'comments.moderationMode', 'pre'),
-  (gen_random_uuid()::text, 'comments.turnstileEnabled', 'false'),
-  (gen_random_uuid()::text, 'comments.requirePhoneVerified', 'false'),
-  (gen_random_uuid()::text, 'comments.maxLength', '1000'),
-  (gen_random_uuid()::text, 'comments.dailyLimit', '20'),
-  (gen_random_uuid()::text, 'comments.ipDailyLimit', '200'),
-  (gen_random_uuid()::text, 'comments.ipBurstLimit', '20')
+-- LUU Y: cot id va updated_at cua site_settings la NOT NULL va KHONG co
+-- default o DB (Prisma @default(uuid()) / @updatedAt chi sinh o client),
+-- nen INSERT tho phai ghi ro id = gen_random_uuid()::text va
+-- updated_at = NOW() (created_at co DEFAULT CURRENT_TIMESTAMP nhung
+-- ghi ro NOW() luon cho chac); bo sot se loi P3018 (null violates
+-- not-null) va ca migration bi rollback. (Sua 2026-11-08 ~22:46 sau
+-- khi resolve lan 1 chay migrate deploy van loi P3018 o updated_at.)
+INSERT INTO "site_settings" ("id", "key", "value", "created_at", "updated_at") VALUES
+  (gen_random_uuid()::text, 'comments.enabled', 'false', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.moderationMode', 'pre', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.turnstileEnabled', 'false', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.requirePhoneVerified', 'false', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.maxLength', '1000', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.dailyLimit', '20', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.ipDailyLimit', '200', NOW(), NOW()),
+  (gen_random_uuid()::text, 'comments.ipBurstLimit', '20', NOW(), NOW())
 ON CONFLICT ("key") DO NOTHING;
