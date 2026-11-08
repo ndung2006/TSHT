@@ -66,7 +66,7 @@ export class AdminCommentsController {
   @RequirePerms('comments:publish')
   @Put('settings')
   async putSettings(@Req() req: any, @Body() dto: UpdateCommentSettingsDto) {
-    return this.comments.updateSettingsAdmin(req.user?.sub || '', dto || {});
+    return this.comments.updateSettingsAdmin(req.user?.sub || '', { ...(dto || {}) });
   }
 
   @RequirePerms('comments:publish')
