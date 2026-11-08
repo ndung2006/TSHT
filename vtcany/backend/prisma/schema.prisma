@@ -707,6 +707,7 @@ model Comment {
   parentId            String?   @map("parent_id")
   parent              Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies             Comment[] @relation("CommentReplies")
+  reports             CommentReport[]
   authorName          String    @map("author_name")
   isNewsroom          Boolean   @default(false) @map("is_newsroom")
   body                String
