@@ -64,13 +64,17 @@ WHERE "name" IN ('PBĐT', 'T.PP');
 
 -- Seed cai dat mac dinh (8 key — khong co comments.bannedWords: tu cam
 -- dung chung entity 'banned' cua catalog, xem thiet ke §2.3).
-INSERT INTO "site_settings" ("key", "value") VALUES
-  ('comments.enabled', 'false'),
-  ('comments.moderationMode', 'pre'),
-  ('comments.turnstileEnabled', 'false'),
-  ('comments.requirePhoneVerified', 'false'),
-  ('comments.maxLength', '1000'),
-  ('comments.dailyLimit', '20'),
-  ('comments.ipDailyLimit', '200'),
-  ('comments.ipBurstLimit', '20')
+-- LUU Y: cot id cua site_settings la TEXT NOT NULL va KHONG co default
+-- o DB (Prisma @default(uuid()) chi sinh o client), nen INSERT tho
+-- phai ghi ro id = gen_random_uuid()::text; bo sot id se loi P3018
+-- (null violates not-null) va ca migration bi rollback.
+INSERT INTO "site_settings" ("id", "key", "value") VALUES
+  (gen_random_uuid()::text, 'comments.enabled', 'false'),
+  (gen_random_uuid()::text, 'comments.moderationMode', 'pre'),
+  (gen_random_uuid()::text, 'comments.turnstileEnabled', 'false'),
+  (gen_random_uuid()::text, 'comments.requirePhoneVerified', 'false'),
+  (gen_random_uuid()::text, 'comments.maxLength', '1000'),
+  (gen_random_uuid()::text, 'comments.dailyLimit', '20'),
+  (gen_random_uuid()::text, 'comments.ipDailyLimit', '200'),
+  (gen_random_uuid()::text, 'comments.ipBurstLimit', '20')
 ON CONFLICT ("key") DO NOTHING;
