@@ -211,6 +211,20 @@
         <NuxtLink v-if="state.drill" :to="drillTo(state.drill)" class="text-sky-400 hover:underline">Mở trang Quy trình duyệt</NuxtLink>
       </template>
 
+      <!-- C6: tuong tac binh luan (dot 1) — cho duyet la snapshot hien tai
+           (khong theo ky); da duyet / bi tu choi trong ky; thoi gian duyet
+           trung vi tinh bang giay, khong co binh luan nao duoc xu ly trong
+           ky -> '—' (thiet ke §3.6/§4.5, phuong an dashboard §6). -->
+      <template v-else-if="state.code === 'C6'">
+        <div class="flex flex-wrap gap-4">
+          <span>Chờ duyệt: <b>{{ fmtNum(state.data.pending) }}</b></span>
+          <span>Đã duyệt: <b>{{ fmtNum(state.data.approved) }}</b></span>
+          <span>Bị từ chối: <b>{{ fmtNum(state.data.rejected) }}</b></span>
+          <span>Thời gian duyệt trung vị: <b>{{ state.data.medianReviewSeconds == null ? '—' : fmtNum(state.data.medianReviewSeconds) + ' giây' }}</b></span>
+        </div>
+        <NuxtLink v-if="state.drill" :to="drillTo(state.drill)" class="text-sky-400 hover:underline">Mở trang Bình luận</NuxtLink>
+      </template>
+
       <!-- D1: trang thai kenh -->
       <template v-else-if="state.code === 'D1'">
         <div class="flex flex-wrap gap-4">
