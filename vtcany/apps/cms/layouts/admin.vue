@@ -60,6 +60,9 @@
                 active-class="!bg-white/15 font-semibold">
                 <i :class="['pi', m.icon]" />
                 {{ m.label }}
+                <span v-if="m.to === '/binh-luan' && commentsPending !== null"
+                  class="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white"
+                  title="Bình luận chờ duyệt">{{ commentsPending }}</span>
               </NuxtLink>
             </template>
           </template>
@@ -150,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { visibleMenu, hasModuleAction, isChildVisibleForScope } from '~/utils/workspaces';
+import { visibleMenu, hasModuleAction, hasModulePermission, isChildVisibleForScope } from '~/utils/workspaces';
 
 const { user, role, logout, dark, toggleDark, permissions } = useCmsAuth();
 const api = useApi();
@@ -346,6 +349,21 @@ async function loadCounts() {
     const r = await api.get<any>('/admin/sidebar-counts', {});
     if (r) sidebarCounts.value = r;
   } catch { /* fail-open: giu so cu / an so */ }
+  loadCommentsPending();
+}
+// Badge "Binh luan" (Dot 1 §4.1): khong dung duoc so commentsPending tu A1
+// (A1 la viec cua backend, chua co trong worktree nay) nen goi rieng
+// GET /admin/comments?status=pending&limit=1 lay total — cung truy van dem
+// nhu hang kiem duyet loc pending nen so badge = so dong danh sach.
+// Chi goi khi co bat ky quyen comments:* nao; loi/403 thi an badge (null),
+// khong hien 0. Tai lai moi lan chuyen trang (cung loadCounts).
+const commentsPending = ref<number | null>(null);
+async function loadCommentsPending() {
+  if (!hasModulePermission(permissions.value, 'comments')) { commentsPending.value = null; return; }
+  try {
+    const r = await api.get<any>('/admin/comments', { status: 'pending', limit: 1 });
+    commentsPending.value = typeof r?.total === 'number' ? r.total : null;
+  } catch { commentsPending.value = null; }
 }
 onMounted(loadCounts);
 watch(() => route.path, () => { loadCounts(); openGroupForRoute(); sidebarOpen.value = false; });
@@ -416,6 +434,7 @@ const titles: Record<string, string> = {
   '/bai-viet': 'Quản lý Bài viết',
   '/bao-in': 'Báo in',
   '/tin-bai': 'Tin bài',
+  '/binh-luan': 'Bình luận',
   '/su-kien-toa-soan': 'Sự kiện tòa soạn',
   '/tuong-thuat': 'Tường thuật trực tiếp',
   '/quang-cao-toa-soan': 'Quảng cáo tòa soạn',

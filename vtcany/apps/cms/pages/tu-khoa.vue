@@ -8,7 +8,7 @@
 
     <div class="flex items-center justify-between">
       <p class="text-sm text-neutral-400">Tổng: {{ meta.total }} {{ tab === 'keywords' ? 'từ khoá' : 'từ cấm' }}</p>
-      <Button v-if="can('catalog:write')" :label="tab === 'keywords' ? 'Thêm từ khoá' : 'Thêm từ cấm'" icon="pi pi-plus" @click="openAdd" />
+      <Button v-if="canEdit" :label="tab === 'keywords' ? 'Thêm từ khoá' : 'Thêm từ cấm'" icon="pi pi-plus" @click="openAdd" />
     </div>
 
     <div class="surface-card p-4">
@@ -20,8 +20,8 @@
         </Column>
         <Column header="Thao tác" style="min-width:10rem">
           <template #body="{ data }">
-            <Button v-if="can('catalog:write')" label="Sửa" size="small" text @click="openEdit(data)" />
-            <Button v-if="can('catalog:write')" label="Xóa" size="small" text severity="danger" @click="confirmDelete(confirm, data.id, data[fieldName])" />
+            <Button v-if="canEdit" label="Sửa" size="small" text @click="openEdit(data)" />
+            <Button v-if="canEdit" label="Xóa" size="small" text severity="danger" @click="confirmDelete(confirm, data.id, data[fieldName])" />
           </template>
         </Column>
       </DataTable>
@@ -43,6 +43,14 @@ useHead({ title: 'Từ khoá - VTC ANY CMS' });
 
 const { can } = useCmsAuth();
 const confirm = useConfirm();
+
+// Binh luan Dot 1 (§4.3, Q8b): tab "Tu cam" cho nguoi co comments:publish
+// sua duoc ma khong can catalog:write; tab "Tu khoa tim kiem" giu nguyen
+// chi catalog:write. (Backend: CRUD catalog hien gac catalog:write —
+// can sua co che gac cho entity 'banned' moi luu duoc, xem bao cao.)
+const canEdit = computed(() => tab.value === 'banned'
+  ? (can('catalog:write') || can('comments:publish'))
+  : can('catalog:write'));
 
 const tabs = [
   { key: 'keywords', label: 'Từ khoá tìm kiếm', icon: 'pi pi-search' },

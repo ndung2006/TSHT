@@ -63,8 +63,8 @@ describe('bo cuc theo role (backend config, khong hardcode UI)', () => {
     assert.deepEqual(resolveLayout('PV', true), ALL_WIDGETS);
     assert.deepEqual(resolveLayout(null, true), ALL_WIDGETS);
   });
-  it('Thu ky (T.PP) dung subset duyet: A1, A4, B1, B4, B5, B6, E1', () => {
-    assert.deepEqual(resolveLayout('T.PP', false), ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'E1']);
+  it('Thu ky (T.PP) dung subset duyet: A1, A4, B1, B4, B5, B6, C6, E1', () => {
+    assert.deepEqual(resolveLayout('T.PP', false), ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'C6', 'E1']);
   });
   it('Quan tri chung (Admin fallback) va BBT/TBT/P.TBT dung subset duyet (them A4)', () => {
     assert.deepEqual(resolveLayout('TBT', false), ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1']);

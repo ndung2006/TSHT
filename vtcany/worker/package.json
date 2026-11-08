@@ -6,7 +6,7 @@
     "dev": "ts-node src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "npm run build && node --test job.test.mjs ffmpeg.test.mjs transcode-local.test.mjs pipeline.test.mjs cleanup-stale-chunks.test.mjs"
+    "test": "npm run build && node --test job.test.mjs ffmpeg.test.mjs transcode-local.test.mjs pipeline.test.mjs cleanup-stale-chunks.test.mjs cleanup-old-comment-meta.test.mjs"
   },
   "dependencies": {
     "bullmq": "^6.3.10"

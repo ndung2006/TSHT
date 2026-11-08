@@ -24,6 +24,10 @@ export interface EndUserPublic {
 
 const MIN_PASSWORD_LEN = 8;
 
+// Binh luan dot 1 (§6.3): ten hien thi cua binh luan sau khi tai khoan
+// ban doc bi xoa cung. Export de module comments dung chung 1 chuoi.
+export const DELETED_READER_AUTHOR_NAME = 'Bạn đọc đã xóa tài khoản';
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -138,12 +142,52 @@ export class UsersService {
     return this.toPublic(u);
   }
 
+  // An danh hoa binh luan khi tai khoan ban doc bi xoa cung (§6.3):
+  // userId = NULL, authorName = 'Bạn đọc đã xóa tài khoản', ip/userAgent
+  // = NULL; giu nguyen body/status/createdAt. Row comment_reports cua
+  // user tu xoa theo FK Cascade (CommentReport.userId) nen khong xu ly
+  // rieng; reportCount tren comments giu nguyen. Goi trong transaction
+  // xoa user (remove) de an danh hoa + xoa cung la nguyen tu.
+  // Luu y: neu co che hien tai xoa cung row users thi FK onDelete:SetNull
+  // tren Comment.userId da tu set userId = NULL, nhung authorName +
+  // ip/userAgent van can update rieng — ham nay lam ca 4 truong nen
+  // dung cho ca 2 truong hop.
+  // (prisma as any): model Comment moi (xem ghi chu o create); delegate
+  // comment chi co sau khi Prisma client duoc generate lai. Neu chua co
+  // thi bo qua + log canh bao (giu hanh vi xoa user hien tai) thay vi
+  // lam hong thao tac xoa.
+  async anonymizeCommentsForDeletedUser(userId: string, client: any = this.prisma): Promise<number> {
+    const comment = (client as any)?.comment;
+    if (!comment) {
+      this.logger.warn(`An danh hoa binh luan bo qua cho ${userId}: bang comments chua co (chua chay migration).`);
+      return 0;
+    }
+    const r = await comment.updateMany({
+      where: { userId },
+      data: { userId: null, authorName: DELETED_READER_AUTHOR_NAME, ip: null, userAgent: null },
+    });
+    const n = Number(r?.count || 0);
+    if (n > 0) this.logger.log(`An danh hoa ${n} binh luan cua nguoi dung ${userId} (tai khoan da xoa).`);
+    return n;
+  }
+
   async remove(id: string) {
     const cur = await this.prisma.user.findUnique({ where: { id } });
     if (!cur) throw Object.assign(new Error('nguoi dung khong ton tai'), { code: 'not_found' });
-    // Xoa luon session de force logout; profile/lich su xoa theo cascade cua schema.
-    await this.prisma.userSession.deleteMany({ where: { userId: id } }).catch(() => undefined);
-    await this.prisma.user.delete({ where: { id } });
+    // Xoa tai khoan — day la cho xu ly yeu cau xoa cua ban doc: ban doc
+    // gui yeu cau qua requestReaderDeletion (auth.service, chi ghi nhan
+    // + khoa tai khoan, hien o CMS trang Nguoi dung), admin bam Xoa
+    // (DELETE /admin/users/:id) -> remove() xoa cung row users. An danh
+    // hoa binh luan + xoa session + xoa cung row CHUNG 1 transaction:
+    // neu an danh hoa loi thi ca transaction rollback (user khong bi
+    // xoa) de admin thu lai, tranh trang thai user da mat nhung binh
+    // luan van con ten/IP.
+    await this.prisma.$transaction(async (tx: any) => {
+      // Xoa luon session de force logout; profile/lich su xoa theo cascade cua schema.
+      await tx.userSession.deleteMany({ where: { userId: id } }).catch(() => undefined);
+      await this.anonymizeCommentsForDeletedUser(id, tx);
+      await tx.user.delete({ where: { id } });
+    });
     this.logger.log(`Admin xoa nguoi dung ${id}.`);
     return { ok: true };
   }

@@ -42,6 +42,99 @@
     return { ok: r.ok, status: r.status, data: data || {} };
   }
 
+  // ---- Binh luan cua toi (dot 1, thiet-ke-binh-luan-dot-1 §5.3) ----
+  // Section moi duoi cac section hien co; chi hien khi
+  // comments.enabled=true (GET /api/v2/comments/config) — khi tat thi
+  // section an va KHONG goi API mine. Noi dung plain text: esc() roi
+  // doi \n -> <br>.
+  var MY_COMMENTS_LIMIT = 20;
+  var myCommentsPage = 1;
+  var myCommentsTotal = 0;
+  var myCommentsItems = [];
+  var myCommentsBound = false;
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>\"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    try {
+      return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+    } catch (e) { return String(iso).slice(0, 16); }
+  }
+  function myCommentStatusLabel(status) {
+    return { pending: "Chờ duyệt", approved: "Đã duyệt", rejected: "Bị từ chối", hidden: "Đã ẩn" }[status] || status || "";
+  }
+  function formatMyCommentBody(s) {
+    return esc(s == null ? "" : s).replace(/\r\n?/g, "\n").replace(/\n/g, "<br>");
+  }
+  function hasMoreMyComments(page, limit, total) {
+    return page * limit < total;
+  }
+  function renderMyComments() {
+    var list = $("account-comments-list");
+    if (!list) return;
+    if (!myCommentsItems.length) {
+      list.innerHTML = "<p>Bạn chưa có bình luận nào.</p>";
+    } else {
+      list.innerHTML = myCommentsItems.map(function (c) {
+        var h = "<div class=\"my-comments-item\" data-my-comment-id=\"" + esc(c.id) + "\">" +
+          "<h3><a href=\"/tin/" + esc(c.articleSlug || "") + "\">" + esc(c.articleTitle || c.articleSlug || "Bài viết") + "</a></h3>" +
+          "<p class=\"my-comments-body\">" + formatMyCommentBody(c.body) + "</p>" +
+          "<p class=\"my-comments-meta\"><span class=\"my-comments-chip " + esc(c.status || "") + "\">" + esc(myCommentStatusLabel(c.status)) + "</span>" +
+          (c.createdAt ? esc(fmtDate(c.createdAt)) : "") + "</p>";
+        if (c.status === "rejected" && c.moderationReason) {
+          h += "<p class=\"my-comments-reason\">Lý do từ chối: " + esc(c.moderationReason) + "</p>";
+        }
+        return h + "<button type=\"button\" class=\"account-btn secondary\" data-my-comment-delete=\"" + esc(c.id) + "\">Xóa</button></div>";
+      }).join("");
+    }
+    var more = $("account-comments-more");
+    if (more) more.hidden = !hasMoreMyComments(myCommentsPage, MY_COMMENTS_LIMIT, myCommentsTotal);
+  }
+  async function loadMyComments(page) {
+    var r = await api("/api/v2/reader/comments/mine?page=" + page + "&limit=" + MY_COMMENTS_LIMIT);
+    if (!r.ok) {
+      var list = $("account-comments-list");
+      if (list) list.innerHTML = "<p>Không tải được bình luận, vui lòng thử lại sau.</p>";
+      return;
+    }
+    var d = r.data || {};
+    myCommentsTotal = d.total || 0;
+    if (page <= 1) myCommentsItems = d.data || [];
+    else myCommentsItems = myCommentsItems.concat(d.data || []);
+    myCommentsPage = d.page || page;
+    renderMyComments();
+  }
+  async function initMyComments() {
+    var section = $("account-comments");
+    if (!section) return;
+    var cfg = await api("/api/v2/comments/config");
+    if (!cfg.ok || !cfg.data || !cfg.data.enabled) { section.hidden = true; return; }
+    section.hidden = false;
+    if (!myCommentsBound) {
+      myCommentsBound = true;
+      section.addEventListener("click", function (e) {
+        var t = e.target && e.target.closest ? e.target.closest("[data-my-comment-delete]") : null;
+        if (!t) return;
+        var id = t.getAttribute("data-my-comment-delete");
+        if (!id) return;
+        if (!window.confirm || !window.confirm("Bạn có chắc muốn xóa bình luận này?")) return;
+        api("/api/v2/reader/comments/" + encodeURIComponent(id), { method: "DELETE" }).then(function (r) {
+          if (!r.ok) { showMsg(mapError(r.data, r.status), false); return; }
+          myCommentsItems = myCommentsItems.filter(function (c) { return c.id !== id; });
+          myCommentsTotal = Math.max(0, myCommentsTotal - 1);
+          renderMyComments();
+          showMsg("Đã xóa bình luận.", true);
+        });
+      });
+      var more = $("account-comments-more");
+      if (more) more.addEventListener("click", function () { loadMyComments(myCommentsPage + 1); });
+    }
+    await loadMyComments(1);
+  }
+
   function render(user) {
     currentUser = user;
     $("account-loading").hidden = true;
@@ -62,11 +155,14 @@
         showMsg("Không tải được mã chống robot, không gửi lại được email xác nhận lúc này.", false);
       });
     }
+    initMyComments();
   }
   function showLoginPrompt() {
     $("account-loading").hidden = true;
     $("account-main").hidden = true;
     $("account-login-prompt").hidden = false;
+    var section = $("account-comments");
+    if (section) section.hidden = true;
   }
   async function loadMe() {
     var r = await api("/api/v2/reader/me");
@@ -167,6 +263,16 @@
     });
     window.addEventListener("reader-auth:changed", loadMe);
     loadMe();
+  }
+
+  // Hook cho test portal (node --test): khong dung o runtime.
+  if (typeof window !== "undefined") {
+    window.TshtMyComments = {
+      statusLabel: myCommentStatusLabel,
+      formatBody: formatMyCommentBody,
+      hasMore: hasMoreMyComments,
+      limit: MY_COMMENTS_LIMIT,
+    };
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

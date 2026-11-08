@@ -9,6 +9,7 @@ function fakePrisma() {
   const users = [];
   const profiles = [];
   const sessions = [];
+  const comments = [];
   let seq = 0;
   const match = (u, where) => {
     if (!where || Object.keys(where).length === 0) return true;
@@ -28,8 +29,23 @@ function fakePrisma() {
       });
     return ok;
   };
-  return {
+  const fake = {
     _users: users,
+    _comments: comments,
+    // remove() dung $transaction: fake chay callback voi chinh fake nay
+    // lam tx (tx.user/tx.userSession/tx.comment deu co).
+    $transaction: async (fn) => fn(fake),
+    comment: {
+      updateMany: async ({ where, data }) => {
+        let n = 0;
+        for (const c of comments) {
+          if (where?.userId !== undefined && c.userId !== where.userId) continue;
+          Object.assign(c, data);
+          n++;
+        }
+        return { count: n };
+      },
+    },
     user: {
       count: async ({ where } = {}) => users.filter((u) => match(u, where)).length,
       findMany: async ({ where, orderBy, skip, take } = {}) => {
@@ -65,6 +81,7 @@ function fakePrisma() {
       },
     },
   };
+  return fake;
 }
 
 test('create: chuan hoa email/phone, hash password, khong lo passwordHash', async () => {
@@ -147,4 +164,37 @@ test('remove: xoa user', async () => {
   const all = await svc.list({});
   assert.equal(all.meta.total, 0);
   await assert.rejects(() => svc.remove(u.id), /khong ton tai/);
+});
+
+// Binh luan dot 1 §6.3 (T68): xoa cung user -> binh luan cua user do
+// duoc an danh hoa (userId null, ten moi, ip/userAgent null), giu
+// nguyen body/status/createdAt; binh luan cua nguoi khac va tra loi
+// cua toa soan (userId null san) khong bi cham.
+test('remove: an danh hoa binh luan cua user bi xoa (§6.3)', async () => {
+  const db = fakePrisma();
+  const svc = new UsersService(db);
+  const u = await svc.create({ email: 'e@x.vn', displayName: 'Ban Doc E' });
+  const other = await svc.create({ email: 'f@x.vn', displayName: 'Ban Doc F' });
+  const mineApproved = { id: 'c1', userId: u.id, authorName: 'Ban Doc E', body: 'Hay', status: 'approved', ip: '1.2.3.4', userAgent: 'UA', createdAt: new Date('2026-11-01T00:00:00.000Z') };
+  const minePending = { id: 'c2', userId: u.id, authorName: 'Ban Doc E', body: 'Cho duyet', status: 'pending', ip: '1.2.3.4', userAgent: 'UA', createdAt: new Date('2026-11-02T00:00:00.000Z') };
+  const others = { id: 'c3', userId: other.id, authorName: 'Ban Doc F', body: 'Cua F', status: 'approved', ip: '5.6.7.8', userAgent: 'UA', createdAt: new Date('2026-11-01T00:00:00.000Z') };
+  const newsroom = { id: 'c4', userId: null, authorName: 'Tòa soạn', body: 'Tra loi', status: 'approved', ip: '9.9.9.9', userAgent: 'UA', createdAt: new Date('2026-11-01T00:00:00.000Z') };
+  db._comments.push(mineApproved, minePending, others, newsroom);
+  await svc.remove(u.id);
+  for (const c of [mineApproved, minePending]) {
+    assert.equal(c.userId, null);
+    assert.equal(c.authorName, 'Bạn đọc đã xóa tài khoản');
+    assert.equal(c.ip, null);
+    assert.equal(c.userAgent, null);
+  }
+  assert.equal(mineApproved.body, 'Hay');
+  assert.equal(mineApproved.status, 'approved');
+  assert.equal(mineApproved.createdAt.toISOString(), '2026-11-01T00:00:00.000Z');
+  assert.equal(minePending.status, 'pending');
+  // Khong cham binh luan cua nguoi khac / cua toa soan.
+  assert.equal(others.userId, other.id);
+  assert.equal(others.authorName, 'Ban Doc F');
+  assert.equal(others.ip, '5.6.7.8');
+  assert.equal(newsroom.authorName, 'Tòa soạn');
+  assert.equal(newsroom.ip, '9.9.9.9');
 });

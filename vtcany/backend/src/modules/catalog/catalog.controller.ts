@@ -20,6 +20,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
+import { hasModulePermission } from '../auth/permissions.catalog';
+import { fallbackPermissionMap } from '../auth/admin-token';
 import { RolesService } from '../auth/roles.service';
 import { WorkflowConfigService } from '../workflows/workflow-config.service';
 import { AuditService } from '../audit/audit.service';
@@ -51,6 +53,25 @@ export class CatalogController {
 
   private actor(req: any) {
     return { actor: req.user?.username || 'unknown', role: req.user?.role };
+  }
+
+  // Gac OR cho CRUD generic :entity (goi Binh luan dot 1, Q8b): voi
+  // entity 'banned' (danh sach tu cam dung chung), chap nhan
+  // catalog:write HOAC comments:publish (nguoi duyet binh luan duoc
+  // sua tab "Tu cam" ma khong can catalog:write); moi entity khac chi
+  // catalog:write. Guard o lop class van chay truoc (JWT + token CMS);
+  // kiem tra thu cong o day thay cho @RequirePerms('catalog:write')
+  // (guard hien tai chi AND) nen chi ap dung cho 4 endpoint ghi
+  // generic nay, khong mo rong ra endpoint rieng le nao khac.
+  private async assertCatalogWrite(req: any, entity: string) {
+    let map: any = null;
+    try {
+      map = await this.roles.permissionMapForAdmin(req.user?.sub || '');
+    } catch { /* fallback duoi */ }
+    if (!map) map = fallbackPermissionMap(req.user);
+    if (hasModulePermission(map, 'catalog:write')) return;
+    if (entity === 'banned' && hasModulePermission(map, 'comments:publish')) return;
+    throw new HttpException({ error: { code: 'forbidden', message: 'missing permission' } }, HttpStatus.FORBIDDEN);
   }
 
   private bad(e: any) {
@@ -334,10 +355,10 @@ export class CatalogController {
     } catch (e) { this.bad(e); }
   }
 
-  @RequirePerms('catalog:write')
   @Post(':entity/:id/unpublish')
   async unpublish(@Param('entity') entity: string, @Param('id') id: string, @Req() req: any) {
     try {
+      await this.assertCatalogWrite(req, entity);
       const item = await this.catalog.setPublished(entity, id, false);
       this.log(req, 'unpublish', entity, id);
       return item;
@@ -425,10 +446,10 @@ export class CatalogController {
     } catch (e) { this.bad(e); }
   }
 
-  @RequirePerms('catalog:write')
   @Post(':entity')
   async create(@Param('entity') entity: string, @Body() body: any, @Req() req: any) {
     try {
+      await this.assertCatalogWrite(req, entity);
       const item = await this.catalog.create(entity, body || {});
       this.log(req, 'create', entity, item.id);
       return item;
@@ -443,20 +464,20 @@ export class CatalogController {
     } catch (e) { this.bad(e); }
   }
 
-  @RequirePerms('catalog:write')
   @Patch(':entity/:id')
   async update(@Param('entity') entity: string, @Param('id') id: string, @Body() body: any, @Req() req: any) {
     try {
+      await this.assertCatalogWrite(req, entity);
       const item = await this.catalog.update(entity, id, body || {});
       this.log(req, 'update', entity, id);
       return item;
     } catch (e) { this.bad(e); }
   }
 
-  @RequirePerms('catalog:write')
   @Delete(':entity/:id')
   async remove(@Param('entity') entity: string, @Param('id') id: string, @Req() req: any) {
     try {
+      await this.assertCatalogWrite(req, entity);
       await this.catalog.remove(entity, id);
       this.log(req, 'delete', entity, id);
       return { ok: true };

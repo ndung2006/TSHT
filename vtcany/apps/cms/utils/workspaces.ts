@@ -122,6 +122,9 @@ export const MENU_ITEMS: MenuItem[] = [
     ],
   },
   { to: '/su-kien-toa-soan', label: 'Sự kiện', icon: 'pi-calendar-plus', workspace: 'online', module: 'newsroom_events' },
+  // Binh luan Dot 1 (§4.1): module 'comments' -> hien khi co bat ky quyen
+  // comments:* nao (view hoac publish); badge so cho duyet o layouts/admin.vue.
+  { to: '/binh-luan', label: 'Bình luận', icon: 'pi-comments', workspace: 'online', module: 'comments' },
   // Thiet lap tin noi bat (Buoc 0 2026-11-05, phuong an A): 2 man hinh
   // sap xep dung chung 1 component, gate theo quyen zones nhu trang
   // Vung hien thi (xem zones:view, luu zones:publish).

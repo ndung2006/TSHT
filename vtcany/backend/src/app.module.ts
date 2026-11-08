@@ -27,6 +27,7 @@ import { PrintArticleModule } from './modules/print-articles/print-article.modul
 import { SiteInterfaceModule } from './modules/site-interface/site-interface.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health.controller';
 
@@ -60,6 +61,7 @@ import { HealthController } from './health.controller';
     SiteInterfaceModule,
     WorkflowsModule,
     DashboardModule,
+    CommentsModule,
     PrismaModule,
   ],
   controllers: [HealthController],

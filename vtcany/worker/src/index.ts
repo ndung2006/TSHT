@@ -1,6 +1,11 @@
 import { join } from 'path';
 import { transcodeLocal } from './transcode-local';
 import { cleanupStaleChunks, STALE_CHUNK_MAX_AGE_MS } from './cleanup-stale-chunks';
+import {
+  cleanupOldCommentMeta,
+  createHttpCommentMetaStore,
+  COMMENT_META_CLEANUP_INTERVAL_MS,
+} from './cleanup-old-comment-meta';
 
 // Worker Phase 2 (Bước 6/8):
 // - Có REDIS_URL: subscribe BullMQ queue 'transcode' (concurrency 2, retry 3
@@ -149,3 +154,28 @@ if (REDIS_URL) {
 // (ben trong tu gioi han 1 gio/lan). Chay ca 2 che do queue.
 void maybeCleanupStaleChunks();
 setInterval(() => maybeCleanupStaleChunks(), CLEANUP_CHECK_MS);
+
+// ---- Don IP/User-Agent binh luan cu hon 12 thang (Binh luan dot 1, §6.2) ----
+// Chay toi da 1 ngay/lan (kiem tra moi phut), chay ca 2 che do queue.
+// Chi set ip/userAgent = NULL, KHONG xoa binh luan. Worker khong co DB
+// nen goi backend POST /internal/cleanup-old-comment-meta (xem
+// cleanup-old-comment-meta.ts); neu endpoint chua co (404) thi chi log
+// canh bao, khong lam hong worker.
+let lastCommentMetaCleanupAt = 0;
+async function maybeCleanupOldCommentMeta(): Promise<void> {
+  const now = Date.now();
+  if (now - lastCommentMetaCleanupAt < COMMENT_META_CLEANUP_INTERVAL_MS) return;
+  lastCommentMetaCleanupAt = now;
+  try {
+    const store = createHttpCommentMetaStore(BACKEND, SECRET);
+    const r = await cleanupOldCommentMeta(store);
+    // eslint-disable-next-line no-console
+    console.log(`[worker] cleanup old comment meta: checked=${r.checked} cleared=${r.cleared}`);
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.log('[worker] cleanup old comment meta failed (se thu lai sau 24h):', e?.message);
+  }
+}
+
+void maybeCleanupOldCommentMeta();
+setInterval(() => void maybeCleanupOldCommentMeta(), CLEANUP_CHECK_MS);

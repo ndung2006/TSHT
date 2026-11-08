@@ -9,6 +9,38 @@
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
+<style>
+  /* Khung binh luan (dot 1): chi hien khi comments.enabled + bai cho phep. */
+  .comments-section { margin-top: 2rem; border-top: 2px solid #d61f2f; padding-top: 1rem; }
+  .comments-section h2 { font-size: 1.25rem; margin: 0 0 1rem; }
+  .comments-section[hidden] { display: none !important; }
+  .comments-status { border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0 0 1rem; font-size: 0.93rem; background: #f0f9f0; border: 1px solid #bfe3bf; color: #1e6b2e; }
+  .comments-status.err { background: #fff3f3; border: 1px solid #f3c2c2; color: #b3261e; }
+  .comments-status[hidden] { display: none !important; }
+  .comments-form { margin-bottom: 1.5rem; }
+  .comments-form .comments-as { font-weight: 600; margin: 0 0 0.5rem; }
+  .comments-form textarea { width: 100%; box-sizing: border-box; padding: 0.6rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font: inherit; min-height: 90px; resize: vertical; }
+  .comments-form textarea:focus { outline: 2px solid rgba(214,31,47,.2); border-color: #d61f2f; }
+  .comments-counter { font-size: 0.85rem; color: #666; text-align: right; margin: 0.25rem 0 0.5rem; }
+  .comments-counter.over { color: #b3261e; font-weight: 700; }
+  .comments-btn { background: #d61f2f; color: #fff; border: 0; border-radius: 6px; padding: 0.6rem 1.1rem; font: inherit; font-weight: 700; cursor: pointer; }
+  .comments-btn:hover { background: #b81a28; }
+  .comments-btn:disabled { opacity: .6; cursor: wait; }
+  .comments-btn.secondary { background: #fff; color: #d61f2f; border: 1px solid #d61f2f; }
+  .comments-btn.small { padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: 600; }
+  .comments-item { border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.9rem; background: #fff; }
+  .comments-item-head { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: baseline; margin-bottom: 0.4rem; }
+  .comments-author { font-weight: 700; }
+  .comments-time { font-size: 0.85rem; color: #666; }
+  .comments-body { line-height: 1.6; margin: 0 0 0.5rem; overflow-wrap: break-word; }
+  .comments-actions { display: flex; gap: 0.6rem; }
+  .comments-action { background: none; border: 0; padding: 0; font: inherit; font-size: 0.85rem; color: #555; cursor: pointer; text-decoration: underline; }
+  .comments-action:hover { color: #d61f2f; }
+  .comments-reply { margin: 0.7rem 0 0 1.2rem; padding: 0.7rem 0.9rem; background: #fff3f3; border-left: 3px solid #d61f2f; border-radius: 0 6px 6px 0; }
+  .comments-newsroom { display: inline-block; background: #d61f2f; color: #fff; font-size: 0.78rem; font-weight: 700; border-radius: 4px; padding: 0.1rem 0.4rem; }
+  .comments-empty { color: #666; }
+  .comments-more-wrap { text-align: center; margin-top: 0.5rem; }
+</style>
 </head>
 <body id="top">
 <!-- @HEADER -->
@@ -33,10 +65,15 @@
   <!-- Quang cao article_sidebar: giu cuoi trang (duoi luoi 2 cot) de
        khong chen vao cot bai lien quan -->
   <div class="ad-slot" data-ad-placement="article_sidebar" hidden></div>
+  <!-- Khung binh luan (dot 1): article.js dien noi dung; chi hien khi
+       comments.enabled=true (GET /api/v2/comments/config) VA bai viet
+       co allowComments=true. -->
+  <section id="comments" class="comments-section" aria-label="Bình luận" hidden></section>
 </main>
 <!-- @FOOTER -->
 <script src="/js/ads.js?v=20261102-1"></script>
 <script src="/js/telemetry.js?v=20261107-1"></script>
 <script src="/js/header.js?v=20261106-4"></script>
-<script src="/js/article.js?v=20261107-1"></script>
+<script src="/js/reader-captcha.js?v=20261106-1"></script>
+<script src="/js/article.js?v=20261108-1"></script>
 </body></html>

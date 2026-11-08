@@ -38,6 +38,20 @@
 .account-note { font-size: 0.88rem; color: #666; margin: 0.5rem 0 0; }
 .account-danger-zone { border-color: #f3c2c2; }
 .account-danger-zone p { font-size: 0.93rem; color: #555; margin: 0 0 0.8rem; }
+/* Binh luan cua toi (dot 1): an khi comments.enabled=false. */
+.my-comments-item { border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.9rem; }
+.my-comments-item h3 { font-size: 1rem; margin: 0 0 0.4rem; }
+.my-comments-item h3 a { color: #d61f2f; text-decoration: none; }
+.my-comments-item h3 a:hover { text-decoration: underline; }
+.my-comments-body { line-height: 1.6; margin: 0 0 0.5rem; overflow-wrap: break-word; }
+.my-comments-meta { font-size: 0.85rem; color: #666; margin: 0 0 0.5rem; }
+.my-comments-chip { display: inline-block; font-size: 0.82rem; font-weight: 700; border-radius: 4px; padding: 0.15rem 0.5rem; margin-right: 0.5rem; }
+.my-comments-chip.pending { background: #fff8e1; color: #8a6d00; }
+.my-comments-chip.approved { background: #f0f9f0; color: #1e6b2e; }
+.my-comments-chip.rejected { background: #fff3f3; color: #b3261e; }
+.my-comments-chip.hidden { background: #f0f0f0; color: #555; }
+.my-comments-reason { font-size: 0.9rem; color: #b3261e; margin: 0 0 0.5rem; }
+.my-comments-more-wrap { text-align: center; margin-top: 0.5rem; }
 </style>
 </head>
 <body id="top">
@@ -110,6 +124,14 @@
       <button type="button" class="account-btn danger" id="account-delete-btn">Yêu cầu xóa tài khoản</button>
     </section>
 
+    <!-- Binh luan cua toi (dot 1): tai-khoan.js dien noi dung; an khi
+         comments.enabled=false (khong goi API). -->
+    <section class="account-card" id="account-comments" hidden>
+      <h2>Bình luận của tôi</h2>
+      <div id="account-comments-list"><p>Đang tải bình luận…</p></div>
+      <div class="my-comments-more-wrap"><button type="button" class="account-btn secondary" id="account-comments-more" hidden>Xem thêm</button></div>
+    </section>
+
     <button type="button" class="account-btn secondary" id="account-logout-btn">Đăng xuất</button>
   </div>
 </main>
@@ -117,5 +139,5 @@
 <!-- @FOOTER -->
 <script src="/js/header.js?v=20261106-4"></script>
 <script src="/js/reader-captcha.js?v=20261106-1"></script>
-<script src="/js/tai-khoan.js?v=20261106-2"></script>
+<script src="/js/tai-khoan.js?v=20261108-1"></script>
 </body></html>

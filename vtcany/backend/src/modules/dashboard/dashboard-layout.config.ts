@@ -1,8 +1,10 @@
-// Cau hinh bo cuc dashboard theo vai tro (GĐ1 + D3 tu GĐ2) — file thuần, KHONG import
-// Nest/Prisma de test truc tiep bang node --test (khuon retry-policy.ts).
+// Cau hinh bo cuc dashboard theo vai tro (GĐ1 + D3 tu GĐ2 + C6 tu dot 1
+// binh luan) — file thuần, KHONG import Nest/Prisma de test truc tiep
+// bang node --test (khuon retry-policy.ts).
 // Quy tac (tai lieu duyet, muc 5 + muc 11):
-// - Ma tran roleName -> widget, gom 16 widget GĐ1 + D3 (GĐ2). C4, C1, C2,
-//   C3, C5, C6, C7 la giai doan sau, KHONG liet ke.
+// - Ma tran roleName -> widget, gom 16 widget GĐ1 + D3 (GĐ2) + C6 (dot 1
+//   binh luan, 2026-11-08). C4, C1, C2, C3, C5, C7 la giai doan sau,
+//   KHONG liet ke.
 // - Full-admin (quyen '*':'*') thay toan bo widget, nhung van chiu
 //   quy tac tach nhiem vu o A1 (xem dashboard-helpers.ts).
 // - Role khong co trong ma tran -> fallback A1, A2, A3, E1.
@@ -19,12 +21,13 @@ export const ALL_GD1_WIDGETS = [
   'D1', 'D2', 'D4', 'D5', 'E1',
 ] as const;
 
-/** Tap widget tu GĐ2 tro di (GĐ1 giu nguyen 16 ma de test GĐ1 khong doi). */
-export const ALL_WIDGETS = [...ALL_GD1_WIDGETS, 'D3'] as const;
+/** Tap widget tu GĐ2 tro di (GĐ1 giu nguyen 16 ma de test GĐ1 khong doi).
+ *  C6 them trong dot 1 binh luan (2026-11-08). */
+export const ALL_WIDGETS = [...ALL_GD1_WIDGETS, 'D3', 'C6'] as const;
 
 export type WidgetCode = (typeof ALL_WIDGETS)[number];
 
-export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 'D' | 'E' }> = {
+export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 'C' | 'D' | 'E' }> = {
   A1: { title: 'Hàng chờ của tôi', tier: 'A' },
   A2: { title: 'Bị trả về', tier: 'A' },
   A3: { title: 'Nháp của tôi', tier: 'A' },
@@ -36,6 +39,7 @@ export const WIDGET_META: Record<WidgetCode, { title: string; tier: 'A' | 'B' | 
   B5: { title: 'Theo chuyên mục', tier: 'B' },
   B6: { title: 'Việc treo', tier: 'B' },
   B7: { title: 'Cảnh báo quy trình', tier: 'B' },
+  C6: { title: 'Tương tác', tier: 'C' },
   D1: { title: 'Trạng thái kênh', tier: 'D' },
   D2: { title: 'Xử lý media', tier: 'D' },
   D3: { title: 'Lưu trữ', tier: 'D' },
@@ -50,7 +54,7 @@ export const ROLE_LAYOUT: Record<string, WidgetCode[]> = {
   'P.TBT': ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
   BBT: ['A1', 'A4', 'D5', 'B1', 'B2', 'B3', 'B6', 'E1'],
   // Thu ky toa soan / Phong Bao dien tu
-  'T.PP': ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'E1'],
+  'T.PP': ['A1', 'A4', 'B1', 'B4', 'B5', 'B6', 'C6', 'E1'],
   // Truong phong
   TP: ['A1', 'A2', 'B1', 'B6', 'E1'],
   // Xuat ban Bao in
@@ -58,7 +62,7 @@ export const ROLE_LAYOUT: Record<string, WidgetCode[]> = {
   MD: ['A1', 'B2', 'E1'],
   // Phong vien, bien tap vien + tac gia/duyet vien cac phan he buoc don
   PV: ['A1', 'A2', 'A3', 'E1'],
-  'PBĐT': ['A1', 'A2', 'A3', 'E1'],
+  'PBĐT': ['A1', 'A2', 'A3', 'C6', 'E1'],
   XB: ['A1', 'A2', 'A3', 'E1'],
   QLSK: ['A1', 'A2', 'A3', 'E1'],
   PVTT: ['A1', 'A2', 'A3', 'E1'],

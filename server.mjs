@@ -775,6 +775,47 @@ const server = http.createServer(async (req, res) => {
         if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
         return json(res, 200, { ok: true }, { "Set-Cookie": clearReaderSessionCookie() });
       }
+      // ---- Binh luan dot 1 (ban doc, can JWT enduser) ----
+      // Handler /api/v2/reader/* san co da forward chung (decrypt
+      // cookie tsht_reader -> access token -> backend, refresh khi
+      // can) nen chi them route con, khong doi logic chung.
+      // POST /api/v2/reader/comments -> POST /api/v1/comments
+      //   {articleSlug, body, turnstileToken?} -> 201 {status:'pending',...}
+      // DELETE /api/v2/reader/comments/:id -> DELETE /api/v1/comments/:id
+      // POST /api/v2/reader/comments/:id/report -> POST /api/v1/comments/:id/report
+      //   {reason?} -> 200 {ok, reportCount, hidden} / 409 already_reported
+      // GET /api/v2/reader/comments/mine?page=&limit= -> GET /api/v1/comments/mine
+      if (req.method === "POST" && u.pathname === "/api/v2/reader/comments") {
+        const body = await readJson(req).catch(() => null);
+        if (!body) return err(res, 400, "du lieu khong hop le");
+        const { result, cookie } = await callWithReader((token) => backendAuth("/comments", { method: "POST", body, token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 201, result.data, withCookie(cookie));
+      }
+      if (req.method === "GET" && u.pathname === "/api/v2/reader/comments/mine") {
+        const bq = new URLSearchParams();
+        for (const k of ["page", "limit"]) {
+          const v = u.searchParams.get(k);
+          if (v) bq.set(k, v);
+        }
+        const { result, cookie } = await callWithReader((token) => backendAuth(`/comments/mine?${bq}`, { token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, result.data, withCookie(cookie));
+      }
+      const readerCommentIdMatch = u.pathname.match(/^\/api\/v2\/reader\/comments\/([A-Za-z0-9-]+)$/);
+      if (req.method === "DELETE" && readerCommentIdMatch) {
+        const { result, cookie } = await callWithReader((token) => backendAuth(`/comments/${readerCommentIdMatch[1]}`, { method: "DELETE", token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, result.data || { ok: true }, withCookie(cookie));
+      }
+      const readerCommentReportMatch = u.pathname.match(/^\/api\/v2\/reader\/comments\/([A-Za-z0-9-]+)\/report$/);
+      if (req.method === "POST" && readerCommentReportMatch) {
+        const body = await readJson(req).catch(() => null);
+        if (body === null) return err(res, 400, "du lieu khong hop le");
+        const { result, cookie } = await callWithReader((token) => backendAuth(`/comments/${readerCommentReportMatch[1]}/report`, { method: "POST", body, token }));
+        if (!result.ok) return json(res, result.status, readerError(result), withCookie(cookie));
+        return json(res, 200, result.data, withCookie(cookie));
+      }
       return err(res, 404, "not found");
     }
     // ---- Xoa dem header (CMS luu Giao dien) ----
@@ -1132,6 +1173,11 @@ const server = http.createServer(async (req, res) => {
         coverSrcset: resolveSrcset(it.coverSrcset),
         category: it.category || null, authors: it.authors || [], tags: it.tags || [],
         publishAt: it.publishAt, isFeatured: !!it.isFeatured,
+        // Binh luan dot 1: co cho phep binh luan tren bai nay khong
+        // (backend tra allowComments, mac dinh true khi thieu — khop
+        // `row.allowComments ?? true` ben backend). Portal dung de
+        // quyet dinh co render khung binh luan cung config hay khong.
+        allowComments: it.allowComments !== false,
         contentType: it.contentType || "text",
         metaTitle: it.metaTitle || "", metaDescription: it.metaDescription || "",
         url: `/tin/${it.slug}`,
@@ -1181,6 +1227,43 @@ const server = http.createServer(async (req, res) => {
       if (!ext.ok) return err(res, ext.status === 404 ? 404 : 502, "khong tim thay bai viet");
       const it = ext.data;
       return json(res, 200, { ...newsListItem(it), formatData: resolveFormatData(it.formatData), body: it.body || "", related: (it.related || []).map(newsListItem) });
+    }
+    // ---- Binh luan dot 1: API cong khai (khong can dang nhap) ----
+    // GET /api/v2/comments/config -> backend GET /api/v1/comments/config
+    // GET /api/v2/comments?articleSlug=&page=&limit= -> backend GET
+    // /api/v1/comments?... (chi binh luan da duyet). Neu trinh duyet
+    // dang co phien ban doc (cookie tsht_reader) con han thi chuyen
+    // tiep access token sang backend de API them truong `mine` cho
+    // binh luan cua chinh user; khong co phien / token het han thi
+    // goi khong kem token (danh sach cong khai van tra binh thuong).
+    // Token het han khong tu refresh o day: reader-auth.js goi
+    // /api/v2/reader/me moi lan tai trang va tu refresh cookie truoc.
+    if (req.method === "GET" && u.pathname === "/api/v2/comments/config") {
+      const ext = await fetchVtcanyEpaperJson("/comments/config");
+      if (!ext.ok) return err(res, ext.reason === "not_configured" ? 503 : 502, "khong lay duoc cau hinh binh luan");
+      return json(res, 200, ext.data || {});
+    }
+    if (req.method === "GET" && u.pathname === "/api/v2/comments") {
+      const base = vtcanyApiBase();
+      if (!base) return err(res, 503, "backend chua cau hinh");
+      const bq = new URLSearchParams();
+      for (const k of ["articleSlug", "page", "limit"]) {
+        const v = u.searchParams.get(k);
+        if (v) bq.set(k, v);
+      }
+      const headers = { Accept: "application/json" };
+      const sess = readReaderSession(req);
+      if (sess && jwtExpiryMs(sess.accessToken) > Date.now() + 60_000) headers.Authorization = `Bearer ${sess.accessToken}`;
+      try {
+        const r = await fetch(`${base}/comments?${bq}`, { headers, signal: AbortSignal.timeout(8000) });
+        const text = await r.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch { data = null; }
+        if (!r.ok) return json(res, r.status, data || { error: "khong lay duoc binh luan" });
+        return json(res, 200, data || {});
+      } catch {
+        return err(res, 502, "khong lay duoc binh luan");
+      }
     }
     // GET /api/v2/news-categories — cay chuyen muc hien (dem 60 giay
     // chung voi site-interface, de dung menu header).

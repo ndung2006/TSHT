@@ -37,7 +37,20 @@
     <p><strong>Dữ liệu kỹ thuật khi bạn dùng cổng:</strong> mã phiên ngẫu nhiên dùng để đo lượt xem trang. Mã này không gắn với tài khoản của bạn và không dùng để nhận diện bạn.</p>
     <p><strong>Chúng tôi không thu thập</strong> dữ liệu nhạy cảm (như sức khỏe, tài chính, vị trí chính xác, sinh trắc học), không theo dõi bạn qua quảng cáo của bên thứ ba — cổng hiện không có quảng cáo bên thứ ba theo dõi người dùng.</p>
 
-    <h2>3. Mục đích xử lý dữ liệu</h2>
+    <!-- Muc du lieu binh luan (dot 1, Q7): an mac dinh, chi hien cong
+         khai khi comments.enabled=true (JS cuoi trang goi GET
+         /api/v2/comments/config). -->
+    <div data-comments-section hidden>
+    <h2>3. Dữ liệu bình luận</h2>
+    <p><strong>Dự thảo, chờ pháp chế.</strong> Mục này chỉ áp dụng khi tính năng bình luận được bật trên cổng (đặc biệt là phần liên quan Nghị định 147/2024/NĐ-CP về xác thực số điện thoại — đang chờ pháp chế xác nhận có áp dụng cho báo điện tử không; đợt 1 chưa yêu cầu xác thực số điện thoại).</p>
+    <p><strong>Dữ liệu thu thập khi bạn bình luận:</strong> nội dung bình luận (chữ thuần), tên hiển thị của bạn (họ tên trong tài khoản, hoặc "Bạn đọc" nếu bạn chưa đặt tên), địa chỉ IP, User-Agent (thông tin trình duyệt/thiết bị) và thời gian tạo bình luận.</p>
+    <p><strong>Mục đích:</strong> hiển thị bình luận đã được duyệt trên bài viết, kiểm duyệt nội dung trước khi hiện công khai, chống spam/lạm dụng (giới hạn số bình luận theo tài khoản và theo IP), và xử lý báo cáo vi phạm của bạn đọc.</p>
+    <p><strong>Thời hạn lưu:</strong> nội dung bình luận được lưu cho đến khi tác giả tự xóa hoặc tòa soạn gỡ. <strong>Địa chỉ IP và User-Agent lưu tối đa 12 tháng</strong> kể từ khi tạo bình luận, sau đó bị xóa. Khi bạn xóa tài khoản, bình luận đã duyệt của bạn được ẩn danh hóa: đổi tên thành "Bạn đọc đã xóa tài khoản", xóa liên kết với tài khoản của bạn, đồng thời xóa IP và User-Agent ngay lập tức.</p>
+    <p><strong>Ai được xem:</strong> bình luận đã duyệt hiện công khai cho mọi người đọc. Địa chỉ IP và User-Agent <strong>chỉ tòa soạn</strong> (người có quyền quản lý bình luận) xem được trong hệ thống quản trị nội bộ, <strong>không công khai</strong> và không chia sẻ cho bên thứ ba.</p>
+    <p><strong>Quyền của bạn:</strong> bạn có thể tự xóa bình luận của mình bất cứ lúc nào (trong mục "Bình luận của tôi" ở trang Tài khoản của tôi hoặc ngay trên bài viết); yêu cầu xóa tài khoản kèm ẩn danh hóa bình luận như nêu trên (xem mục 9).</p>
+    </div>
+
+    <h2>4. Mục đích xử lý dữ liệu</h2>
     <p>Dữ liệu của bạn chỉ dùng để:</p>
     <ul>
       <li>Tạo và quản lý tài khoản, cho bạn đăng nhập;</li>
@@ -45,21 +58,20 @@
       <li>Gửi email xác nhận tài khoản và email đặt lại mật khẩu;</li>
       <li>Đo lượt xem trang ở dạng tổng hợp, không gắn với cá nhân, để cải thiện nội dung.</li>
     </ul>
-    <p>Bình luận và cá nhân hóa nội dung là tính năng tương lai, chưa có. Khi các tính năng này mở, chúng tôi sẽ cập nhật chính sách và xin đồng ý của bạn nếu cần thêm dữ liệu.</p>
+    <p>Cá nhân hóa nội dung là tính năng tương lai, chưa có. Khi tính năng này mở, chúng tôi sẽ cập nhật chính sách và xin đồng ý của bạn nếu cần thêm dữ liệu.</p>
 
-    <h2>4. Căn cứ xử lý: sự đồng ý của bạn</h2>
+    <h2>5. Căn cứ xử lý: sự đồng ý của bạn</h2>
     <p>Căn cứ xử lý dữ liệu của bạn là <strong>sự đồng ý</strong> của chính bạn, theo Điều 11 Nghị định 13/2023/NĐ-CP: sự đồng ý phải tự nguyện, cụ thể và trên cơ sở được biết rõ các nội dung trong chính sách này.</p>
     <p>Khi đăng ký, bạn thể hiện sự đồng ý bằng cách đánh dấu vào ô "Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo vệ dữ liệu cá nhân". Im lặng hoặc không phản hồi không được coi là đồng ý.</p>
-    <p>Chúng tôi ghi nhận thời điểm bạn đồng ý. Bạn có thể <strong>rút lại sự đồng ý bất cứ lúc nào</strong> — xem mục 8.</p>
+    <p>Chúng tôi ghi nhận thời điểm bạn đồng ý. Bạn có thể <strong>rút lại sự đồng ý bất cứ lúc nào</strong> — xem mục 9.</p>
 
-    <h2>5. Thời gian lưu trữ</h2>
+    <h2>6. Thời gian lưu trữ</h2>
     <p>Dữ liệu tài khoản của bạn được lưu trong suốt thời gian tài khoản còn hoạt động.</p>
     <p>Khi bạn yêu cầu xóa tài khoản hoặc rút lại sự đồng ý, chúng tôi xử lý yêu cầu trong vòng <strong>72 giờ</strong> kể từ khi nhận được yêu cầu hợp lệ: tài khoản được khóa ngay, dữ liệu được xóa hoặc ẩn danh hóa, trừ dữ liệu pháp luật yêu cầu phải lưu (nếu có).</p>
     <p>Dữ liệu đo lượt xem dạng thô (mã phiên ngẫu nhiên, không gắn tài khoản) được lưu tối đa 90 ngày rồi xóa.</p>
     <p>Thời gian lưu trữ cụ thể cho từng loại dữ liệu khác (nhật ký hệ thống, email giao dịch): [chờ chốt].</p>
 
-    <h2>6. Chia sẻ dữ liệu</h2>
-    <p>Chúng tôi <strong>không bán, không chia sẻ</strong> dữ liệu cá nhân của bạn với bên thứ ba vì mục đích thương mại hay quảng cáo.</p>
+    <h2>7. Chia sẻ dữ liệu</h2>
     <p>Có hai ngoại lệ duy nhất:</p>
     <ul>
       <li><strong>Khi tính năng đăng nhập bằng Google hoặc Facebook mở và bạn tự chọn đăng nhập bằng tài khoản đó:</strong> thông tin đăng nhập của bạn được Google hoặc Facebook xử lý theo chính sách bảo mật của họ. Chúng tôi chỉ nhận họ tên, email và ảnh đại diện mà bạn cho phép chia sẻ.</li>
@@ -67,7 +79,7 @@
     </ul>
     <p>Ngoài trường hợp đăng nhập Google/Facebook nêu trên, chúng tôi không chuyển dữ liệu cá nhân của bạn ra ngoài Việt Nam.</p>
 
-    <h2>7. Biện pháp bảo mật</h2>
+    <h2>8. Biện pháp bảo mật</h2>
     <p>Chúng tôi áp dụng các biện pháp phù hợp để bảo vệ dữ liệu của bạn:</p>
     <ul>
       <li>Mật khẩu được băm trước khi lưu, không lưu dạng thường;</li>
@@ -77,7 +89,7 @@
     </ul>
     <p>Nếu xảy ra vi phạm dữ liệu cá nhân, chúng tôi sẽ thông báo cho cơ quan có thẩm quyền (Cục An ninh mạng và phòng, chống tội phạm sử dụng công nghệ cao — Bộ Công an) chậm nhất trong vòng <strong>72 giờ</strong> kể từ khi phát hiện, theo Điều 23 Nghị định 13/2023/NĐ-CP, và thông báo cho bạn khi vi phạm có thể ảnh hưởng đến quyền lợi của bạn.</p>
 
-    <h2>8. Quyền của bạn</h2>
+    <h2>9. Quyền của bạn</h2>
     <p>Theo Điều 9 Nghị định 13/2023/NĐ-CP, bạn có các quyền sau đối với dữ liệu cá nhân của mình:</p>
     <ul>
       <li><strong>Được biết</strong> về hoạt động xử lý dữ liệu cá nhân của mình;</li>
@@ -93,22 +105,31 @@
       <li><strong>Tự bảo vệ</strong> theo quy định của pháp luật.</li>
     </ul>
     <p><strong>Cách thực hiện quyền:</strong> bạn tự thao tác trong mục "Tài khoản của tôi" — xem và sửa họ tên, đổi mật khẩu, đăng xuất, yêu cầu xóa tài khoản. Yêu cầu xóa được ghi nhận, tài khoản được khóa ngay và quản trị viên xử lý tiếp.</p>
-    <p>Với các yêu cầu khác (truy cập, chỉnh sửa, hạn chế xử lý, phản đối, cung cấp dữ liệu), bạn gửi yêu cầu qua thông tin liên hệ ở mục 10. Chúng tôi xử lý trong vòng <strong>72 giờ</strong> kể từ khi nhận được yêu cầu hợp lệ, theo Điều 14, 15 và 16 Nghị định 13/2023/NĐ-CP, hoặc thông báo lý do nếu không thể thực hiện.</p>
+    <p>Với các yêu cầu khác (truy cập, chỉnh sửa, hạn chế xử lý, phản đối, cung cấp dữ liệu), bạn gửi yêu cầu qua thông tin liên hệ ở mục 11. Chúng tôi xử lý trong vòng <strong>72 giờ</strong> kể từ khi nhận được yêu cầu hợp lệ, theo Điều 14, 15 và 16 Nghị định 13/2023/NĐ-CP, hoặc thông báo lý do nếu không thể thực hiện.</p>
     <p>Khi bạn rút lại sự đồng ý, chúng tôi ngừng xử lý dữ liệu của bạn, trừ dữ liệu pháp luật yêu cầu phải lưu. Việc rút lại đồng ý không ảnh hưởng đến tính hợp pháp của việc xử lý đã thực hiện trước đó.</p>
 
-    <h2>9. Dữ liệu của trẻ em</h2>
+    <h2>10. Dữ liệu của trẻ em</h2>
     <p>Cổng không hướng tới người dưới 16 tuổi. Người dưới 16 tuổi chỉ đăng ký tài khoản khi có sự đồng ý của cha, mẹ hoặc người giám hộ, theo Điều 20 Nghị định 13/2023/NĐ-CP.</p>
     <p>Nếu phát hiện tài khoản của người dưới 16 tuổi được tạo mà không có sự đồng ý của người giám hộ, chúng tôi sẽ khóa tài khoản và xóa dữ liệu liên quan sau khi xác minh.</p>
 
-    <h2>10. Liên hệ xử lý yêu cầu dữ liệu</h2>
+    <h2>11. Liên hệ xử lý yêu cầu dữ liệu</h2>
     <p>Để thực hiện các quyền nêu trên hoặc hỏi về chính sách này, bạn liên hệ: [chờ chốt: bộ phận phụ trách bảo vệ dữ liệu cá nhân, email, địa chỉ, điện thoại].</p>
     <p>Bạn cũng có quyền khiếu nại tới cơ quan nhà nước có thẩm quyền về bảo vệ dữ liệu cá nhân theo quy định của pháp luật.</p>
 
-    <h2>11. Thay đổi chính sách</h2>
+    <h2>12. Thay đổi chính sách</h2>
     <p>Chính sách này có thể được cập nhật khi dịch vụ hoặc quy định pháp luật thay đổi. Bản cập nhật được đăng trên trang này và ghi rõ ngày hiệu lực.</p>
     <p>Nếu thay đổi ảnh hưởng đến quyền của bạn hoặc cần thêm sự đồng ý, chúng tôi sẽ thông báo cho bạn trước khi áp dụng.</p>
   </article>
 </main>
 <!-- @FOOTER -->
 <script src="/js/header.js?v=20261106-4"></script>
+<script>
+// Muc du lieu binh luan (dot 1, Q7): an mac dinh (data-comments-section
+// + hidden), chi hien khi GET /api/v2/comments/config tra enabled=true.
+(function () {
+  fetch("/api/v2/comments/config").then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.enabled) document.querySelectorAll("[data-comments-section]").forEach(function (el) { el.hidden = false; });
+  }).catch(function () {});
+})();
+</script>
 </body></html>

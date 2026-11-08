@@ -19,8 +19,8 @@ import { inferFileType, planUpload } from './src/modules/uploads/upload.plan.ts'
 import { stepRolesFromDefinitions } from './src/modules/dashboard/dashboard-queries.ts';
 
 describe('D3 thuoc tap widget tu GĐ2, dung role moi thay', () => {
-  it('ALL_WIDGETS = 16 GĐ1 + D3, meta D3 tier D', () => {
-    assert.equal(ALL_WIDGETS.length, 17);
+  it('ALL_WIDGETS = 16 GĐ1 + D3 + C6, meta D3 tier D', () => {
+    assert.equal(ALL_WIDGETS.length, 18);
     assert.ok(ALL_WIDGETS.includes('D3'));
     assert.equal(WIDGET_META.D3.title, 'Lưu trữ');
     assert.equal(WIDGET_META.D3.tier, 'D');

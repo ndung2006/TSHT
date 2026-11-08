@@ -60,6 +60,7 @@ import {
   type DashboardModuleMeta,
 } from './dashboard-queries';
 import { ENFORCE_SEPARATION_OF_DUTIES } from '../workflows/sod';
+import { hasModulePermission } from '../auth/permissions.catalog';
 import { applyNarrowScope, myStepNumbersFromRoleMap } from './sidebar-scope';
 
 export interface DashboardActor {
@@ -257,6 +258,7 @@ export class DashboardService {
       case 'B5': ({ data, empty, drill } = await this.wB5(range, line)); break;
       case 'B6': ({ data, empty, drill } = await this.wB6(line)); break;
       case 'B7': ({ data, empty, drill } = await this.wB7(range, line)); break;
+      case 'C6': ({ data, drill } = await this.wC6(range)); break;
       case 'D1': ({ data, drill } = await this.wD1()); break;
       case 'D2': ({ data, drill } = await this.wD2()); break;
       case 'D3': ({ data, drill } = await this.wD3()); break;
@@ -341,9 +343,89 @@ export class DashboardService {
     }
     allOldest.sort((a, b) => (b.waitHours ?? -1) - (a.waitHours ?? -1));
     const total = byModule.reduce((s, m) => s + m.total, 0);
+    // Binh luan (dot 1, thiet ke §3.6/§4.4): them 1 dong "Binh luan — N
+    // cho duyet", CHI khi actor co comments:publish (full-admin thay vi
+    // '*'). KHONG dua binh luan vao "10 muc cu nhat" (items) va KHONG
+    // cong vao total — total la hang cho workflow, dung cho badge
+    // sidebar (myQueueTotal). So dem dung chung 1 truy van voi hang
+    // kiem duyet loc pending (status='pending', deletedAt IS NULL) de
+    // so A1 = so dong hang kiem duyet.
+    const commentsPending = (await this.canModerateComments(actor))
+      ? await this.countPendingComments()
+      : null;
     return {
-      data: { total, byModule, items: allOldest.slice(0, 10) },
+      data: {
+        total, byModule, items: allOldest.slice(0, 10),
+        ...(commentsPending === null ? {} : {
+          commentsPending,
+          commentsDrill: { route: '/binh-luan', query: { status: 'pending' } },
+        }),
+      },
       drill: null,
+    };
+  }
+
+  /** Actor co quyen duyet binh luan khong (comments:publish).
+   *  hasModulePermission tu xu ly '*' cua full-admin; giu them nhanh
+   *  isFullAdmin cho truong hop permissionMapForAdmin tra null (vd
+   *  roleName 'superadmin' khong co row Role) nhung adminIdentity da
+   *  xac dinh la full-admin. Module 'comments' trong catalog do subagent
+   *  khac them — truoc luc do hasModulePermission tra false cho role
+   *  thuong, chi full-admin thay dong binh luan (dung theo thiet ke). */
+  private async canModerateComments(actor: DashboardActor): Promise<boolean> {
+    if (!actor.id) return false;
+    if (actor.isFullAdmin) return true;
+    const map = await this.roles.permissionMapForAdmin(actor.id).catch(() => null);
+    return hasModulePermission(map, 'comments:publish');
+  }
+
+  /** Dem binh luan cho duyet (snapshot hien tai, khong theo ky) — dung
+   *  chung cho A1 (commentsPending) va C6 (pending) de hai cho cung 1
+   *  so. Dung (prisma as any).comment vi model Comment do subagent
+   *  schema them; khi model chua co thi tra 0 thay vi vo ca widget. */
+  private async countPendingComments(): Promise<number> {
+    const db: any = this.prisma as any;
+    if (!db.comment) return 0;
+    return db.comment.count({ where: { status: 'pending', deletedAt: null } }).catch(() => 0);
+  }
+
+  /** C6 (dot 1 binh luan, thiet ke §3.6/§4.5): tuong tac binh luan.
+   *  pending = snapshot hien tai (khong theo ky); approved/rejected =
+   *  so binh luan co moderatedAt trong ky da chon va status tuong ung;
+   *  medianReviewSeconds = trung vi (moderatedAt - createdAt) tinh
+   *  bang giay tren cac binh luan duoc duyet/tu choi trong ky (dung
+   *  median() chung cua helpers: le -> gia tri giua, chan -> trung
+   *  binh 2 gia tri giua); khong co binh luan nao duoc xu ly trong ky
+   *  -> null. */
+  private async wC6(range: { from: Date; to: Date }) {
+    const db: any = this.prisma as any;
+    const pending = await this.countPendingComments();
+    let approved = 0;
+    let rejected = 0;
+    const reviewSeconds: number[] = [];
+    if (db.comment) {
+      const rows = await db.comment.findMany({
+        where: {
+          status: { in: ['approved', 'rejected'] },
+          moderatedAt: { gte: range.from, lt: range.to },
+        },
+        select: { status: true, createdAt: true, moderatedAt: true },
+      }).catch(() => []);
+      for (const r of rows) {
+        if (r.status === 'approved') approved += 1;
+        else if (r.status === 'rejected') rejected += 1;
+        if (r.createdAt && r.moderatedAt) {
+          reviewSeconds.push(Math.max(0,
+            (new Date(r.moderatedAt).getTime() - new Date(r.createdAt).getTime()) / 1000));
+        }
+      }
+    }
+    return {
+      data: {
+        pending, approved, rejected,
+        medianReviewSeconds: median(reviewSeconds),
+      },
+      drill: { route: '/binh-luan', query: { status: 'pending' } },
     };
   }
 
