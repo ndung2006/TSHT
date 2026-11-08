@@ -57,6 +57,16 @@
       </div>
     </section>
 
+    <!-- Tang C (hien chi co C6 Tuong tac — dot 1 binh luan; truoc day
+         template khong co muc nay nen C6 duoc tai du lieu nhung khong
+         bao gio hien tren dashboard) -->
+    <section v-if="tierC.length" class="flex flex-col gap-4">
+      <h2 class="font-semibold">Tương tác</h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <DashboardWidgetCard v-for="code in tierC" :key="code" :state="widgets[code]" @retry="loadWidget(code)" />
+      </div>
+    </section>
+
     <!-- Tang D (D5 an tren mobile vi da hien sau tang A) -->
     <section v-if="tierD.length" class="flex flex-col gap-4">
       <h2 class="font-semibold">Hệ thống &amp; cảnh báo vận hành</h2>
@@ -156,6 +166,7 @@ const layoutError = ref('');
 
 const tierA = computed(() => layoutCodes.value.filter((c) => meta.value[c]?.tier === 'A'));
 const tierB = computed(() => layoutCodes.value.filter((c) => meta.value[c]?.tier === 'B'));
+const tierC = computed(() => layoutCodes.value.filter((c) => meta.value[c]?.tier === 'C'));
 const tierD = computed(() => layoutCodes.value.filter((c) => meta.value[c]?.tier === 'D'));
 const e1Groups = computed(() => visibleMenu(permissions.value || []));
 
