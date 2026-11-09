@@ -8,7 +8,7 @@ import { isAbsolute, join, relative } from 'path';
 import { Readable } from 'stream';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, inferFileType, planImage, planUpload } from './upload.plan';
+import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, canonicalUploadStatus, chunkCount, inferFileType, planImage, planUpload } from './upload.plan';
 import {
   applyClaim,
   applyRetry,
@@ -18,6 +18,7 @@ import {
 } from './retry-policy';
 import { chunkExists, finalPath, rawDir, storageRootDefault, writeChunk } from './local-store';
 import { enqueueTranscode } from './transcode-queue';
+import { STALE_CHUNK_FAIL_MESSAGE } from './stale-chunk-cleanup';
 import { generateImageVariants } from './image-variants';
 import { PLAYLIST_TTL_SEC, SEGMENT_TTL_SEC, isValidUploadId, signMedia } from './media-sign';
 
@@ -212,10 +213,15 @@ export class UploadsService implements OnModuleInit {
   // Danh sach upload cho thu vien "Tap tin" cua CMS (kem trang thai transcode).
   listUploads(): (UploadRecord & { transcode: string; posterUrl: string })[] {
     return [...this.records.values()].map((rec) => {
-      const done = rec.status === 'done' || (!!rec.videoId && this.videoHls.has(rec.videoId));
+      // 'failed' la gia tri ngoai enum do sua tay trong DB (09/11): chuan
+      // hoa ve 'error' de Thu vien/D2/bo loc hien dung (xem
+      // canonicalUploadStatus). Ban ghi moi chi dung 'error'.
+      const status = canonicalUploadStatus(rec.status);
+      const done = status === 'done' || (!!rec.videoId && this.videoHls.has(rec.videoId));
       return {
         ...rec,
-        transcode: done ? 'done' : rec.status === 'error' ? 'error' : rec.status === 'uploaded' || rec.status === 'processing' ? 'processing' : 'pending',
+        status: status as UploadStatus,
+        transcode: done ? 'done' : status === 'error' ? 'error' : status === 'uploaded' || status === 'processing' ? 'processing' : 'pending',
         posterUrl: this.posterUrlFor(rec.id),
       };
     });
@@ -427,6 +433,65 @@ export class UploadsService implements OnModuleInit {
     rec.nextRetryAt = null;
     this.persist(rec);
     return rec;
+  }
+
+  // Worker don chunk do dang >24h (GĐ3 Buoc 0 / B1): danh dau cac ban ghi
+  // con 'pending' -> 'error' kem ly do (khong dung 'failed' — ngoai enum
+  // UploadStatus, xem canonicalUploadStatus). Chi doi khi con 'pending'
+  // (update co dieu kien): ban ghi da uploaded/processing/done/error thi
+  // bo qua (dua vao skippedIds) — tranh huy 1 upload vua hoan tat sau
+  // khi worker quet dia. DB la source of truth; dong bo lai in-memory
+  // (chi khi ban trong RAM van 'pending', tranh ghi de 1 transcode dang
+  // chay ma DB chua kip cap nhat). Khong co DB (dev/in-memory) thi chi
+  // doi trong RAM. DB loi -> tra failed=0 de worker log + thu lai gio sau.
+  async failStaleUploads(ids: string[]): Promise<{ failed: number; failedIds: string[]; skippedIds: string[] }> {
+    const unique = [...new Set(ids)].filter((id) => isValidUploadId(id));
+    let failedIds: string[] = [];
+    if (this.prisma && process.env.DATABASE_URL) {
+      try {
+        const pending = await this.prisma.mediaAsset.findMany({
+          where: { id: { in: unique }, status: 'pending' },
+          select: { id: true },
+        });
+        const pendingIds = pending.map((r) => r.id);
+        if (pendingIds.length) {
+          await this.prisma.mediaAsset.updateMany({
+            where: { id: { in: pendingIds }, status: 'pending' },
+            data: { status: 'error', error: STALE_CHUNK_FAIL_MESSAGE },
+          });
+          // Doc lai de chac chan danh sach that su doi (trang thai co the
+          // doi giua 2 lenh).
+          const changed = await this.prisma.mediaAsset.findMany({
+            where: { id: { in: pendingIds }, status: 'error', error: STALE_CHUNK_FAIL_MESSAGE },
+            select: { id: true },
+          });
+          failedIds = changed.map((r) => r.id);
+        }
+      } catch (e) {
+        this.logger.warn(`failStaleUploads DB loi, giu nguyen de thu lai gio sau: ${(e as Error).message}`);
+        failedIds = [];
+      }
+      for (const id of failedIds) {
+        const rec = this.records.get(id);
+        if (rec && rec.status === 'pending') {
+          rec.status = 'error';
+          rec.error = STALE_CHUNK_FAIL_MESSAGE;
+          rec.nextRetryAt = null;
+        }
+      }
+    } else {
+      for (const id of unique) {
+        const rec = this.records.get(id);
+        if (rec && rec.status === 'pending') {
+          rec.status = 'error';
+          rec.error = STALE_CHUNK_FAIL_MESSAGE;
+          rec.nextRetryAt = null;
+          failedIds.push(id);
+        }
+      }
+    }
+    const failedSet = new Set(failedIds);
+    return { failed: failedIds.length, failedIds, skippedIds: unique.filter((id) => !failedSet.has(id)) };
   }
 
   // Worker claim job truoc khi chay ffmpeg: tang attempts ngay de ke ca

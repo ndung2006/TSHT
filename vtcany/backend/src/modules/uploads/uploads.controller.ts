@@ -4,6 +4,7 @@ import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePerms } from '../auth/permissions.decorator';
 import { UploadsService } from './uploads.service';
+import { parseStaleChunkFailRequest } from './stale-chunk-cleanup';
 
 class InitUploadDto {
   @IsString()
@@ -173,5 +174,29 @@ export class UploadsController {
     } catch {
       throw new HttpException('upload not found', HttpStatus.NOT_FOUND);
     }
+  }
+
+  // Worker don chunk do dang >24h (GĐ3 Buoc 0 / B1): bao backend danh dau
+  // cac ban ghi con 'pending' -> 'error' (xem failStaleUploads). Guard
+  // bang shared secret, khong JWT — giong /internal/media-webhook.
+  // Chi 1 op 'fail': worker da loc xong id do dang o dia, khong can op
+  // 'list'. Duong RIENG, khong dung media-webhook: webhook coi 'error'
+  // la trang thai terminal chi backend dung noi bo (dead-letter), worker
+  // khong duoc gui 'error' truc tiep qua do.
+  @Post('internal/cleanup-stale-chunks')
+  async cleanupStaleChunks(@Headers('x-webhook-secret') secret: string, @Body() body: any) {
+    if (!this.uploads.checkWebhookSecret(secret || '')) {
+      throw new HttpException('forbidden', HttpStatus.FORBIDDEN);
+    }
+    let req: { op: 'fail'; ids: string[] };
+    try {
+      req = parseStaleChunkFailRequest(body);
+    } catch (e: any) {
+      throw new HttpException(
+        { error: { code: e.code || 'bad_request', message: e.message || 'bad request' } },
+        e.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+    return this.uploads.failStaleUploads(req.ids);
   }
 }

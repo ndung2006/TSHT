@@ -1,5 +1,9 @@
 // Map/filter/phân trang cho Thư viện media thống nhất (Dot 1a).
 // File thuan, khong import Nest/Prisma — test truc tiep bang node --test.
+// KHONG them import (ke ca './upload.plan'): node --test chay truc tiep
+// file .ts nay, import khong co duoi .ts se loi ERR_MODULE_NOT_FOUND;
+// chuan hoa 'failed'->'error' viet inline 1 dong (xem canonicalUploadStatus
+// trong upload.plan.ts — cung quy tac, giu 2 cho dong bo khi doi).
 // Nguon du lieu: bang media_assets (Postgres, source of truth) + danh
 // sach in-memory cua UploadsService (anh/video vua upload, upsert DB dang
 // fire-and-forget nen co the chua kip xuat hien trong DB). Merge theo id,
@@ -76,7 +80,9 @@ export function mapDbRow(row: any, publicBase: string, posterUrl = ''): MediaIte
     sizeBytes: Number(row.sizeBytes || 0),
     url,
     posterUrl: kind === 'video' ? posterUrl : '',
-    status: row.status || '',
+    // 'failed' (sua tay trong DB 09/11, ngoai enum) chuan hoa ve 'error'
+    // de Thu vien hien dung la loi thay vi nham la dang tai.
+    status: row.status === 'failed' ? 'error' : (row.status || ''),
     createdAt: row.createdAt ? new Date(row.createdAt).getTime() : 0,
     folderId: row.folderId ?? null,
   };
