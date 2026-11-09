@@ -9,14 +9,19 @@
 // Chay (CHI trong container backend, sau deploy — can DB that):
 //   cd /app && ROLLUP_PRISMA_TEST=1 node --test --import=./test-hooks-register.mjs src/modules/telemetry/rollup-watched-seconds-prisma.test.mjs
 // (DATABASE_URL da co san trong env container; khong can truyen them.)
+// Import tu dist (ban da bien dich) thay vi src (.ts): container chay
+// Node 20 khong nap duoc file .ts (can Node 24 type-stripping), nen test
+// chay tren dist sau build — khop luong GitHub Actions (build xong moi test).
 // Thieu DATABASE_URL hoac ROLLUP_PRISMA_TEST != 1 thi test TU SKIP,
 // khong fail — co opt-in rieng de khong bao gio vo tinh ghi DB that khi
 // chay bo test thuong. Test chi ghi row tho/daily mang khoa test
 // (test-ws-*) cua ngay VN hom qua roi xoa sach o finally.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { rollupDaily } from './rollup-daily';
-import { vnDateForDb, vnDayRange, vnDayStrOffset } from '../dashboard/dashboard-helpers';
+// KHONG import tinh rollupDaily/helpers o day: chung nam trong dist (ban
+// da bien dich) ma dist chi co sau build — import tinh se lam file test
+// loi nap ngay ca khi test duoc skip (thieu DATABASE_URL). Import dong
+// trong ham test (sau khi skip check) de chi nap khi test that su chay.
 
 const SKIP_REASON = !process.env.DATABASE_URL
   ? 'skip: can DATABASE_URL (chi chay trong container backend, xem dau file)'
@@ -27,6 +32,11 @@ const SKIP_REASON = !process.env.DATABASE_URL
 describe('rollupDaily qua Prisma that: watchedSeconds (hoi quy Buoc 0.2)', () => {
   test('upsert channelTelemetryDaily voi watchedSeconds khong loi Prisma', { skip: SKIP_REASON }, async () => {
     const { PrismaClient } = await import('@prisma/client');
+    // Import dong tu dist (ban da bien dich): container chay Node 20
+    // khong nap duoc file .ts (can Node 24 type-stripping), nen test
+    // chay tren dist sau build — khop luong GitHub Actions.
+    const { rollupDaily } = await import('../../../dist/modules/telemetry/rollup-daily.js');
+    const { vnDateForDb, vnDayRange, vnDayStrOffset } = await import('../../../dist/modules/dashboard/dashboard-helpers.js');
     const prisma = new PrismaClient();
     const suffix = Date.now().toString(36);
     const vodContentId = `test-ws-vod-${suffix}`;
