@@ -1418,6 +1418,7 @@ model ChannelTelemetryDaily {
   heartbeats      Int      @default(0)
   uniqueSessions  Int      @default(0) @map("unique_sessions")
   watchedMinutes  Int      @default(0) @map("watched_minutes")
+  watchedSeconds  Int      @default(0) @map("watched_seconds")
   // Tong so giay thuc su phat (3c-final-beat, KHONG lam tron khi luu):
   // phien co beat cuoi -> max(watchedSeconds) cua phien do; phien
   // khong co beat cuoi -> so beat x 60. watchedMinutes giu nhu cu
