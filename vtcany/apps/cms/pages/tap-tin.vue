@@ -24,7 +24,12 @@
           <template #body="{ data }">{{ fmtSize(data.sizeBytes ?? data.size) }}</template>
         </Column>
         <Column field="status" header="Trạng thái upload" style="width:10rem">
-          <template #body="{ data }"><Tag :value="statusLabel(data)" :severity="data.status === 'done' ? 'success' : 'warn'" /></template>
+          <template #body="{ data }">
+            <div>
+              <Tag :value="statusLabel(data)" :severity="statusSev(data.status)" />
+              <div v-if="data.error" class="text-xs text-red-400 mt-1">{{ data.error }}</div>
+            </div>
+          </template>
         </Column>
         <Column header="Transcode" style="width:10rem">
           <template #body="{ data }"><Tag :value="data.transcode || '—'" :severity="transcodeSev(data.transcode)" /></template>
@@ -56,7 +61,14 @@ const lastUploadId = ref('');
 const { drill, hasDrill, initDrill, clearDrill, drillLabel } = useDrillQuery();
 
 function transcodeSev(t: string) {
-  return { pending: 'warn', processing: 'info', done: 'success', error: 'danger' }[t] || 'secondary';
+  return { pending: 'warn', processing: 'info', done: 'success', error: 'danger', failed: 'danger' }[t] || 'secondary';
+}
+// Trang thai loi (error; 'failed' la gia tri cu sua tay trong DB 09/11,
+// backend da chuan hoa ve 'error' o listUploads) hien do + kem ly do.
+function statusSev(s: string) {
+  if (s === 'done') return 'success';
+  if (s === 'error' || s === 'failed') return 'danger';
+  return 'warn';
 }
 async function copyId(id: string) {
   try { await navigator.clipboard.writeText(id); toast.add({ severity: 'success', summary: 'Đã sao chép ID tập tin', life: 2000 }); }
