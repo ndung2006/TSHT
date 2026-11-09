@@ -40,7 +40,7 @@
 // chung, nen chay o container nao cung duoc mien la 3 dieu kien tren dung.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -405,6 +405,132 @@ export async function callRollupDaily() {
 }
 
 // ---------------------------------------------------------------------------
+// Don chunk tai len do dang > 24h (GĐ3 Buoc 0 / B1)
+// ---------------------------------------------------------------------------
+
+/** Chunk cu hon khoang nay thi coi la upload do dang (mac dinh 24h). */
+export const STALE_CHUNK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** Tick don chunk toi da 1 lan/gio (mac dinh); lan dau (lastCallMs=0) chay ngay. */
+export function shouldCallChunkCleanup(lastCallMs, nowMs, intervalMs = 3600000) {
+  if (!lastCallMs) return true;
+  return nowMs - lastCallMs >= intervalMs;
+}
+
+/**
+ * Quet storage/raw/<id>/ va don chunk do dang — TAI DUNG quy tac an toan
+ * cua vtcany/worker/src/cleanup-stale-chunks.ts (code chet, khong duoc
+ * Coolify deploy — worker live nay la ban chay that):
+ * - Chi xet thu muc raw/<id>/; file gop raw/<id>-<ten> nam NGOAI thu muc
+ *   nen khong bao gio bi cham.
+ * - Chi don khi chunk moi nhat (hoac mtime thu muc neu rong) cu hon
+ *   maxAgeMs. Upload dang chay (chunk moi) khong bi cham.
+ * - Xoa file chunk-* roi xoa thu muc neu rong; thu muc con file la thi
+ *   de lai. Thu muc ten khong hop le uploadId thi bo qua (phong thu).
+ * Tra ve { checked, removed, bytesFreed, staleIds } (staleIds = uploadId
+ * da don, de bao backend danh dau ban ghi).
+ */
+export function cleanupStaleChunks(storageDir, maxAgeMs = STALE_CHUNK_MAX_AGE_MS, now = Date.now()) {
+  const rawRoot = join(storageDir, 'raw');
+  let entries = [];
+  try {
+    entries = readdirSync(rawRoot, { withFileTypes: true });
+  } catch {
+    return { checked: 0, removed: 0, bytesFreed: 0, staleIds: [] };
+  }
+  let checked = 0;
+  let removed = 0;
+  let bytesFreed = 0;
+  const staleIds = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    if (!isValidUploadId(e.name)) continue;
+    const dir = join(rawRoot, e.name);
+    checked += 1;
+    let files = [];
+    try {
+      files = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    let newest = 0;
+    let hasChunk = false;
+    for (const f of files) {
+      if (!f.isFile() || !f.name.startsWith('chunk-')) continue;
+      hasChunk = true;
+      try {
+        const mtime = statSync(join(dir, f.name)).mtimeMs;
+        if (mtime > newest) newest = mtime;
+      } catch { /* chunk bien mat giua chung */ }
+    }
+    if (!hasChunk) {
+      try {
+        newest = statSync(dir).mtimeMs;
+      } catch {
+        continue;
+      }
+    }
+    if (now - newest < maxAgeMs) continue; // dang chay / moi: khong cham
+    // Qua han: xoa chunk (neu co) roi xoa thu muc neu rong.
+    let cleaned = false;
+    for (const f of files) {
+      if (!f.isFile() || !f.name.startsWith('chunk-')) continue;
+      const p = join(dir, f.name);
+      try {
+        const size = statSync(p).size;
+        rmSync(p, { force: true });
+        bytesFreed += size;
+        cleaned = true;
+      } catch { /* bo qua */ }
+    }
+    try {
+      if (readdirSync(dir).length === 0) {
+        rmSync(dir, { recursive: true, force: true });
+        cleaned = true;
+      }
+    } catch { /* thu muc khong rong / loi doc: de lai */ }
+    if (cleaned) {
+      removed += 1;
+      staleIds.push(e.name);
+    }
+  }
+  return { checked, removed, bytesFreed, staleIds };
+}
+
+/**
+ * POST /internal/cleanup-stale-chunks { op: 'fail', ids } — bao backend
+ * danh dau cac ban ghi pending -> 'error'. fetchImpl de truyen stub khi test.
+ */
+export async function postStaleChunkFail(ids, fetchImpl = fetch) {
+  const res = await fetchImpl(`${CONFIG.apiBase}/internal/cleanup-stale-chunks`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-webhook-secret': CONFIG.webhookSecret,
+    },
+    body: JSON.stringify({ op: 'fail', ids }),
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) throw new Error(`cleanup-stale-chunks HTTP ${res.status}: ${text.slice(0, 200)}`);
+  try { return JSON.parse(text); } catch { return {}; }
+}
+
+/**
+ * Chay 1 luot don chunk: quet dia -> neu co upload do dang thi bao backend
+ * danh dau ban ghi. Loi o day khong duoc giet vong transcode (caller bat).
+ */
+export async function runStaleChunkCleanup(storageDir = CONFIG.storageDir, fetchImpl = fetch) {
+  const r = cleanupStaleChunks(storageDir);
+  if (!r.staleIds.length) {
+    console.log(`[worker] cleanup stale chunks: checked=${r.checked} removed=0 freed=0B`);
+    return { ...r, failed: 0, failedIds: [], skippedIds: [] };
+  }
+  const out = await postStaleChunkFail(r.staleIds, fetchImpl);
+  console.log(`[worker] cleanup stale chunks: checked=${r.checked} removed=${r.removed} freed=${r.bytesFreed}B failed=${out.failed ?? 0}`);
+  return { ...r, failed: out.failed ?? 0, failedIds: out.failedIds || [], skippedIds: out.skippedIds || [] };
+}
+
+// ---------------------------------------------------------------------------
 // Vong lap chinh: tuan tu, 1 job/lan, loi 1 job khong giet loop
 // ---------------------------------------------------------------------------
 
@@ -454,6 +580,7 @@ async function main() {
   process.on('SIGTERM', () => { stopping = true; console.log('[worker] stopping after current job...'); });
   const inProgress = new Set();
   let lastRollupCall = 0;
+  let lastChunkCleanup = 0;
   // Heartbeat moi vong poll + them setInterval: 1 transcode dai (phut) await
   // trong mainLoopOnce se chan vong lap — neu chi ghi o dau vong lap thi
   // file se cu qua 90s giua transcode va healthcheck bao truot oan, co the
@@ -461,6 +588,14 @@ async function main() {
   // deu trong luc ffmpeg dang chay.
   touchHeartbeat();
   const heartbeatTimer = setInterval(touchHeartbeat, CONFIG.pollMs);
+  // Don chunk do dang: chay ngay khi khoi dong, roi toi da 1 lan/gio trong
+  // vong lap; loi khong giet vong transcode.
+  try {
+    lastChunkCleanup = Date.now();
+    await runStaleChunkCleanup();
+  } catch (e) {
+    console.error(`[worker] cleanup stale chunks failed: ${e?.message || e}`);
+  }
   while (!stopping) {
     touchHeartbeat();
     await mainLoopOnce(inProgress);
@@ -474,6 +609,16 @@ async function main() {
         await callRollupDaily();
       } catch (e) {
         console.error(`[worker] rollup-daily failed: ${e?.message || e}`);
+      }
+    }
+    // Tick don chunk do dang > 24h: toi da 1 lan/gio, loi khong giet
+    // vong transcode.
+    if (shouldCallChunkCleanup(lastChunkCleanup, Date.now())) {
+      lastChunkCleanup = Date.now();
+      try {
+        await runStaleChunkCleanup();
+      } catch (e) {
+        console.error(`[worker] cleanup stale chunks failed: ${e?.message || e}`);
       }
     }
     await sleep(CONFIG.pollMs);
