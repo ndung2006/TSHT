@@ -1,18 +1,5 @@
 export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'done' | 'error';
 
-/**
- * Chuan hoa trang thai upload doc tu DB/in-memory ve enum UploadStatus.
- * 'failed' la gia tri NGOAI enum, do sua tay truc tiep trong DB ngay
- * 09/11 (ban ghi upl-1793694716358, luc do job don chunk chua co nen phai
- * huy tay): neu de nguyen, listUploads() map transcode='pending' (hien
- * nham la dang tai), bo loc files/all + dem D2 khong nhan (chi liet ke 5
- * gia tri chuan). Chuan hoa o diem doc de ban ghi cu hien dung la loi ma
- * khong can sua lai ban ghi; ghi moi chi dung 'error'.
- */
-export function canonicalUploadStatus(status: string): string {
-  return status === 'failed' ? 'error' : status;
-}
-
 export interface UploadRecord {
   id: string;
   filename: string;

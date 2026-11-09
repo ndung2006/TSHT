@@ -7,7 +7,6 @@ import {
   STALE_CHUNK_FAIL_MAX_IDS,
   parseStaleChunkFailRequest,
 } from './stale-chunk-cleanup.ts';
-import { canonicalUploadStatus } from './upload.plan.ts';
 
 describe('parseStaleChunkFailRequest', () => {
   it('nhan { op: fail, ids } hop le', () => {
@@ -43,22 +42,5 @@ describe('parseStaleChunkFailRequest', () => {
 describe('STALE_CHUNK_FAIL_MESSAGE', () => {
   it('dung cau da dung khi xu ly tay ban ghi upl-1793694716358 ngay 09/11', () => {
     assert.equal(STALE_CHUNK_FAIL_MESSAGE, 'Tải lên dở dang quá 24 giờ, đã hủy');
-  });
-});
-
-describe('canonicalUploadStatus', () => {
-  it("'failed' (sua tay SQL 09/11, ngoai enum) -> 'error'", () => {
-    assert.equal(canonicalUploadStatus('failed'), 'error');
-  });
-
-  it('5 gia tri chuan giu nguyen', () => {
-    for (const s of ['pending', 'uploaded', 'processing', 'done', 'error']) {
-      assert.equal(canonicalUploadStatus(s), s);
-    }
-  });
-
-  it('gia tri la khac giu nguyen (khong giau du lieu)', () => {
-    assert.equal(canonicalUploadStatus('weird'), 'weird');
-    assert.equal(canonicalUploadStatus(''), '');
   });
 });

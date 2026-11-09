@@ -7,9 +7,9 @@
 // cutoff truoc khi clear, con o day worker da loc xong o dia.
 //
 // Trang thai dich la 'error' (chuan cua UploadStatus), KHONG phai 'failed':
-// 'failed' la gia tri ngoai enum do sua tay SQL 09/11 — Thu vien/D2/bo loc
-// files/all chi nhan 'error' nen 'failed' hien nham thanh pending (xem
-// canonicalUploadStatus trong upload.plan.ts).
+// 'failed' la gia tri ngoai enum (ban ghi duy nhat ngay 09/11 da sua ve
+// 'error' trong DB) — Thu vien/D2/bo loc files/all chi nhan 'error' nen
+// 'failed' hien nham thanh pending.
 export const STALE_CHUNK_FAIL_MESSAGE = 'Tải lên dở dang quá 24 giờ, đã hủy';
 
 export const STALE_CHUNK_FAIL_MAX_IDS = 1000;

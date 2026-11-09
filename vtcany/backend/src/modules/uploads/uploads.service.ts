@@ -8,7 +8,7 @@ import { isAbsolute, join, relative } from 'path';
 import { Readable } from 'stream';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, canonicalUploadStatus, chunkCount, inferFileType, planImage, planUpload } from './upload.plan';
+import { ImageRecord, MAX_IMAGE_BYTES, UploadRecord, UploadStatus, chunkCount, inferFileType, planImage, planUpload } from './upload.plan';
 import {
   applyClaim,
   applyRetry,
@@ -213,10 +213,10 @@ export class UploadsService implements OnModuleInit {
   // Danh sach upload cho thu vien "Tap tin" cua CMS (kem trang thai transcode).
   listUploads(): (UploadRecord & { transcode: string; posterUrl: string })[] {
     return [...this.records.values()].map((rec) => {
-      // 'failed' la gia tri ngoai enum do sua tay trong DB (09/11): chuan
-      // hoa ve 'error' de Thu vien/D2/bo loc hien dung (xem
-      // canonicalUploadStatus). Ban ghi moi chi dung 'error'.
-      const status = canonicalUploadStatus(rec.status);
+      // Trang thai doc thang tu enum UploadStatus (chi 5 gia tri chuan;
+      // ban ghi 'failed' ngoai enum duy nhat ngay 09/11 da sua ve 'error'
+      // trong DB nen khong can chuan hoa o diem doc nua).
+      const status = rec.status;
       const done = status === 'done' || (!!rec.videoId && this.videoHls.has(rec.videoId));
       return {
         ...rec,
@@ -437,7 +437,8 @@ export class UploadsService implements OnModuleInit {
 
   // Worker don chunk do dang >24h (GĐ3 Buoc 0 / B1): danh dau cac ban ghi
   // con 'pending' -> 'error' kem ly do (khong dung 'failed' — ngoai enum
-  // UploadStatus, xem canonicalUploadStatus). Chi doi khi con 'pending'
+  // UploadStatus; ban ghi 'failed' duy nhat ngay 09/11 da sua ve 'error'
+  // trong DB). Chi doi khi con 'pending'
   // (update co dieu kien): ban ghi da uploaded/processing/done/error thi
   // bo qua (dua vao skippedIds) — tranh huy 1 upload vua hoan tat sau
   // khi worker quet dia. DB la source of truth; dong bo lai in-memory

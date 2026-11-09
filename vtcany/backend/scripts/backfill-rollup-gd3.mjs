@@ -7,7 +7,8 @@
 //
 // Mac dinh: from=2026-11-05, to=ngay VN hom qua; doi soat 05/11, 08/11,
 // 09/11 (chi cac ngay trong [from..to]). API base mac dinh
-// http://127.0.0.1:3001 (backend trong cung container); secret lay tu env
+// http://127.0.0.1:3001/api/v1 (backend trong cung container, co prefix
+// /api/v1 — main.ts setGlobalPrefix('api/v1')); secret lay tu env
 // MEDIA_WEBHOOK_SECRET (giong endpoint internal, giong script chan doan
 // 0.1). DATABASE_URL lay tu env container cho phan doi soat.
 //
@@ -80,7 +81,7 @@ function dateRange(from, to) {
 }
 
 function parseArgs(argv) {
-  const opts = { from: DEFAULT_FROM, to: null, dates: null, apiBase: 'http://127.0.0.1:3001', reconcileOnly: false, backup: null, skipBackupCheck: false };
+  const opts = { from: DEFAULT_FROM, to: null, dates: null, apiBase: 'http://127.0.0.1:3001/api/v1', reconcileOnly: false, backup: null, skipBackupCheck: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const val = (name) => {
