@@ -74,6 +74,27 @@ export class CatalogController {
     throw new HttpException({ error: { code: 'forbidden', message: 'missing permission' } }, HttpStatus.FORBIDDEN);
   }
 
+  // Gac OR cho DOC generic :entity (sua toast loi tab "Tu cam",
+  // 2026-11-09): voi entity 'banned', chap nhan catalog:read HOAC
+  // comments:view / comments:publish (nguoi duyet binh luan duoc XEM
+  // tab "Tu cam" ma khong can catalog:read); moi entity khac chi
+  // catalog:read. Ly do: endpoint list truoc day chi co
+  // @RequirePerms('catalog:read') nen PBĐT/T.PP (khong co module
+  // catalog) bi 403 moi lan mo tab "Tu cam", toast "Khong tai duoc
+  // du lieu" hien roi bang hien rong (trang thai khoi tao). Giong
+  // assertCatalogWrite: kiem tra thu cong thay cho @RequirePerms
+  // (guard hien tai chi AND), chi ap dung cho endpoint list generic.
+  private async assertCatalogRead(req: any, entity: string) {
+    let map: any = null;
+    try {
+      map = await this.roles.permissionMapForAdmin(req.user?.sub || '');
+    } catch { /* fallback duoi */ }
+    if (!map) map = fallbackPermissionMap(req.user);
+    if (hasModulePermission(map, 'catalog:read')) return;
+    if (entity === 'banned' && (hasModulePermission(map, 'comments:view') || hasModulePermission(map, 'comments:publish'))) return;
+    throw new HttpException({ error: { code: 'forbidden', message: 'missing permission' } }, HttpStatus.FORBIDDEN);
+  }
+
   private bad(e: any) {
     const msg = e?.message || 'bad request';
     const code = msg === 'not found' ? 'not_found' : msg === 'unknown entity' ? 'unknown_entity' : 'bad_request';
@@ -438,10 +459,10 @@ export class CatalogController {
   }
 
   // ---- Generic CRUD ----
-  @RequirePerms('catalog:read')
   @Get(':entity')
-  async list(@Param('entity') entity: string, @Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string) {
+  async list(@Param('entity') entity: string, @Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string, @Req() req: any) {
     try {
+      await this.assertCatalogRead(req, entity);
       return await this.catalog.list(entity, { page: Number(page) || 1, limit: Number(limit) || 20, q });
     } catch (e) { this.bad(e); }
   }
