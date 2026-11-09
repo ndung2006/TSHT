@@ -40,3 +40,5 @@ docker-compose up -d
 ```
 
 Xem chi tiết: `docs/setup.md`, `docs/architecture.md`.
+
+Worker thật = backend chạy với `WORKER_MODE=true` (cùng image/Dockerfile backend); thư mục `vtcany/worker/` cũ đã xóa, không dùng nữa.

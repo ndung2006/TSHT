@@ -6,8 +6,8 @@ import { parseCleanupMetaRequest } from './comments-helpers';
 // Endpoint noi bo cho worker don IP/User-Agent binh luan cu (thiet ke
 // §6.2, them sau khi subagent worker phat hien worker khong co Prisma/pg
 // nen khong the truy van DB truc tiep). Worker goi POST
-// /internal/cleanup-old-comment-meta voi 2 op (xem
-// vtcany/worker/src/cleanup-old-comment-meta.ts):
+// /internal/cleanup-old-comment-meta voi 2 op (job phia worker chua co
+// caller live — chi endpoint backend ton tai):
 //   { op: 'list',  cutoff: <ISO> } -> { rows: [{ id, createdAt, ip, userAgent }] }
 //   { op: 'clear', ids: string[] } -> { cleared: number }
 // Guard bang shared secret MEDIA_WEBHOOK_SECRET (header x-webhook-secret),

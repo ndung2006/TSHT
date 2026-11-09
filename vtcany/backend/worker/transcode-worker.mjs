@@ -418,9 +418,9 @@ export function shouldCallChunkCleanup(lastCallMs, nowMs, intervalMs = 3600000) 
 }
 
 /**
- * Quet storage/raw/<id>/ va don chunk do dang — TAI DUNG quy tac an toan
- * cua vtcany/worker/src/cleanup-stale-chunks.ts (code chet, khong duoc
- * Coolify deploy — worker live nay la ban chay that):
+ * Quet storage/raw/<id>/ va don chunk do dang — quy tac an toan
+ * (worker live nay chay trong image backend, khong phai thu muc
+ * vtcany/worker/ rieng — thu muc do da xoa):
  * - Chi xet thu muc raw/<id>/; file gop raw/<id>-<ten> nam NGOAI thu muc
  *   nen khong bao gio bi cham.
  * - Chi don khi chunk moi nhat (hoac mtime thu muc neu rong) cu hon
