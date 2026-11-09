@@ -20,6 +20,7 @@ import {
   EPG_TODAY_ALERT_CUTOFF_HOUR,
   EPG_TODAY_ALERT_CUTOFF_MINUTE,
   OPS_WINDOW_DAYS,
+  ROLLUP_STALE_HOURS,
   STUCK_THRESHOLD_HOURS,
   WIDGET_META,
   isNewsroomWide,
@@ -42,6 +43,7 @@ import {
   median,
   passesStructureCutoff,
   periodRange,
+  rollupStaleInfo,
   sumMediaSizes,
   sumMembersForStep,
   vnDayRange,
@@ -1161,7 +1163,8 @@ export class DashboardService {
   /** D5: canh bao van hanh — EPG hom nay trong (CHI sau gio chot hang
    *  ngay 07:30, vi AIO len lich cua mot ngay luc 07:05 sang chinh ngay
    *  do nen truoc 07:30 kenh chua co lich hom nay la binh thuong),
-   *  so bao 7 ngay toi chua duyet, quang cao het han 7 ngay toi.
+   *  so bao 7 ngay toi chua duyet, quang cao het han 7 ngay toi,
+   *  so lieu luot xem chua cap nhat (rollup dung qua 26 gio).
    *  Canh bao EPG ngay mai da bo (lich ngay mai chua len AIO nen
    *  luon sai). Radio khong co nguon EPG KHONG ban canh bao (state
    *  'no-source' bi loai, chi giu reason giai thich o B3). */
@@ -1195,8 +1198,24 @@ export class DashboardService {
       select: { id: true, publicId: true, name: true, placement: true, endsAt: true },
       orderBy: { endsAt: 'asc' },
     }).catch(() => []);
+    // Canh bao "So lieu luot xem chua cap nhat" (Buoc 0.5, GĐ3): khong
+    // co bang ghi thoi diem rollup thanh cong, nen dung MAX(vn_date) o
+    // 2 bang daily lam moc dai dien — ngay VN moi nhat da duoc gop.
+    // Ngay D ket thuc luc 00:00 VN ngay D+1 (vnDayRange(D).to); qua
+    // ROLLUP_STALE_HOURS gio sau moc do ma van chua co dong daily moi
+    // thi rollup (job gio / goi tay) da dung qua lau. Lay MAX lon hon
+    // trong 2 bang (1 luot rollup gop ca 2); ca 2 bang deu trong thi coi
+    // nhu chua tung gop thanh cong. Luu y: ngay khong co dong tho thi
+    // rollup khong sinh dong daily ao, nen moc nay chi la dai dien cho
+    // lan gop thanh cong gan nhat, khong phai thoi diem chay that.
+    const pvMax = await db.pageViewDaily.aggregate({ _max: { vnDate: true } }).catch(() => null);
+    const chMax = await db.channelTelemetryDaily.aggregate({ _max: { vnDate: true } }).catch(() => null);
+    const pvLastDate = pvMax?._max?.vnDate ? vnTodayStr(new Date(pvMax._max.vnDate)) : null;
+    const chLastDate = chMax?._max?.vnDate ? vnTodayStr(new Date(chMax._max.vnDate)) : null;
+    const viewsStale = rollupStaleInfo(pvLastDate, chLastDate, ROLLUP_STALE_HOURS, now);
     return {
       data: {
+        viewsStale,
         epgTodayEmpty: epgEmpty,
         issuesUnapproved: issues.map((r: any) => ({
           id: r.id, publicId: r.publicId, title: r.title || `Số ${r.issueNumber}`,

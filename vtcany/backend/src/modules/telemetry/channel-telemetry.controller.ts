@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, HttpException, HttpStatus, Logger, Post, Query, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { ChannelTelemetryService } from './channel-telemetry.service';
@@ -54,6 +54,8 @@ class ChannelHeartbeatDto {
 
 @Controller()
 export class ChannelTelemetryController {
+  private readonly logger = new Logger(ChannelTelemetryController.name);
+
   constructor(
     private readonly telemetry: ChannelTelemetryService,
     private readonly config: ConfigService,
@@ -79,6 +81,16 @@ export class ChannelTelemetryController {
       if (e?.message?.startsWith('INVALID_DATE:')) {
         throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
       }
+      // Buoc 0.5: ghi day du chi tiet loi ra log backend (ten + message
+      // + stack) thay vi nuot — loi 0.1 (PrismaClientValidationError
+      // "Unknown argument `watchedSeconds`") truoc day chi tra body
+      // generic {"error":{"code":"internal_error"...}} va khong de lai
+      // dong log nao nen kho chan doan. Body HTTP tra ve GIU NGUYEN
+      // (khong doi contract): Nest tu doi loi chua bat thanh 500.
+      this.logger.error(
+        `rollup-daily failed (date=${date ?? '(auto)'}): ${e?.name || 'Error'}: ${e?.message || e}`,
+        e?.stack,
+      );
       throw e;
     }
   }

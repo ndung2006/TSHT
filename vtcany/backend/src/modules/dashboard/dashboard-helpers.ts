@@ -97,6 +97,33 @@ export function isOverdue(enteredAt: Date | number, thresholdHours: number, now 
   return waitHours(enteredAt, now) > thresholdHours;
 }
 
+/** Buoc 0.5 (GĐ3): quyet dinh canh bao D5 "So lieu luot xem chua cap
+ *  nhat" tu MAX(vn_date) o 2 bang daily (ngay VN moi nhat da duoc gop
+ *  cua moi bang; null = bang trong, chua tung co dong daily). Ngay D
+ *  ket thuc luc 00:00 VN ngay D+1 (vnDayRange(D).to); qua
+ *  `thresholdHours` gio sau moc do ma van chua co dong daily moi thi
+ *  tra doi tuong canh bao, neu khong tra null. Moc lay MAX lon hon
+ *  trong 2 bang (1 luot rollup gop ca 2). Luu y: ngay khong co dong tho
+ *  thi rollup khong sinh dong daily ao, nen moc nay chi la dai dien cho
+ *  lan gop thanh cong gan nhat, khong phai thoi diem chay that. */
+export function rollupStaleInfo(
+  pageViewLastDate: string | null,
+  channelLastDate: string | null,
+  thresholdHours: number,
+  now = new Date(),
+): { lastRollupDate: string | null; pageViewLastDate: string | null; channelLastDate: string | null; staleHours: number | null } | null {
+  const lastRollupDate = [pageViewLastDate, channelLastDate].filter(Boolean).sort().pop() ?? null;
+  const staleSinceMs = lastRollupDate ? vnDayRange(lastRollupDate).to.getTime() : null;
+  const staleHours = staleSinceMs === null ? null : (now.getTime() - staleSinceMs) / 3600_000;
+  if (staleHours !== null && staleHours <= thresholdHours) return null;
+  return {
+    lastRollupDate,
+    pageViewLastDate,
+    channelLastDate,
+    staleHours: staleHours === null ? null : Math.floor(staleHours),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Phan loai tren approval (dung chung cho widget va danh sach drill-down)
 // ---------------------------------------------------------------------------

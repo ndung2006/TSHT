@@ -127,3 +127,11 @@ export const EPG_CACHE_TTL_MS = 12 * 60 * 1000;
 
 // Cua so canh bao D5: so bao / quang cao trong 7 ngay toi.
 export const OPS_WINDOW_DAYS = 7;
+
+// Nguong canh bao D5 "So lieu luot xem chua cap nhat" (Buoc 0.5, GĐ3):
+// so gio toi da tu luc ngay VN moi nhat da gop ket thuc (00:00 VN ngay
+// hom sau) den luc kiem tra. Job rollup chay moi gio nen ngay hom qua
+// thuong duoc gop trong vong 1 gio sau nua dem; qua 26 gio ma van chua
+// co dong daily moi thi rollup da dung qua lau (vi du 0.1 ngay 09/11:
+// MAX(vn_date)=07/11, moc het han 09/11 02:00 VN).
+export const ROLLUP_STALE_HOURS = 26;
