@@ -8,6 +8,7 @@ import {
   vnTodayStr,
   vnDayRange,
   periodRange,
+  rollupStaleInfo,
 } from './dashboard-helpers.ts';
 
 test('vnDateForDb: ngay UTC cua instant bang dung ngay VN', () => {
@@ -80,4 +81,47 @@ test('12.5 periodRange today/7d/30d: ket thuc hom nay (bao gom hom nay)', () => 
   assert.equal(d30.from.toISOString(), '2026-10-08T17:00:00.000Z');
   assert.equal(d30.to.toISOString(), '2026-11-07T17:00:00.000Z');
   assert.equal(Math.round((d30.to.getTime() - d30.from.getTime()) / 86400000), 30);
+});
+
+// --- Buoc 0.5 (GĐ3): canh bao D5 "So lieu luot xem chua cap nhat" ---
+// Nguong 26 gio tinh tu luc ngay VN moi nhat da gop ket thuc (00:00 VN
+// ngay hom sau). Moc gio VN viet duoi dang ISO +07:00.
+test('rollupStaleInfo: truong hop 0.1 (MAX=07/11, kiem 09/11 11:38 VN) -> stale', () => {
+  const now = new Date('2026-11-09T11:38:00+07:00');
+  const r = rollupStaleInfo('2026-11-07', '2026-11-07', 26, now);
+  assert.ok(r, 'phai co canh bao');
+  assert.equal(r.lastRollupDate, '2026-11-07');
+  assert.equal(r.pageViewLastDate, '2026-11-07');
+  assert.equal(r.channelLastDate, '2026-11-07');
+  // Ngay 07/11 ket thuc 08/11 00:00 VN; den 09/11 11:38 VN la 35 gio.
+  assert.equal(r.staleHours, 35);
+});
+
+test('rollupStaleInfo: ngay hom qua da gop, kiem trong ngay -> khong stale', () => {
+  const now = new Date('2026-11-09T11:38:00+07:00');
+  assert.equal(rollupStaleInfo('2026-11-08', '2026-11-08', 26, now), null);
+});
+
+test('rollupStaleInfo: dung 26 gio sau moc thi chua stale, qua 1 giay thi stale', () => {
+  // Ngay 07/11 ket thuc 08/11 00:00 VN; +26 gio = 09/11 02:00 VN.
+  assert.equal(rollupStaleInfo('2026-11-07', '2026-11-07', 26, new Date('2026-11-09T02:00:00+07:00')), null);
+  const r = rollupStaleInfo('2026-11-07', '2026-11-07', 26, new Date('2026-11-09T02:00:01+07:00'));
+  assert.ok(r, 'qua nguong 26 gio phai stale');
+  assert.equal(r.staleHours, 26);
+});
+
+test('rollupStaleInfo: ca 2 bang trong -> stale, lastRollupDate/staleHours null', () => {
+  const r = rollupStaleInfo(null, null, 26, new Date('2026-11-09T11:38:00+07:00'));
+  assert.ok(r, 'chua tung gop thanh cong thi phai canh bao');
+  assert.equal(r.lastRollupDate, null);
+  assert.equal(r.staleHours, null);
+});
+
+test('rollupStaleInfo: lay MAX lon hon trong 2 bang lam moc', () => {
+  const now = new Date('2026-11-09T11:38:00+07:00');
+  // pageview da gop 08/11 (moi), channel moi 07/11 -> moc chung 08/11.
+  const r = rollupStaleInfo('2026-11-08', '2026-11-07', 26, now);
+  assert.equal(r, null);
+  const r2 = rollupStaleInfo('2026-11-07', '2026-11-08', 26, now);
+  assert.equal(r2, null);
 });
