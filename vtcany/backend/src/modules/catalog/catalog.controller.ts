@@ -460,7 +460,7 @@ export class CatalogController {
 
   // ---- Generic CRUD ----
   @Get(':entity')
-  async list(@Param('entity') entity: string, @Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string, @Req() req: any) {
+  async list(@Req() req: any, @Param('entity') entity: string, @Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string) {
     try {
       await this.assertCatalogRead(req, entity);
       return await this.catalog.list(entity, { page: Number(page) || 1, limit: Number(limit) || 20, q });
